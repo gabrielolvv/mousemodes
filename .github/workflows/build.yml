@@ -1,7 +1,7 @@
 name: Build
 
 # - Todo push/PR: compila o app e o instalador e guarda como artefato do run.
-# - Tag "v*" (ex.: v1.2.0): faz o mesmo e publica uma Release com os dois arquivos.
+# - Tag "v*" (ex.: v1.2.0): faz o mesmo e anexa o instalador (MouseModes-Setup.exe) à Release.
 #   A versão da tag precisa bater com o arquivo VERSION.
 
 on:
@@ -67,8 +67,9 @@ jobs:
         with:
           name: MouseModes-${{ github.sha }}
           path: dist
+      # Só o instalador vai para a Release: um arquivo, um clique.
       - uses: softprops/action-gh-release@v2
         with:
           name: MouseModes ${{ github.ref_name }}
-          files: dist/*.exe
-          generate_release_notes: true
+          files: dist/MouseModes-Setup.exe
+          fail_on_unmatched_files: true

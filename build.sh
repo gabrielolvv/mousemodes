@@ -1,5 +1,6 @@
 #!/bin/sh
-# Gera dist/MouseModes.exe (.NET Framework 4.8, já vem no Windows 10/11) e o instalador.
+# Gera dist/MouseModes.exe (.NET Framework 4.8, já vem no Windows 10/11) e dist/MouseModes-Setup.exe.
+# O instalador tem nome fixo (sem versão) para o link "releases/latest/download/MouseModes-Setup.exe" sempre funcionar.
 #
 # Requer: mono-devel (mcs + /usr/lib/mono/4.8-api) e nsis (makensis).
 #   Ubuntu/Debian: sudo apt-get install mono-devel nsis
@@ -32,5 +33,5 @@ echo "app: dist/MouseModes.exe ($VERSION)"
 [ "$1" = "app" ] && exit 0
 
 makensis -V2 -DVERSION="$VERSION" -DEXE=../dist/MouseModes.exe \
-    -DOUTFILE="../dist/MouseModes-Setup-$VERSION.exe" installer/MouseModes.nsi
-echo "instalador: dist/MouseModes-Setup-$VERSION.exe"
+    -DOUTFILE="../dist/MouseModes-Setup.exe" installer/MouseModes.nsi
+echo "instalador: dist/MouseModes-Setup.exe ($VERSION)"

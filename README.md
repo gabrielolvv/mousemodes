@@ -3,22 +3,25 @@
 App para Windows 10/11 que alterna o mouse e o PC entre dois modos: **Performance** (jogos) e **Dia a dia**.
 Troca pela tela principal, por atalho global ou sozinho quando um jogo abre.
 
+<p align="center">
+  <a href="https://github.com/gabrielolvv/mousemodes/releases/latest/download/MouseModes-Setup.exe">
+    <img alt="Baixar instalador para Windows" src="https://img.shields.io/badge/Baixar%20instalador-Windows%2010%2F11-E84C28?style=for-the-badge&logo=windows&logoColor=white" height="48">
+  </a>
+</p>
+
 ![Telas do MouseModes](docs/preview.png)
 
 ## Instalar
 
-Baixe o `MouseModes-Setup-x.y.z.exe` mais recente em **Releases** e abra.
+1. Clique em **Baixar instalador** acima.
+2. Abra o `MouseModes-Setup.exe` e clique em **Próximo** até o fim.
 
-- Instala só para o seu usuário, em `%LOCALAPPDATA%\Programs\MouseModes`. Não precisa de administrador.
-- Cria o atalho no menu Iniciar e, opcionalmente, na área de trabalho e no "Iniciar com o Windows".
-- Se uma versão estiver aberta, o instalador fecha o app (que restaura tudo) antes de atualizar.
-- Para desinstalar, use Configurações → Aplicativos instalados → MouseModes. A desinstalação volta o mouse e a
-  energia ao modo Dia a dia, tira o app do "Iniciar com o Windows" e pergunta se deve apagar as configurações.
+Na primeira vez o Windows pode mostrar "O Windows protegeu o computador", porque o app não é assinado digitalmente:
+clique em **Mais informações → Executar assim mesmo**.
 
-Prefere sem instalar? O `MouseModes.exe` da Release também roda direto, com dois cliques.
-
-> O app não é assinado digitalmente. Na primeira vez, o Windows pode mostrar "O Windows protegeu o computador":
-> clique em **Mais informações → Executar assim mesmo**.
+- Instala só para o seu usuário, sem pedir administrador, e cria o atalho no menu Iniciar.
+- Para atualizar, baixe e rode o instalador de novo: ele fecha a versão aberta e mantém suas configurações.
+- Para desinstalar: Configurações → Aplicativos instalados → MouseModes. O mouse e a energia voltam ao modo Dia a dia.
 
 ## O que cada modo faz
 
@@ -70,7 +73,7 @@ Configuração em `%APPDATA%\MouseModes\config.xml`.
 ```
 src/                 código C# (WinForms, .NET Framework 4.8)
 installer/           script do instalador (NSIS)
-build.sh             gera dist/MouseModes.exe e dist/MouseModes-Setup-x.y.z.exe
+build.sh             gera dist/MouseModes.exe e dist/MouseModes-Setup.exe
 VERSION              versão do app e do instalador
 .github/workflows/   CI: build a cada push e Release a cada tag
 ```
@@ -97,7 +100,8 @@ dotnet build src/MouseModes.csproj -c Release
 
 1. Atualize o arquivo `VERSION` (ex.: `1.2.0`) e faça commit.
 2. Crie e envie a tag: `git tag v1.2.0 && git push origin v1.2.0`.
-3. O GitHub Actions compila, confere se a tag bate com `VERSION` e publica a Release com o `.exe` e o instalador.
+3. O GitHub Actions compila, confere se a tag bate com `VERSION` e anexa o `MouseModes-Setup.exe` à Release.
+   O botão de download do README sempre aponta para o instalador da Release mais recente.
 
 Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópia aberta restaurando tudo) e
 `--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador.

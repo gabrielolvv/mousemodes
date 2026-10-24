@@ -13,7 +13,7 @@ SetCompressor /SOLID lzma
   !define EXE "..\dist\MouseModes.exe"
 !endif
 !ifndef OUTFILE
-  !define OUTFILE "..\dist\MouseModes-Setup-${VERSION}.exe"
+  !define OUTFILE "..\dist\MouseModes-Setup.exe"
 !endif
 
 !define APPNAME "MouseModes"
