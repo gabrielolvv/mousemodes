@@ -97,6 +97,9 @@ namespace MouseModes
         public bool DisableAccessibilityHotkeys { get; set; }
         public bool SilenceNotifications { get; set; }
 
+        /// <summary>DPI que a pessoa informou no teste de mira (0 = não informado).</summary>
+        public int AimTestDpi { get; set; }
+
         /// <summary>Atalho global preferido (índice em HotkeyWindow.Choices).</summary>
         public int Hotkey { get; set; }
 

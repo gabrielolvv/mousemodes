@@ -51,8 +51,11 @@ namespace MouseModes
             try { PowerSettings.Apply(profile, warnings); }
             catch (Exception ex) { warnings.Add(ex.Message); }
 
-            try { DpiController.Apply(profile, warnings); }
-            catch (Exception ex) { warnings.Add("DPI: " + ex.Message); }
+            if (Features.DpiControl)
+            {
+                try { DpiController.Apply(profile, warnings); }
+                catch (Exception ex) { warnings.Add("DPI: " + ex.Message); }
+            }
 
             Current = mode;
             CurrentProfile = profile;

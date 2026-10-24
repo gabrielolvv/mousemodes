@@ -8,8 +8,9 @@
 # Compila contra as referências exatas do .NET 4.8: compilar contra a biblioteca padrão do Mono
 # pode gerar chamadas que não existem no Windows (já aconteceu com String.Split).
 #
-# Uso: ./build.sh            -> app + instalador
+# Uso: ./build.sh            -> app + instalador (versão pública)
 #      ./build.sh app        -> só o app
+#      ./build.sh pessoal    -> dist/MouseModes-Pessoal.exe, com controle de DPI do Darmoshark (DPI_CONTROL)
 set -e
 cd "$(dirname "$0")"
 
@@ -23,11 +24,21 @@ cat > src/obj/Version.g.cs <<CS
 [assembly: System.Reflection.AssemblyInformationalVersion("$VERSION")]
 CS
 
-mcs -target:winexe -platform:anycpu -optimize+ -langversion:7 -warn:4 -warnaserror+ \
-    -win32icon:src/app.ico \
-    -nostdlib -r:$A/mscorlib.dll -r:$A/System.dll -r:$A/System.Core.dll \
-    -r:$A/System.Windows.Forms.dll -r:$A/System.Drawing.dll -r:$A/System.Xml.dll \
-    -out:dist/MouseModes.exe src/*.cs src/obj/Version.g.cs
+compile() { # $1 = exe de saída, $2 = defines extras
+    mcs -target:winexe -platform:anycpu -optimize+ -langversion:7 -warn:4 -warnaserror+ \
+        -win32icon:src/app.ico $2 \
+        -nostdlib -r:$A/mscorlib.dll -r:$A/System.dll -r:$A/System.Core.dll \
+        -r:$A/System.Windows.Forms.dll -r:$A/System.Drawing.dll -r:$A/System.Xml.dll \
+        -out:"$1" src/*.cs src/obj/Version.g.cs
+}
+
+if [ "$1" = "pessoal" ]; then
+    compile dist/MouseModes-Pessoal.exe -define:DPI_CONTROL
+    echo "pessoal: dist/MouseModes-Pessoal.exe ($VERSION, com controle de DPI)"
+    exit 0
+fi
+
+compile dist/MouseModes.exe
 echo "app: dist/MouseModes.exe ($VERSION)"
 
 [ "$1" = "app" ] && exit 0

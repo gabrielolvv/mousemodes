@@ -7,7 +7,11 @@ using System.Windows.Forms;
 
 namespace MouseModes
 {
-    /// <summary>O que o teste de mira precisa do resto do app (DPI do mouse, aplicar resultado).</summary>
+    /// <summary>
+    /// O que o teste de mira precisa do resto do app. Na versão pública só CurrentDpi/SaveDpi/CurrentProfile
+    /// existem: o teste sugere o DPI e a pessoa troca no programa do próprio mouse. Os demais (trocar o DPI
+    /// sozinho e aplicar no Performance) só existem no build pessoal (DPI_CONTROL).
+    /// </summary>
     public class AimTestHost
     {
         /// <summary>Estágios do mouse, ou null se não houver Darmoshark compatível.</summary>
@@ -18,8 +22,10 @@ namespace MouseModes
         public Action Restore;
         /// <summary>Grava no modo Performance: (estágio ou -1, DPI exato ou 0).</summary>
         public Action<int, int> ApplyToPerformance;
-        /// <summary>DPI em uso agora (texto), para mostrar no teste rápido.</summary>
-        public Func<string> CurrentDpi;
+        /// <summary>DPI em uso agora (0 = não sabe), para preencher o campo "Seu DPI".</summary>
+        public Func<int> CurrentDpi;
+        /// <summary>Guarda o DPI digitado para a próxima vez.</summary>
+        public Action<int> SaveDpi;
         public Func<MouseProfile> CurrentProfile;
     }
 
@@ -100,7 +106,14 @@ namespace MouseModes
 
         private Phase phase = Phase.Intro;
         private DpiStages stages;
-        private readonly List<RoundResult> rounds = new List<RoundResult>();
+        /// <summary>Rodadas do teste rápido enquanto o app estiver aberto: dá para trocar o DPI e comparar.</summary>
+        private static readonly List<RoundResult> History = new List<RoundResult>();
+        private const int HistoryMax = 6;
+        private List<RoundResult> rounds = History;
+        private bool comparing;
+        private int compareTotal;
+        private readonly TextBox dpiBox;
+        private readonly FieldHost dpiHost;
         private readonly Queue<int> pendingStages = new Queue<int>();
         private RoundResult round;
         private double phaseStart;
@@ -130,6 +143,15 @@ namespace MouseModes
             arena.MouseMove += (s, e) => OnArenaMove(e.Location);
             arena.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) OnArenaClick(e.Location); };
             Controls.Add(arena);
+
+            dpiBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(12f), TextAlign = HorizontalAlignment.Center, MaxLength = 5 };
+            dpiBox.KeyPress += (s, e) =>
+            {
+                if (e.KeyChar == '\r') { e.Handled = true; StartQuick(); }
+                else if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar)) e.Handled = true;
+            };
+            dpiHost = new FieldHost(dpiBox) { Size = new Size(180, 40), Accent = Theme.PerfB };
+            arena.Controls.Add(dpiHost);
 
             quickButton = new NeonButton { Text = "Teste rápido (20 s)", Style = ButtonStyle.Primary, Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             compareButton = new NeonButton { Text = "Comparar DPIs", Glyph = GlyphKind.Gauge, Location = new Point(272, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
@@ -174,15 +196,22 @@ namespace MouseModes
         {
             phase = Phase.Intro;
             RestoreDpi();
-            rounds.Clear();
             pendingStages.Clear();
-            quickButton.Visible = compareButton.Visible = true;
+            bool canCompare = host.SetStage != null && stages != null && CompareCandidates().Count >= 2;
+            quickButton.Visible = true;
+            compareButton.Visible = canCompare;
             applyButton.Visible = againButton.Visible = false;
-            bool canCompare = stages != null && CompareCandidates().Count >= 2;
-            compareButton.Enabled = canCompare;
             footer.Text = canCompare
                 ? "Comparar DPIs troca o DPI do seu mouse a cada rodada (" + string.Join(", ", CompareCandidates().ConvertAll(i => stages.Values[i].ToString()).ToArray()) + ") e volta ao normal no fim."
-                : "Comparar DPIs precisa de um mouse Darmoshark compatível conectado.";
+                : "Não sabe o DPI? Veja no programa do seu mouse. Para comparar, troque o DPI lá e faça o teste de novo: os resultados ficam lado a lado.";
+
+            if (dpiBox.Text.Length == 0 && host.CurrentDpi != null)
+            {
+                int current = host.CurrentDpi();
+                if (current > 0) dpiBox.Text = current.ToString();
+            }
+            dpiHost.Location = new Point((arena.Width - dpiHost.Width) / 2, (int)(arena.Height * 0.79f));
+            dpiHost.Visible = true;
             arena.Cursor = Cursors.Default;
             arena.Mode = AimArena.View.Intro;
             arena.Invalidate();
@@ -205,18 +234,32 @@ namespace MouseModes
 
         private void StartQuick()
         {
-            rounds.Clear();
+            if (phase != Phase.Intro) return;
             pendingStages.Clear();
-            string dpi = host.CurrentDpi != null ? host.CurrentDpi() : "";
-            int dpiValue;
-            int.TryParse(dpi, out dpiValue);
-            BeginRound(new RoundResult { Label = dpiValue > 0 ? dpiValue + " DPI" : "DPI atual", Dpi = dpiValue }, QuickSeconds);
+            comparing = false;
+            rounds = History;
+            int dpi;
+            if (int.TryParse(dpiBox.Text, out dpi) && dpi > 0)
+            {
+                dpi = RoundDpi(dpi);
+                dpiBox.Text = dpi.ToString();
+                if (host.SaveDpi != null) host.SaveDpi(dpi);
+            }
+            else dpi = 0;
+            BeginRound(new RoundResult { Label = dpi > 0 ? dpi + " DPI" : "DPI ?", Dpi = dpi }, QuickSeconds);
+        }
+
+        /// <summary>Arredonda para 50 em 50, como a maioria dos programas de mouse.</summary>
+        private static int RoundDpi(double dpi)
+        {
+            return Math.Max(100, Math.Min(26000, (int)Math.Round(dpi / 50) * 50));
         }
 
         private void StartCompare()
         {
-            rounds.Clear();
             pendingStages.Clear();
+            comparing = true;
+            rounds = new List<RoundResult>();
             // Ordem embaralhada: assim o aquecimento não favorece sempre o mesmo DPI.
             var order = CompareCandidates();
             for (int i = order.Count - 1; i > 0; i--)
@@ -225,6 +268,7 @@ namespace MouseModes
                 int tmp = order[i]; order[i] = order[j]; order[j] = tmp;
             }
             foreach (int i in order) pendingStages.Enqueue(i);
+            compareTotal = order.Count;
             NextCompareRound();
         }
 
@@ -251,8 +295,8 @@ namespace MouseModes
             phase = Phase.Countdown;
             phaseStart = clock.Elapsed.TotalSeconds;
             quickButton.Visible = compareButton.Visible = applyButton.Visible = againButton.Visible = false;
-            int total = rounds.Count + 1 + pendingStages.Count;
-            footer.Text = total > 1 ? "Rodada " + (rounds.Count + 1) + " de " + total + " · Esc cancela" : "Acerte o máximo de alvos, rápido e no centro · Esc cancela";
+            dpiHost.Visible = false;
+            footer.Text = comparing ? "Rodada " + (rounds.Count + 1) + " de " + compareTotal + " · Esc cancela" : "Acerte o máximo de alvos, rápido e no centro · Esc cancela";
             arena.Cursor = Cursors.Cross;
             arena.Mode = AimArena.View.Countdown;
             arena.RoundLabel = r.Label;
@@ -287,6 +331,7 @@ namespace MouseModes
                     round.PendingMisses += targetMisses;
                     targetMisses = 0;
                     rounds.Add(round);
+                    if (!comparing && History.Count > HistoryMax) History.RemoveAt(0);
                     Log.Info(string.Format("Teste de mira: {0} · {1} acertos, {2} erros, tempo {3:0} ms, parada {4:0.00}, passou {5:0%}",
                         round.Label, round.Hits, round.Misses, round.Median(t => t.TimeMs), round.Median(t => t.EndRatio), round.OvershootRate));
                     if (pendingStages.Count > 0) NextCompareRound();
@@ -422,6 +467,7 @@ namespace MouseModes
             phase = Phase.Results;
             RestoreDpi();
             arena.Cursor = Cursors.Default;
+            dpiHost.Visible = false;
             suggestStage = -1;
             suggestCustom = 0;
 
@@ -429,53 +475,61 @@ namespace MouseModes
             RoundResult best = null;
             foreach (var r in rounds)
                 if (r.Hits > 0 && (best == null || r.Score > best.Score)) best = r;
+            // Comparação automática: analisa o melhor DPI. Teste rápido: a rodada que acabou de jogar.
+            RoundResult focus = comparing ? best : (rounds.Count > 0 ? rounds[rounds.Count - 1] : null);
 
-            if (best == null)
+            if (focus == null || focus.Hits == 0)
             {
                 lines.Add("Nenhum alvo acertado. Tente de novo com calma: o objetivo é acertar rápido e no centro.");
             }
             else
             {
-                double end = best.Median(t => t.EndRatio);
-                double corr = best.Average(t => t.Corrections);
-                double offset = best.Average(t => t.ClickOffset);
+                double end = focus.Median(t => t.EndRatio);
+                double corr = focus.Average(t => t.Corrections);
+                double offset = focus.Average(t => t.ClickOffset);
 
-                if (rounds.Count > 1)
+                if (comparing)
                 {
                     lines.Add("Melhor resultado: " + best.Label + " (" + best.Score.ToString("0") + " pontos/min).");
-                    var second = rounds.FindAll(r => r != best && r.Hits > 0);
-                    second.Sort((a, b) => b.Score.CompareTo(a.Score));
-                    if (second.Count > 0 && best.Score - second[0].Score < best.Score * 0.05)
-                        lines.Add("Ficou bem perto de " + second[0].Label + ": os dois servem, escolha o que parecer mais confortável.");
+                    var others = rounds.FindAll(r => r != best && r.Hits > 0);
+                    others.Sort((a, b) => b.Score.CompareTo(a.Score));
+                    if (others.Count > 0 && best.Score - others[0].Score < best.Score * 0.05)
+                        lines.Add("Ficou bem perto de " + others[0].Label + ": os dois servem, escolha o que parecer mais confortável.");
                     if (best.StageIndex >= 0) suggestStage = best.StageIndex;
+                }
+                else if (best != null && best != focus && rounds.Count > 1)
+                {
+                    lines.Add("Seu melhor resultado até agora: " + best.Label + " (" + best.Score.ToString("0") + " pontos/min, contra " +
+                              focus.Score.ToString("0") + " agora).");
                 }
 
                 // Parada do 1º movimento: >1 passa do alvo (rápido demais), <1 para antes (lento demais).
-                if (end > 1.10 || best.OvershootRate > 0.35)
+                if (end > 1.10 || focus.OvershootRate > 0.35)
                 {
-                    lines.Add("Você costuma passar do alvo (" + best.OvershootRate.ToString("0%") + " das vezes) e voltar: o ponteiro está rápido para a sua mão.");
-                    if (rounds.Count == 1) Suggest(best, 0.8, lines, "mais baixo");
-                    else lines.Add("Se continuar passando, teste um DPI um pouco abaixo de " + best.Dpi + ".");
+                    lines.Add("Você costuma passar do alvo (" + focus.OvershootRate.ToString("0%") + " das vezes) e voltar: o ponteiro está rápido para a sua mão.");
+                    if (comparing) lines.Add("Se continuar passando, teste um DPI um pouco abaixo de " + focus.Dpi + ".");
+                    else Suggest(focus, 0.8, lines, "mais baixo");
                 }
                 else if (end < 0.80 && corr > 1.2)
                 {
                     lines.Add("Seu 1º movimento para antes do alvo e precisa de correções (" + corr.ToString("0.0") + " por alvo): o ponteiro está lento para a sua mão.");
-                    if (rounds.Count == 1) Suggest(best, 1.25, lines, "mais alto");
-                    else lines.Add("Se continuar parando antes, teste um DPI um pouco acima de " + best.Dpi + ".");
+                    if (comparing) lines.Add("Se continuar parando antes, teste um DPI um pouco acima de " + focus.Dpi + ".");
+                    else Suggest(focus, 1.25, lines, "mais alto");
                 }
                 else
                 {
-                    lines.Add("O 1º movimento chega no alvo (parada em " + (end * 100).ToString("0") + "% da distância): o DPI está equilibrado para a sua mão.");
+                    lines.Add("O 1º movimento chega no alvo (parada em " + (end * 100).ToString("0") + "% da distância): " +
+                              (focus.Dpi > 0 ? focus.Dpi + " DPI está" : "o DPI está") + " equilibrado para a sua mão.");
                 }
 
-                if (best.MissRate > 0.25)
-                    lines.Add("Muitos cliques fora (" + best.MissRate.ToString("0%") + "): você está clicando antes de parar no alvo. Priorize acertar; a velocidade vem com o treino.");
+                if (focus.MissRate > 0.25)
+                    lines.Add("Muitos cliques fora (" + focus.MissRate.ToString("0%") + "): você está clicando antes de parar no alvo. Priorize acertar; a velocidade vem com o treino.");
                 else if (offset > 0.6)
                     lines.Add("Os acertos estão longe do centro: mire no meio do alvo antes de clicar.");
 
                 MouseProfile current = host.CurrentProfile != null ? host.CurrentProfile() : null;
                 if (current != null && current.EnhancePointerPrecision)
-                    lines.Add("A aceleração do Windows está ligada neste modo: desligue para o mesmo gesto sempre levar ao mesmo lugar.");
+                    lines.Add("A aceleração do Windows está ligada no modo atual: use o modo Performance (ou desligue em Ajustes) para o mesmo gesto sempre levar ao mesmo lugar.");
                 if (current != null && current.PointerSpeed != 10)
                     lines.Add("Teste feito com velocidade do Windows " + current.PointerSpeed + "/20; no jogo vale DPI × sensibilidade do jogo.");
                 else
@@ -484,7 +538,8 @@ namespace MouseModes
 
             arena.Mode = AimArena.View.Results;
             arena.Rounds = rounds;
-            arena.Best = best;
+            arena.Best = rounds.Count > 1 ? best : null;
+            arena.Current = comparing ? null : focus;
             arena.Advice = lines;
             arena.Invalidate();
 
@@ -492,17 +547,30 @@ namespace MouseModes
             againButton.Visible = true;
             bool canApply = host.ApplyToPerformance != null && (suggestStage >= 0 || suggestCustom > 0);
             applyButton.Visible = canApply;
-            againButton.Location = new Point(canApply ? 362 : 20, againButton.Location.Y);
+            applyButton.Enabled = true;
+            againButton.Location = new Point(canApply ? applyButton.Right + 12 : applyButton.Left, againButton.Location.Y);
             if (canApply)
                 applyButton.Text = "Usar " + (suggestCustom > 0 ? suggestCustom : stages.Values[suggestStage]) + " DPI no Performance";
-            footer.Text = "Sugestões são um ponto de partida: repita o teste algumas vezes antes de decidir.";
+            footer.Text = comparing || host.SetStage != null
+                ? "Sugestões são um ponto de partida: repita o teste algumas vezes antes de decidir."
+                : "Trocou o DPI no programa do mouse? Clique em Testar de novo e informe o novo valor: o resultado entra na tabela.";
         }
 
-        /// <summary>Teste rápido: sugere um estágio vizinho ou um DPI exato.</summary>
+        /// <summary>Teste rápido: sugere um DPI (no build pessoal, um estágio do mouse ou um DPI exato).</summary>
         private void Suggest(RoundResult r, double factor, List<string> lines, string direction)
         {
-            if (r.Dpi <= 0 || stages == null) return;
-            int wanted = DpiController.NormalizeDpi((int)(r.Dpi * factor));
+            if (r.Dpi <= 0)
+            {
+                lines.Add("Sugestão: " + (factor < 1 ? "baixe" : "suba") + " o DPI uns 20% no programa do seu mouse e faça o teste de novo. " +
+                          "Informe o DPI no começo do teste para receber um valor exato.");
+                return;
+            }
+            int wanted = RoundDpi(r.Dpi * factor);
+            if (host.SetStage == null || stages == null)
+            {
+                lines.Add("Sugestão: no programa do seu mouse, experimente " + wanted + " DPI (" + direction + ") e faça o teste de novo para comparar.");
+                return;
+            }
             for (int i = 0; i < stages.Count; i++)
             {
                 bool ok = factor < 1 ? stages.Values[i] < r.Dpi && stages.Values[i] >= r.Dpi * 0.6
@@ -541,6 +609,7 @@ namespace MouseModes
             if (e.KeyCode == Keys.Escape && (phase == Phase.Playing || phase == Phase.Countdown))
             {
                 e.Handled = true;
+                if (round != null && comparing) rounds.Clear();
                 ShowIntro();
                 return;
             }
@@ -561,7 +630,8 @@ namespace MouseModes
         public int Hits, Misses;
         public string RoundLabel = "";
         public List<RoundResult> Rounds = new List<RoundResult>();
-        public RoundResult Best;
+        public RoundResult Best;     // melhor rodada (marcada com ★)
+        public RoundResult Current;    // rodada analisada (destacada)
         public List<string> Advice = new List<string>();
 
         private PointF flashAt;
@@ -620,17 +690,20 @@ namespace MouseModes
         private void DrawIntro(Graphics g)
         {
             float cx = Width / 2f;
-            DrawTarget(g, new PointF(cx, Height * 0.32f), 46, 1f);
+            DrawTarget(g, new PointF(cx, Height * 0.24f), 46, 1f);
             var title = Theme.Display(26f);
             using (var tb = Theme.Gradient(new RectangleF(0, 0, Width, 60), Theme.PerfA, Theme.PerfB))
-                Theme.DrawSpacedCentered(g, "TESTE DE MIRA", title, tb, new RectangleF(0, Height * 0.46f, Width, 50), 2f);
+                Theme.DrawSpacedCentered(g, "TESTE DE MIRA", title, tb, new RectangleF(0, Height * 0.38f, Width, 50), 2f);
             Theme.DrawText(g,
                 "Alvos aparecem um de cada vez. Leve o mouse até eles e clique o mais rápido e no centro que conseguir.\n" +
                 "O MouseModes mede se você passa do alvo, se para antes, quantas correções faz e a precisão do clique,\n" +
                 "e no fim sugere o que mudar no DPI.",
-                Theme.Ui(10.5f), Theme.Muted, new RectangleF(60, Height * 0.58f, Width - 120, 90), StringAlignment.Center);
-            Theme.DrawText(g, "Use a mesma pegada de quando joga · Esc cancela a rodada", Theme.Ui(9f), Theme.Faint,
-                new RectangleF(0, Height * 0.78f, Width, 24), StringAlignment.Center);
+                Theme.Ui(10.5f), Theme.Muted, new RectangleF(60, Height * 0.50f, Width - 120, 90), StringAlignment.Center);
+            using (var lb = new SolidBrush(Theme.Muted))
+                Theme.DrawSpacedCentered(g, "SEU DPI ATUAL", Theme.Ui(7.5f, FontStyle.Bold), lb,
+                    new RectangleF(0, Height * 0.79f - 22, Width, 18), 1.6f);
+            Theme.DrawText(g, "Use a mesma pegada de quando joga · Enter começa · Esc cancela a rodada", Theme.Ui(9f), Theme.Faint,
+                new RectangleF(0, Height * 0.93f, Width, 24), StringAlignment.Center);
         }
 
         private void DrawCountdown(Graphics g)
@@ -695,7 +768,7 @@ namespace MouseModes
             y += 22;
             foreach (var r in Rounds)
             {
-                bool best = r == Best;
+                bool best = Current != null ? r == Current : r == Best;
                 var row = new RectangleF(x - 12, y - 6, Width - 2 * x + 24, 34);
                 if (best)
                 {
@@ -706,7 +779,7 @@ namespace MouseModes
                 Font f = Theme.Display(12f);
                 string[] vals =
                 {
-                    r.Label,
+                    (r == Best ? "★ " : "") + r.Label,
                     r.Score.ToString("0"),
                     r.Hits.ToString(),
                     r.Misses.ToString(),

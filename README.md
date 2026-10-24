@@ -46,14 +46,10 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 
 ### Mais
 
-- **DPI do mouse** (Darmoshark M3, N3 e M3S, chip 248A): cada modo e cada jogo pode escolher um dos estágios
-  de DPI configurados no programa oficial da Darmoshark ou um **DPI exato** (OUTRO, de 50 em 50). O DPI exato
-  ocupa o estágio de valor mais próximo enquanto o modo estiver ativo; em **MANTER**, tudo volta ao que está no
-  programa oficial. Testado no M3 com cabo; 2.4G ainda não testado.
-- **Teste de mira** (botão *Testar mira e DPI*): mini-jogo de alvos que mede se você passa do alvo, se para antes,
-  quantas correções faz e a precisão do clique, e sugere o DPI. *Comparar DPIs* joga uma rodada de 15 s em cada
-  estágio (ordem embaralhada), mostra a tabela e aplica o melhor no Performance com um clique.
-- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração, plano e DPI próprios para cada jogo.
+- **Teste de mira** (botão *Testar mira e DPI*): mini-jogo de alvos de 20 s. Informe o DPI do seu mouse e jogue:
+  o app mede se você passa do alvo, se para antes, quantas correções faz e a precisão do clique, e sugere um DPI.
+  Troque o DPI no programa do seu mouse, teste de novo e compare os resultados lado a lado (a melhor rodada ganha ★).
+- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração e plano próprios para cada jogo.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática.
 - **Atalho global**: Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 ou Ctrl+Shift+F12. Se o escolhido já for usado
@@ -91,6 +87,7 @@ VERSION              versão do app e do instalador
 sudo apt-get install mono-devel nsis
 ./build.sh          # app + instalador
 ./build.sh app      # só o app
+./build.sh pessoal  # build pessoal com controle de DPI do Darmoshark (não vai para a Release)
 ```
 
 Ele compila contra as referências exatas do .NET 4.8 (`/usr/lib/mono/4.8-api`). Compilar contra a biblioteca

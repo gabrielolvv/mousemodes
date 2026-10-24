@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -129,7 +130,9 @@ namespace MouseModes
             hero.ModeName = perf ? "PERFORMANCE" : "DIA A DIA";
             hero.Glyph = perf ? GlyphKind.Bolt : GlyphKind.Monitor;
             hero.Reason = reason ?? "";
-            hero.StatLabels = new[] { "DPI", "SENS", "ACEL", "ENERGIA", "USB" };
+            hero.StatLabels = Features.DpiControl
+                ? new[] { "DPI", "SENS", "ACEL", "ENERGIA", "USB" }
+                : new[] { "SENS", "ACEL", "ENERGIA", "USB" };
             hero.StatValues = Stats(profile);
             perfTile.Active = perf;
             dailyTile.Active = !perf;
@@ -267,14 +270,15 @@ namespace MouseModes
                 case PowerPlanOption.Equilibrado: power = "EQUIL."; break;
                 default: power = "PADRÃO"; break;
             }
-            return new[]
+            var values = new List<string>
             {
-                DpiController.Describe(p),
                 p.PointerSpeed + "/20",
                 p.EnhancePointerPrecision ? "ON" : "OFF",
                 power,
                 p.DisableUsbSelectiveSuspend ? "ATIVO" : "ECO"
             };
+            if (Features.DpiControl) values.Insert(0, DpiController.Describe(p));
+            return values.ToArray();
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

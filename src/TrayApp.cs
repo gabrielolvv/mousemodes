@@ -448,45 +448,59 @@ namespace MouseModes
             if (aimForm != null && !aimForm.IsDisposed) { aimForm.Activate(); return; }
             var host = new AimTestHost
             {
-                LoadStages = () =>
-                {
-                    Darmoshark.Device dev;
-                    DpiStages stages = DpiController.Load(out dev);
-                    return dev != null ? stages : null;
-                },
-                SetStage = index =>
-                {
-                    var warnings = new List<string>();
-                    DpiController.Apply(new MouseProfile { DpiStage = index }, warnings);
-                    return warnings.Count > 0 ? warnings[0] : null;
-                },
-                Restore = () =>
-                {
-                    var warnings = new List<string>();
-                    DpiController.Apply(modes.CurrentProfile, warnings);
-                    foreach (string w in warnings) Log.Warn(w);
-                },
-                CurrentDpi = () =>
-                {
-                    MouseProfile p = modes.CurrentProfile;
-                    if (DpiController.Wants(p)) return DpiController.Describe(p);
-                    DpiStages st = DpiController.LastStages;
-                    return st != null && st.ActiveIndex < st.Count ? st.Values[st.ActiveIndex].ToString() : "";
-                },
                 CurrentProfile = () => modes.CurrentProfile,
-                ApplyToPerformance = (stage, custom) =>
+                CurrentDpi = () => cfg.AimTestDpi,
+                SaveDpi = dpi =>
                 {
-                    cfg.Performance.DpiStage = stage;
-                    cfg.Performance.DpiCustom = custom;
+                    if (cfg.AimTestDpi == dpi) return;
+                    cfg.AimTestDpi = dpi;
                     SaveConfig();
-                    Log.Info("Teste de mira: DPI do Performance = " + DpiController.Describe(cfg.Performance));
-                    if (modes.Current == Mode.Performance) modes.Apply(Mode.Performance, "DPI escolhido no teste de mira");
-                    else mainForm.Invalidate(true);
                 }
             };
+            if (Features.DpiControl) AddDpiControl(host);
             aimForm = new AimTestForm(host);
             aimForm.Show();
             aimForm.Activate();
+        }
+
+        /// <summary>Build pessoal: o teste troca o DPI do Darmoshark sozinho e aplica o resultado no Performance.</summary>
+        private void AddDpiControl(AimTestHost host)
+        {
+            host.LoadStages = () =>
+            {
+                Darmoshark.Device dev;
+                DpiStages stages = DpiController.Load(out dev);
+                return dev != null ? stages : null;
+            };
+            host.SetStage = index =>
+            {
+                var warnings = new List<string>();
+                DpiController.Apply(new MouseProfile { DpiStage = index }, warnings);
+                return warnings.Count > 0 ? warnings[0] : null;
+            };
+            host.Restore = () =>
+            {
+                var warnings = new List<string>();
+                DpiController.Apply(modes.CurrentProfile, warnings);
+                foreach (string w in warnings) Log.Warn(w);
+            };
+            host.CurrentDpi = () =>
+            {
+                MouseProfile p = modes.CurrentProfile;
+                if (p.DpiCustom > 0) return DpiController.NormalizeDpi(p.DpiCustom);
+                DpiStages st = DpiController.LastStages;
+                if (st == null) return cfg.AimTestDpi;
+                int index = p.DpiStage >= 0 ? p.DpiStage : st.ActiveIndex;
+                return index < st.Count ? st.Values[index] : cfg.AimTestDpi;
+            };
+            host.ApplyToPerformance = (stage, custom) =>
+            {
+                cfg.Performance.DpiStage = stage;
+                cfg.Performance.DpiCustom = custom;
+                SaveConfig();
+                Log.Info("Teste de mira: DPI do Performance = " + DpiController.Describe(cfg.Performance));
+                if (modes.Current == Mode.Performance) modes.Apply(Mode.Performance, "DPI escolhido no teste de mira");
+            };
         }
 
         private void OpenDiagnostics()

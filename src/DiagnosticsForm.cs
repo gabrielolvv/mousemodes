@@ -96,7 +96,7 @@ namespace MouseModes
                 int colon = plan.IndexOf(':');
                 return "Plano: " + (colon >= 0 ? plan.Substring(colon + 1).Trim() : plan);
             }, "Plano"));
-            sb.AppendLine(Safe(() =>
+            if (Features.DpiControl) sb.AppendLine(Safe(() =>
             {
                 Darmoshark.Device dev;
                 DpiStages st = DpiController.Load(out dev);

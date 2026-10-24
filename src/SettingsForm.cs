@@ -47,23 +47,31 @@ namespace MouseModes
             Color pa = Theme.PerfA, pb = Theme.PerfB;
 
             // --- DPI do mouse (Darmoshark) ---
-            Darmoshark.Device dpiDevice;
-            DpiStages dpiStages = DpiController.Load(out dpiDevice);
-            string dpiNote = DpiPicker.Note(dpiDevice, dpiStages);
+            // Só no build pessoal; na versão pública o DPI é trocado no programa do próprio mouse.
+            bool dpi = Features.DpiControl;
+            DpiStages dpiStages = null;
+            string dpiNote = null;
+            if (dpi)
+            {
+                Darmoshark.Device dpiDevice;
+                dpiStages = DpiController.Load(out dpiDevice);
+                dpiNote = DpiPicker.Note(dpiDevice, dpiStages);
+            }
 
             // --- Performance / Dia a dia ---
             perfPanel = new ProfilePanel(pa, pb,
                 "Dica: velocidade 10 sem aceleração = movimento 1:1; ajuste a sensibilidade pelo DPI e dentro do jogo. " +
-                "OUTRO usa um DPI exato no lugar do estágio mais próximo. Jogos com configurações próprias usam as deles.", dpiStages, dpiNote);
+                (dpi ? "OUTRO usa um DPI exato no lugar do estágio mais próximo. " : "Para achar o DPI ideal, use Testar mira e DPI na tela inicial. ") +
+                "Jogos com configurações próprias usam as deles.", dpi, dpiStages, dpiNote);
             perfPanel.LoadProfile(cfg.Performance);
 
             dailyPanel = new ProfilePanel(a, b,
-                "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app. " +
-                "DPI em MANTER volta ao estágio que você usa no programa da Darmoshark.", dpiStages, dpiNote);
+                "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app." +
+                (dpi ? " DPI em MANTER volta ao estágio que você usa no programa da Darmoshark." : ""), dpi, dpiStages, dpiNote);
             dailyPanel.LoadProfile(cfg.Daily);
 
             // --- Jogos ---
-            gamesPanel = new GamesPanel(cfg, this, dpiStages);
+            gamesPanel = new GamesPanel(cfg, this, dpi, dpiStages);
 
             // --- Turbo ---
             var turboPanel = new Panel { BackColor = Theme.Bg };
@@ -303,7 +311,7 @@ namespace MouseModes
         private readonly Label emptyNote;
         private Entry current;
 
-        public GamesPanel(AppConfig cfg, SettingsForm owner, DpiStages dpiStages)
+        public GamesPanel(AppConfig cfg, SettingsForm owner, bool dpiControl, DpiStages dpiStages)
         {
             this.cfg = cfg;
             BackColor = Theme.Bg;
@@ -354,17 +362,17 @@ namespace MouseModes
             precision.SetAccents(a, b);
             var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 116), Size = new Size(440, 20) };
             plan = new Segmented { Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" }, Location = new Point(0, 138), Size = new Size(440, 38), AccentA = a, AccentB = b };
-            dpi = new DpiPicker(dpiStages, "", a, b) { Location = new Point(0, 178) };
+            if (dpiControl) dpi = new DpiPicker(dpiStages, "", a, b) { Location = new Point(0, 178) };
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
             editor.Controls.Add(planLabel);
             editor.Controls.Add(plan);
-            editor.Controls.Add(dpi);
+            if (dpi != null) editor.Controls.Add(dpi);
 
             emptyNote = new Label
             {
-                Text = "Escolha um jogo na lista para dar a ele configurações próprias (velocidade, aceleração, energia e DPI). Rolagem e USB seguem o modo Performance.",
+                Text = "Escolha um jogo na lista para dar a ele configurações próprias (velocidade, aceleração, energia" + (dpiControl ? " e DPI" : "") + "). Rolagem e USB seguem o modo Performance.",
                 Location = new Point(0, 250),
                 Size = new Size(440, 60),
                 ForeColor = Theme.Faint,
@@ -430,7 +438,7 @@ namespace MouseModes
             speedLabel.Invalidate();
             precision.Switch.SetChecked(current.Custom.EnhancePointerPrecision, false);
             plan.SelectedIndex = (int)current.Custom.PowerPlan;
-            dpi.Load(current.Custom);
+            if (dpi != null) dpi.Load(current.Custom);
         }
 
         private void CommitEditor()
@@ -439,7 +447,7 @@ namespace MouseModes
             current.Custom.PointerSpeed = speed.Value;
             current.Custom.EnhancePointerPrecision = precision.Switch.Checked;
             current.Custom.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
-            dpi.SaveTo(current.Custom);
+            if (dpi != null) dpi.SaveTo(current.Custom);
         }
 
         private void AddName(string raw)
@@ -569,7 +577,7 @@ namespace MouseModes
         private readonly ToggleRow usb;
         private readonly DpiPicker dpi;
 
-        public ProfilePanel(Color a, Color b, string hint, DpiStages stages, string dpiNote)
+        public ProfilePanel(Color a, Color b, string hint, bool dpiControl, DpiStages stages, string dpiNote)
         {
             BackColor = Theme.Bg;
 
@@ -610,12 +618,12 @@ namespace MouseModes
             };
             usb.SetAccents(a, b);
 
-            dpi = new DpiPicker(stages, dpiNote, a, b) { Location = new Point(0, 398) };
+            if (dpiControl) dpi = new DpiPicker(stages, dpiNote, a, b) { Location = new Point(0, 398) };
 
             var hintLabel = new Label
             {
                 Text = hint,
-                Location = new Point(0, 484),
+                Location = new Point(0, dpiControl ? 484 : 404),
                 Size = new Size(440, 64),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
@@ -631,7 +639,7 @@ namespace MouseModes
             Controls.Add(planLabel);
             Controls.Add(plan);
             Controls.Add(usb);
-            Controls.Add(dpi);
+            if (dpi != null) Controls.Add(dpi);
             Controls.Add(hintLabel);
         }
 
@@ -655,7 +663,7 @@ namespace MouseModes
             scroll.Value = Math.Max(1, p.ScrollLines);
             plan.SelectedIndex = (int)p.PowerPlan;
             usb.Switch.SetChecked(p.DisableUsbSelectiveSuspend, false);
-            dpi.Load(p);
+            if (dpi != null) dpi.Load(p);
             UpdateLabels();
         }
 
@@ -666,7 +674,7 @@ namespace MouseModes
             p.ScrollLines = scroll.Value;
             p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
-            dpi.SaveTo(p);
+            if (dpi != null) dpi.SaveTo(p);
         }
     }
 
