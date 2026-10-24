@@ -41,6 +41,9 @@ namespace MouseModes
         /// </summary>
         public int DpiStage { get; set; }
 
+        /// <summary>DPI exato (ex.: 1200). Quando maior que 0, vale no lugar de DpiStage.</summary>
+        public int DpiCustom { get; set; }
+
         public MouseProfile()
         {
             PointerSpeed = 10;

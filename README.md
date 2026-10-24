@@ -47,8 +47,12 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 ### Mais
 
 - **DPI do mouse** (Darmoshark M3, N3 e M3S, chip 248A): cada modo e cada jogo pode escolher um dos estágios
-  de DPI configurados no programa oficial da Darmoshark. O MouseModes manda os mesmos estágios e só troca o ativo;
-  em **MANTER**, volta ao estágio que você usa no programa oficial. Testado no M3 com cabo; 2.4G ainda não testado.
+  de DPI configurados no programa oficial da Darmoshark ou um **DPI exato** (OUTRO, de 50 em 50). O DPI exato
+  ocupa o estágio de valor mais próximo enquanto o modo estiver ativo; em **MANTER**, tudo volta ao que está no
+  programa oficial. Testado no M3 com cabo; 2.4G ainda não testado.
+- **Teste de mira** (botão *Testar mira e DPI*): mini-jogo de alvos que mede se você passa do alvo, se para antes,
+  quantas correções faz e a precisão do clique, e sugere o DPI. *Comparar DPIs* joga uma rodada de 15 s em cada
+  estágio (ordem embaralhada), mostra a tabela e aplica o melhor no Performance com um clique.
 - **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração, plano e DPI próprios para cada jogo.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática.

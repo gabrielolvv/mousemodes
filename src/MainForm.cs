@@ -12,6 +12,7 @@ namespace MouseModes
         public event Action SettingsRequested;
         public event Action PollingRequested;
         public event Action ClickTestRequested;
+        public event Action AimTestRequested;
         public event Action QuitRequested;
         public event Action HiddenToTray;
         public event Action MonitorFixRequested;
@@ -25,6 +26,7 @@ namespace MouseModes
         private readonly NeonButton pollingButton;
         private readonly NeonButton settingsButton;
         private readonly NeonButton clickButton;
+        private readonly NeonButton aimButton;
         private readonly Timer animTimer;
 
         private Mode mode = Mode.DiaADia;
@@ -35,7 +37,7 @@ namespace MouseModes
 
         public MainForm() : base("MouseModes", true)
         {
-            ClientSize = new Size(480, 682);
+            ClientSize = new Size(480, 736);
 
             hero = new HeroCard { Location = new Point(12, 52), Size = new Size(456, 226) };
 
@@ -81,22 +83,26 @@ namespace MouseModes
             };
             monitorRow.ActionClicked += () => Raise(MonitorFixRequested);
 
-            pollingButton = new NeonButton { Text = "Polling", Glyph = GlyphKind.Gauge, Location = new Point(20, 552), Size = new Size(104, 44) };
-            clickButton = new NeonButton { Text = "Clique", Glyph = GlyphKind.Mouse, Location = new Point(132, 552), Size = new Size(104, 44) };
-            settingsButton = new NeonButton { Text = "Ajustes", Glyph = GlyphKind.Gear, Location = new Point(244, 552), Size = new Size(104, 44) };
-            var quitButton = new NeonButton { Text = "Sair", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(356, 552), Size = new Size(104, 44) };
+            aimButton = new NeonButton { Text = "Testar mira e DPI", Glyph = GlyphKind.Target, Style = ButtonStyle.Primary, Location = new Point(20, 552), Size = new Size(440, 46) };
+            aimButton.Click += (s, e) => Raise(AimTestRequested);
+
+            pollingButton = new NeonButton { Text = "Polling", Glyph = GlyphKind.Gauge, Location = new Point(20, 606), Size = new Size(104, 44) };
+            clickButton = new NeonButton { Text = "Clique", Glyph = GlyphKind.Mouse, Location = new Point(132, 606), Size = new Size(104, 44) };
+            settingsButton = new NeonButton { Text = "Ajustes", Glyph = GlyphKind.Gear, Location = new Point(244, 606), Size = new Size(104, 44) };
+            var quitButton = new NeonButton { Text = "Sair", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(356, 606), Size = new Size(104, 44) };
             pollingButton.Click += (s, e) => Raise(PollingRequested);
             clickButton.Click += (s, e) => Raise(ClickTestRequested);
             settingsButton.Click += (s, e) => Raise(SettingsRequested);
             quitButton.Click += (s, e) => Raise(QuitRequested);
 
-            hint = new HotkeyHint { Location = new Point(20, 614), Size = new Size(440, 56) };
+            hint = new HotkeyHint { Location = new Point(20, 668), Size = new Size(440, 56) };
 
             Controls.Add(hero);
             Controls.Add(perfTile);
             Controls.Add(dailyTile);
             Controls.Add(autoRow);
             Controls.Add(monitorRow);
+            Controls.Add(aimButton);
             Controls.Add(pollingButton);
             Controls.Add(clickButton);
             Controls.Add(settingsButton);
@@ -243,6 +249,8 @@ namespace MouseModes
             settingsButton.AccentB = b;
             clickButton.AccentA = a;
             clickButton.AccentB = b;
+            aimButton.AccentA = a;
+            aimButton.AccentB = b;
             clickButton.Invalidate();
             TitleBar.Invalidate();
             pollingButton.Invalidate();

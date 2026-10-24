@@ -33,6 +33,7 @@ namespace MouseModes
         private SettingsForm settingsForm;
         private PollingRateForm pollingForm;
         private ClickTestForm clickForm;
+        private AimTestForm aimForm;
         private DiagnosticsForm diagForm;
         private IntPtr iconHandle = IntPtr.Zero;
         private string currentGame;
@@ -72,6 +73,7 @@ namespace MouseModes
             mainForm.SettingsRequested += OpenSettings;
             mainForm.PollingRequested += OpenPolling;
             mainForm.ClickTestRequested += OpenClickTest;
+            mainForm.AimTestRequested += OpenAimTest;
             mainForm.QuitRequested += Quit;
             mainForm.HiddenToTray += OnHiddenToTray;
             mainForm.MonitorFixRequested += FixMonitors;
@@ -99,6 +101,7 @@ namespace MouseModes
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(autoItem);
             menu.Items.Add(new ToolStripMenuItem("Medir polling rate...", null, (s, e) => OpenPolling()));
+            menu.Items.Add(new ToolStripMenuItem("Testar mira e DPI...", null, (s, e) => OpenAimTest()));
             menu.Items.Add(new ToolStripMenuItem("Teste de clique...", null, (s, e) => OpenClickTest()));
             menu.Items.Add(new ToolStripMenuItem("Configurações...", null, (s, e) => OpenSettings()));
             menu.Items.Add(new ToolStripMenuItem("Diagnóstico...", null, (s, e) => OpenDiagnostics()));
@@ -438,6 +441,52 @@ namespace MouseModes
             clickForm = new ClickTestForm();
             clickForm.Show();
             clickForm.Activate();
+        }
+
+        private void OpenAimTest()
+        {
+            if (aimForm != null && !aimForm.IsDisposed) { aimForm.Activate(); return; }
+            var host = new AimTestHost
+            {
+                LoadStages = () =>
+                {
+                    Darmoshark.Device dev;
+                    DpiStages stages = DpiController.Load(out dev);
+                    return dev != null ? stages : null;
+                },
+                SetStage = index =>
+                {
+                    var warnings = new List<string>();
+                    DpiController.Apply(new MouseProfile { DpiStage = index }, warnings);
+                    return warnings.Count > 0 ? warnings[0] : null;
+                },
+                Restore = () =>
+                {
+                    var warnings = new List<string>();
+                    DpiController.Apply(modes.CurrentProfile, warnings);
+                    foreach (string w in warnings) Log.Warn(w);
+                },
+                CurrentDpi = () =>
+                {
+                    MouseProfile p = modes.CurrentProfile;
+                    if (DpiController.Wants(p)) return DpiController.Describe(p);
+                    DpiStages st = DpiController.LastStages;
+                    return st != null && st.ActiveIndex < st.Count ? st.Values[st.ActiveIndex].ToString() : "";
+                },
+                CurrentProfile = () => modes.CurrentProfile,
+                ApplyToPerformance = (stage, custom) =>
+                {
+                    cfg.Performance.DpiStage = stage;
+                    cfg.Performance.DpiCustom = custom;
+                    SaveConfig();
+                    Log.Info("Teste de mira: DPI do Performance = " + DpiController.Describe(cfg.Performance));
+                    if (modes.Current == Mode.Performance) modes.Apply(Mode.Performance, "DPI escolhido no teste de mira");
+                    else mainForm.Invalidate(true);
+                }
+            };
+            aimForm = new AimTestForm(host);
+            aimForm.Show();
+            aimForm.Activate();
         }
 
         private void OpenDiagnostics()

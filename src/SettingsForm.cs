@@ -49,12 +49,12 @@ namespace MouseModes
             // --- DPI do mouse (Darmoshark) ---
             Darmoshark.Device dpiDevice;
             DpiStages dpiStages = DpiController.Load(out dpiDevice);
-            string dpiNote = DpiUi.Note(dpiDevice, dpiStages);
+            string dpiNote = DpiPicker.Note(dpiDevice, dpiStages);
 
             // --- Performance / Dia a dia ---
             perfPanel = new ProfilePanel(pa, pb,
-                "Dica: velocidade 10 sem aceleração = movimento 1:1. Ajuste a sensibilidade pelo DPI do mouse e dentro do jogo. " +
-                "Jogos com configurações próprias (aba Jogos) usam as deles.", dpiStages, dpiNote);
+                "Dica: velocidade 10 sem aceleração = movimento 1:1; ajuste a sensibilidade pelo DPI e dentro do jogo. " +
+                "OUTRO usa um DPI exato no lugar do estágio mais próximo. Jogos com configurações próprias usam as deles.", dpiStages, dpiNote);
             perfPanel.LoadProfile(cfg.Performance);
 
             dailyPanel = new ProfilePanel(a, b,
@@ -299,7 +299,7 @@ namespace MouseModes
         private readonly SectionLabel speedLabel;
         private readonly ToggleRow precision;
         private readonly Segmented plan;
-        private readonly Segmented dpi;
+        private readonly DpiPicker dpi;
         private readonly Label emptyNote;
         private Entry current;
 
@@ -354,15 +354,12 @@ namespace MouseModes
             precision.SetAccents(a, b);
             var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 116), Size = new Size(440, 20) };
             plan = new Segmented { Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" }, Location = new Point(0, 138), Size = new Size(440, 38), AccentA = a, AccentB = b };
-            var dpiLabel = new SectionLabel { Text = "DPI do mouse", Location = new Point(0, 186), Size = new Size(440, 20) };
-            dpi = DpiUi.Make(dpiStages, a, b, new Point(0, 208));
-            dpi.Height = 38;
+            dpi = new DpiPicker(dpiStages, "", a, b) { Location = new Point(0, 178) };
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
             editor.Controls.Add(planLabel);
             editor.Controls.Add(plan);
-            editor.Controls.Add(dpiLabel);
             editor.Controls.Add(dpi);
 
             emptyNote = new Label
@@ -433,7 +430,7 @@ namespace MouseModes
             speedLabel.Invalidate();
             precision.Switch.SetChecked(current.Custom.EnhancePointerPrecision, false);
             plan.SelectedIndex = (int)current.Custom.PowerPlan;
-            DpiUi.Load(dpi, current.Custom.DpiStage);
+            dpi.Load(current.Custom);
         }
 
         private void CommitEditor()
@@ -442,7 +439,7 @@ namespace MouseModes
             current.Custom.PointerSpeed = speed.Value;
             current.Custom.EnhancePointerPrecision = precision.Switch.Checked;
             current.Custom.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
-            current.Custom.DpiStage = DpiUi.Read(dpi);
+            dpi.SaveTo(current.Custom);
         }
 
         private void AddName(string raw)
@@ -570,7 +567,7 @@ namespace MouseModes
         private readonly SectionLabel scrollLabel;
         private readonly Segmented plan;
         private readonly ToggleRow usb;
-        private readonly Segmented dpi;
+        private readonly DpiPicker dpi;
 
         public ProfilePanel(Color a, Color b, string hint, DpiStages stages, string dpiNote)
         {
@@ -613,14 +610,13 @@ namespace MouseModes
             };
             usb.SetAccents(a, b);
 
-            var dpiLabel = new SectionLabel { Text = "DPI do mouse", Location = new Point(0, 404), Size = new Size(440, 20), RightText = dpiNote, RightColor = Theme.Faint };
-            dpi = DpiUi.Make(stages, a, b, new Point(0, 428));
+            dpi = new DpiPicker(stages, dpiNote, a, b) { Location = new Point(0, 398) };
 
             var hintLabel = new Label
             {
                 Text = hint,
                 Location = new Point(0, 484),
-                Size = new Size(440, 54),
+                Size = new Size(440, 64),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
                 BackColor = Color.Transparent
@@ -635,7 +631,6 @@ namespace MouseModes
             Controls.Add(planLabel);
             Controls.Add(plan);
             Controls.Add(usb);
-            Controls.Add(dpiLabel);
             Controls.Add(dpi);
             Controls.Add(hintLabel);
         }
@@ -660,7 +655,7 @@ namespace MouseModes
             scroll.Value = Math.Max(1, p.ScrollLines);
             plan.SelectedIndex = (int)p.PowerPlan;
             usb.Switch.SetChecked(p.DisableUsbSelectiveSuspend, false);
-            DpiUi.Load(dpi, p.DpiStage);
+            dpi.Load(p);
             UpdateLabels();
         }
 
@@ -671,38 +666,108 @@ namespace MouseModes
             p.ScrollLines = scroll.Value;
             p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
-            p.DpiStage = DpiUi.Read(dpi);
+            dpi.SaveTo(p);
         }
     }
 
-    /// <summary>Seletor "MANTER / estágios" do DPI do mouse.</summary>
-    public static class DpiUi
+    /// <summary>
+    /// Escolha do DPI de um modo: MANTER, um dos estágios do programa da Darmoshark ou OUTRO (valor exato).
+    /// Ocupa 72 px de altura: título (com o campo do valor à direita quando OUTRO) e as opções.
+    /// </summary>
+    public class DpiPicker : Panel
     {
-        public static Segmented Make(DpiStages stages, Color a, Color b, Point location)
+        private readonly SectionLabel title;
+        private readonly Segmented options;
+        private readonly TextBox customBox;
+        private readonly FieldHost customHost;
+        private readonly int stageCount;
+        private readonly string note;
+
+        public DpiPicker(DpiStages stages, string note, Color a, Color b, int width = 440)
         {
-            var options = new List<string> { "MANTER" };
-            if (stages != null)
-                foreach (int v in stages.Values) options.Add(v.ToString());
-            return new Segmented
+            BackColor = Theme.Bg;
+            Size = new Size(width, 72);
+            this.note = note ?? "";
+            stageCount = stages != null ? stages.Count : 0;
+
+            var opts = new List<string> { "MANTER" };
+            if (stages != null) foreach (int v in stages.Values) opts.Add(v.ToString());
+            opts.Add("OUTRO");
+
+            title = new SectionLabel { Text = "DPI do mouse", Location = new Point(0, 6), Size = new Size(width, 20), RightText = this.note, RightColor = Theme.Faint };
+            customBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f), TextAlign = HorizontalAlignment.Right, MaxLength = 5 };
+            customBox.KeyPress += (s, e) => { if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar)) e.Handled = true; };
+            customBox.Leave += (s, e) => NormalizeBox();
+            customHost = new FieldHost(customBox) { Location = new Point(width - 150, 0), Size = new Size(150, 30), Accent = b, Visible = false };
+            var dpiSuffix = new Label { Text = "DPI", ForeColor = Theme.Muted, Font = Theme.Ui(8.5f), AutoSize = true, BackColor = Color.Transparent, Location = new Point(width - 182, 8), Visible = false };
+
+            options = new Segmented
             {
-                Options = options.ToArray(),
-                Location = location,
-                Size = new Size(440, 40),
+                Options = opts.ToArray(),
+                Location = new Point(0, 34),
+                Size = new Size(width, 38),
                 AccentA = a,
                 AccentB = b,
                 Enabled = stages != null
             };
+            options.SelectedIndexChanged += () =>
+            {
+                bool custom = IsCustomSelected;
+                customHost.Visible = custom;
+                dpiSuffix.Visible = custom;
+                title.RightText = custom ? "" : this.note;
+                title.Invalidate();
+                if (custom)
+                {
+                    if (customBox.Text.Length == 0) customBox.Text = "1200";
+                    customBox.Focus();
+                    customBox.SelectAll();
+                }
+            };
+
+            Controls.Add(customHost);
+            Controls.Add(dpiSuffix);
+            Controls.Add(title);
+            Controls.Add(options);
+            customHost.BringToFront();
         }
 
-        public static void Load(Segmented seg, int dpiStage)
+        private bool IsCustomSelected { get { return options.SelectedIndex == options.Options.Length - 1; } }
+
+        private void NormalizeBox()
         {
-            int index = dpiStage + 1;
-            seg.SelectedIndex = index >= 0 && index < seg.Options.Length ? index : 0;
+            int v;
+            if (int.TryParse(customBox.Text, out v)) customBox.Text = DpiController.NormalizeDpi(v).ToString();
         }
 
-        public static int Read(Segmented seg)
+        public void Load(MouseProfile p)
         {
-            return Math.Max(0, seg.SelectedIndex) - 1;
+            if (p.DpiCustom > 0)
+            {
+                customBox.Text = DpiController.NormalizeDpi(p.DpiCustom).ToString();
+                options.SelectedIndex = options.Options.Length - 1;
+            }
+            else
+            {
+                int index = p.DpiStage + 1;
+                options.SelectedIndex = index >= 1 && index <= stageCount ? index : 0;
+            }
+        }
+
+        public void SaveTo(MouseProfile p)
+        {
+            int sel = Math.Max(0, options.SelectedIndex);
+            int v;
+            if (IsCustomSelected && int.TryParse(customBox.Text, out v) && v > 0)
+            {
+                p.DpiCustom = DpiController.NormalizeDpi(v);
+                p.DpiStage = -1;
+            }
+            else
+            {
+                p.DpiCustom = 0;
+                p.DpiStage = sel >= 1 && sel <= stageCount ? sel - 1 : -1;
+            }
         }
 
         /// <summary>Texto ao lado do título: qual mouse foi achado.</summary>

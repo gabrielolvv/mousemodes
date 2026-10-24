@@ -37,47 +37,82 @@ namespace MouseModes
             return stages;
         }
 
+        public const int MinDpi = 100, MaxDpi = 26000, DpiStep = 50;
+
+        /// <summary>Arredonda para o passo aceito pelo programa oficial (50 em 50) e limita ao sensor.</summary>
+        public static int NormalizeDpi(int dpi)
+        {
+            int v = (int)Math.Round(dpi / (double)DpiStep) * DpiStep;
+            return Math.Max(MinDpi, Math.Min(MaxDpi, v));
+        }
+
+        /// <summary>O modo pede alguma mudança de DPI?</summary>
+        public static bool Wants(MouseProfile p)
+        {
+            return p != null && (p.DpiCustom > 0 || p.DpiStage >= 0);
+        }
+
         /// <summary>Texto curto para a tela: "1700" ou "MANTÉM".</summary>
         public static string Describe(MouseProfile p, DpiStages stages = null)
         {
             if (stages == null) stages = LastStages;
-            if (p == null || p.DpiStage < 0) return "MANTÉM";
+            if (p == null || !Wants(p)) return "MANTÉM";
+            if (p.DpiCustom > 0) return NormalizeDpi(p.DpiCustom).ToString();
             if (stages != null && p.DpiStage < stages.Count) return stages.Values[p.DpiStage].ToString();
             return "#" + (p.DpiStage + 1);
         }
 
         public static void Apply(MouseProfile p, List<string> warnings)
         {
-            if (p.DpiStage < 0 && !changedByUs) return; // nada pedido e nada a desfazer
+            bool wants = Wants(p);
+            if (!wants && !changedByUs) return; // nada pedido e nada a desfazer
 
             Darmoshark.Device dev;
             DpiStages stages = Load(out dev);
             if (dev == null)
             {
-                if (p.DpiStage >= 0) warnings.Add("DPI não alterado: nenhum mouse Darmoshark compatível conectado.");
+                if (wants) warnings.Add("DPI não alterado: nenhum mouse Darmoshark compatível conectado.");
                 return;
             }
             if (stages == null)
             {
-                if (p.DpiStage >= 0)
+                if (wants)
                     warnings.Add("DPI não alterado: não achei os estágios no programa da Darmoshark (abra-o uma vez para criar).");
                 return;
             }
 
-            int target = p.DpiStage >= 0 ? p.DpiStage : stages.ActiveIndex; // -1 = volta ao estágio do programa oficial
-            if (target >= stages.Count)
+            DpiStages toSend = stages;
+            int target;
+            if (p.DpiCustom > 0)
             {
-                warnings.Add("DPI não alterado: o mouse tem " + stages.Count + " estágios e o modo pede o " + (target + 1) + ".");
-                return;
+                // DPI exato: troca o estágio de valor mais próximo por ele e ativa esse estágio.
+                // Os outros estágios continuam iguais; em MANTER tudo volta como estava no programa oficial.
+                int custom = NormalizeDpi(p.DpiCustom);
+                target = 0;
+                for (int i = 1; i < stages.Count; i++)
+                    if (Math.Abs(stages.Values[i] - custom) < Math.Abs(stages.Values[target] - custom)) target = i;
+                var values = (int[])stages.Values.Clone();
+                values[target] = custom;
+                toSend = new DpiStages { Values = values, ActiveIndex = stages.ActiveIndex, Source = stages.Source + " + " + custom + " DPI" };
             }
+            else
+            {
+                target = p.DpiStage >= 0 ? p.DpiStage : stages.ActiveIndex; // MANTER = volta ao estágio do programa oficial
+                if (target >= stages.Count)
+                {
+                    warnings.Add("DPI não alterado: o mouse tem " + stages.Count + " estágios e o modo pede o " + (target + 1) + ".");
+                    return;
+                }
+            }
+
             // Sempre envia: se a pessoa mudou o estágio pelo botão do mouse, o modo volta a valer.
-            string err = Darmoshark.SetActiveStage(dev, stages, target);
+            string err = Darmoshark.SetActiveStage(dev, toSend, target);
             if (err != null)
             {
                 warnings.Add("DPI não alterado: " + err);
                 return;
             }
-            changedByUs = target != stages.ActiveIndex;
+            changedByUs = toSend != stages || target != stages.ActiveIndex;
         }
 
         /// <summary>Volta ao estágio ativo no programa da Darmoshark (usado ao desinstalar).</summary>
