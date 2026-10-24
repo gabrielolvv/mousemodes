@@ -1,0 +1,74 @@
+name: Build
+
+# - Todo push/PR: compila o app e o instalador e guarda como artefato do run.
+# - Tag "v*" (ex.: v1.2.0): faz o mesmo e publica uma Release com os dois arquivos.
+#   A versão da tag precisa bater com o arquivo VERSION.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: App + instalador (.NET Framework 4.8)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Mono e NSIS
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mono-devel nsis
+          test -f /usr/lib/mono/4.8-api/mscorlib.dll
+
+      - name: Conferir versão da tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          FILE="$(tr -d ' \r\n' < VERSION)"
+          if [ "$TAG" != "$FILE" ]; then
+            echo "::error::A tag ($TAG) não bate com o arquivo VERSION ($FILE)."
+            exit 1
+          fi
+
+      - name: Compilar
+        run: ./build.sh
+
+      - name: Guardar artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: MouseModes-${{ github.sha }}
+          path: dist/*.exe
+          if-no-files-found: error
+
+  windows-check:
+    name: Checagem com o compilador da Microsoft
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: dotnet build (net48)
+        run: dotnet build src/MouseModes.csproj -c Release
+
+  release:
+    name: Publicar Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, windows-check]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MouseModes-${{ github.sha }}
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: MouseModes ${{ github.ref_name }}
+          files: dist/*.exe
+          generate_release_notes: true

@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Build no Windows com Visual Studio ou "dotnet build -c Release".
+    O executável distribuído (e o instalador) sai do build.sh / GitHub Actions; este projeto
+    existe para abrir no Visual Studio/Rider e é compilado no CI para checar o código com o compilador da Microsoft.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>7.3</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>MouseModes</AssemblyName>
+    <RootNamespace>MouseModes</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\VERSION').Trim())</Version>
+    <Product>MouseModes</Product>
+    <Company>gabrielolvv</Company>
+    <Description>Alterna o mouse entre modo Performance e modo Dia a dia.</Description>
+    <!-- AssemblyInfo.cs é só para o build.sh -->
+    <DefineConstants>$(DefineConstants);SDK_BUILD</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Permite compilar net48 mesmo sem o targeting pack instalado (ex.: CI) -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>
