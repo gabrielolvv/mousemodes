@@ -17,6 +17,79 @@ namespace MouseModes
     }
 
     /// <summary>
+    /// Aplica o estágio de DPI de cada modo e devolve o estágio original quando o modo não pede nenhum.
+    /// </summary>
+    public static class DpiController
+    {
+        private static bool changedByUs;   // o estágio atual foi posto pelo MouseModes
+
+        /// <summary>Últimos estágios lidos (para mostrar na tela sem ler o banco de novo).</summary>
+        public static DpiStages LastStages { get; private set; }
+
+        /// <summary>Mouse conectado + estágios do programa oficial. Qualquer um pode vir null.</summary>
+        public static DpiStages Load(out Darmoshark.Device device)
+        {
+            device = null;
+            try { device = Darmoshark.Find(); }
+            catch (Exception ex) { Log.Error("Procurar mouse Darmoshark", ex); }
+            DpiStages stages = Darmoshark.ReadOfficialStages(device != null ? device.Model : null);
+            if (stages != null) LastStages = stages;
+            return stages;
+        }
+
+        /// <summary>Texto curto para a tela: "1700" ou "MANTÉM".</summary>
+        public static string Describe(MouseProfile p, DpiStages stages = null)
+        {
+            if (stages == null) stages = LastStages;
+            if (p == null || p.DpiStage < 0) return "MANTÉM";
+            if (stages != null && p.DpiStage < stages.Count) return stages.Values[p.DpiStage].ToString();
+            return "#" + (p.DpiStage + 1);
+        }
+
+        public static void Apply(MouseProfile p, List<string> warnings)
+        {
+            if (p.DpiStage < 0 && !changedByUs) return; // nada pedido e nada a desfazer
+
+            Darmoshark.Device dev;
+            DpiStages stages = Load(out dev);
+            if (dev == null)
+            {
+                if (p.DpiStage >= 0) warnings.Add("DPI não alterado: nenhum mouse Darmoshark compatível conectado.");
+                return;
+            }
+            if (stages == null)
+            {
+                if (p.DpiStage >= 0)
+                    warnings.Add("DPI não alterado: não achei os estágios no programa da Darmoshark (abra-o uma vez para criar).");
+                return;
+            }
+
+            int target = p.DpiStage >= 0 ? p.DpiStage : stages.ActiveIndex; // -1 = volta ao estágio do programa oficial
+            if (target >= stages.Count)
+            {
+                warnings.Add("DPI não alterado: o mouse tem " + stages.Count + " estágios e o modo pede o " + (target + 1) + ".");
+                return;
+            }
+            // Sempre envia: se a pessoa mudou o estágio pelo botão do mouse, o modo volta a valer.
+            string err = Darmoshark.SetActiveStage(dev, stages, target);
+            if (err != null)
+            {
+                warnings.Add("DPI não alterado: " + err);
+                return;
+            }
+            changedByUs = target != stages.ActiveIndex;
+        }
+
+        /// <summary>Volta ao estágio ativo no programa da Darmoshark (usado ao desinstalar).</summary>
+        public static void RestoreOfficial()
+        {
+            changedByUs = true;
+            var ignored = new List<string>();
+            Apply(new MouseProfile { DpiStage = -1 }, ignored);
+        }
+    }
+
+    /// <summary>
     /// Troca o estágio de DPI de mouses Darmoshark da família M3/N3/M3S (chip VID 248A).
     ///
     /// Protocolo descoberto no programa oficial (DeviceDriver.exe 1.8.3.1), comando "0x51 0x40: definir DPI":

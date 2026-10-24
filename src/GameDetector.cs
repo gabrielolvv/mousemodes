@@ -6,7 +6,11 @@ namespace MouseModes
 {
     public static class GameDetector
     {
-        /// <summary>Retorna o nome do primeiro processo aberto que começa com algum item da lista, ou null.</summary>
+        /// <summary>
+        /// Retorna o item da lista (ex.: "FortniteClient-Win64-Shipping") cujo processo está aberto, ou null.
+        /// Devolve o item, não o nome do processo: assim o jogo e os processos auxiliares dele
+        /// (ex.: "..._EAC_EOS" do anti-cheat) contam como o mesmo jogo.
+        /// </summary>
         public static string FindRunning(IList<string> games)
         {
             var prefixes = new List<string>();
@@ -29,7 +33,7 @@ namespace MouseModes
                     foreach (string prefix in prefixes)
                     {
                         if (procName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                            return procName;
+                            return prefix;
                     }
                 }
             }

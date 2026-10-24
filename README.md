@@ -46,7 +46,10 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 
 ### Mais
 
-- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração e plano próprios para cada jogo.
+- **DPI do mouse** (Darmoshark M3, N3 e M3S, chip 248A): cada modo e cada jogo pode escolher um dos estágios
+  de DPI configurados no programa oficial da Darmoshark. O MouseModes manda os mesmos estágios e só troca o ativo;
+  em **MANTER**, volta ao estágio que você usa no programa oficial. Testado no M3 com cabo; 2.4G ainda não testado.
+- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração, plano e DPI próprios para cada jogo.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática.
 - **Atalho global**: Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 ou Ctrl+Shift+F12. Se o escolhido já for usado

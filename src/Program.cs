@@ -110,6 +110,7 @@ namespace MouseModes
                 MouseSettings.Apply(cfg.Daily);
                 PowerSettings.Apply(cfg.Daily, new List<string>());
                 NotificationSilencer.Restore(cfg); // só faz algo se ficaram silenciadas
+                try { DpiController.RestoreOfficial(); } catch { } // DPI volta ao estágio do programa da Darmoshark
                 Startup.SetEnabled(false);
                 Log.Info("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows");
                 return 0;

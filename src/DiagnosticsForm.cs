@@ -20,11 +20,11 @@ namespace MouseModes
             ClientSize = new Size(620, 600);
 
             Controls.Add(new SectionLabel { Text = "Sistema", Location = new Point(20, 58), Size = new Size(580, 20) });
-            systemInfo = Note("carregando...", 20, 80, 580, 92, Theme.Muted, 8.5f);
+            systemInfo = Note("carregando...", 20, 80, 580, 100, Theme.Muted, 8.5f);
             systemInfo.Font = new Font("Consolas", 8.5f);
             Controls.Add(systemInfo);
 
-            Controls.Add(new SectionLabel { Text = "Registro", Location = new Point(20, 178), Size = new Size(580, 20) });
+            Controls.Add(new SectionLabel { Text = "Registro", Location = new Point(20, 188), Size = new Size(580, 20) });
             text = new TextBox
             {
                 Multiline = true,
@@ -34,7 +34,7 @@ namespace MouseModes
                 WordWrap = false,
                 Font = new Font("Consolas", 8.5f)
             };
-            Controls.Add(new FieldHost(text) { Location = new Point(20, 202), Size = new Size(580, 326), Accent = Theme.DailyB });
+            Controls.Add(new FieldHost(text) { Location = new Point(20, 212), Size = new Size(580, 316), Accent = Theme.DailyB });
 
             var copy = new NeonButton { Text = "Copiar tudo", Location = new Point(20, 542), Size = new Size(184, 42) };
             var folder = new NeonButton { Text = "Abrir pasta", Location = new Point(218, 542), Size = new Size(184, 42) };
@@ -96,6 +96,16 @@ namespace MouseModes
                 int colon = plan.IndexOf(':');
                 return "Plano: " + (colon >= 0 ? plan.Substring(colon + 1).Trim() : plan);
             }, "Plano"));
+            sb.AppendLine(Safe(() =>
+            {
+                Darmoshark.Device dev;
+                DpiStages st = DpiController.Load(out dev);
+                if (dev == null) return "DPI: nenhum mouse Darmoshark compatível conectado";
+                return "DPI: Darmoshark " + dev.Model + (dev.Wireless ? " (2.4G)" : " (cabo)") +
+                       (st == null ? " · estágios não encontrados no programa da Darmoshark"
+                                   : " · estágios " + string.Join("/", Array.ConvertAll(st.Values, v => v.ToString())) +
+                                     " · ativo no programa: " + (st.ActiveIndex + 1));
+            }, "DPI"));
             sb.Append(Safe(() =>
             {
                 var monitors = Displays.Scan();

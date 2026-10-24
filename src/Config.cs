@@ -35,10 +35,17 @@ namespace MouseModes
         /// <summary>Impede o Windows de "adormecer" portas USB para economizar energia.</summary>
         public bool DisableUsbSelectiveSuspend { get; set; }
 
+        /// <summary>
+        /// Estágio de DPI do mouse (0-based, nos estágios do programa da Darmoshark).
+        /// -1 = não mexe (e, se o MouseModes tinha trocado, volta ao estágio de antes).
+        /// </summary>
+        public int DpiStage { get; set; }
+
         public MouseProfile()
         {
             PointerSpeed = 10;
             ScrollLines = 3;
+            DpiStage = -1;
         }
 
         public MouseProfile Clone()

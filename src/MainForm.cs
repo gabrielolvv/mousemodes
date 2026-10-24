@@ -123,7 +123,7 @@ namespace MouseModes
             hero.ModeName = perf ? "PERFORMANCE" : "DIA A DIA";
             hero.Glyph = perf ? GlyphKind.Bolt : GlyphKind.Monitor;
             hero.Reason = reason ?? "";
-            hero.StatLabels = new[] { "SENS", "ACEL", "ENERGIA", "USB" };
+            hero.StatLabels = new[] { "DPI", "SENS", "ACEL", "ENERGIA", "USB" };
             hero.StatValues = Stats(profile);
             perfTile.Active = perf;
             dailyTile.Active = !perf;
@@ -261,7 +261,8 @@ namespace MouseModes
             }
             return new[]
             {
-                p.PointerSpeed + "/20" + (p.PointerSpeed == 10 ? " · 1:1" : ""),
+                DpiController.Describe(p),
+                p.PointerSpeed + "/20",
                 p.EnhancePointerPrecision ? "ON" : "OFF",
                 power,
                 p.DisableUsbSelectiveSuspend ? "ATIVO" : "ECO"

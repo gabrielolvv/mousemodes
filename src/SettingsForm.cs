@@ -46,18 +46,24 @@ namespace MouseModes
             Color a = Theme.DailyA, b = Theme.DailyB;
             Color pa = Theme.PerfA, pb = Theme.PerfB;
 
+            // --- DPI do mouse (Darmoshark) ---
+            Darmoshark.Device dpiDevice;
+            DpiStages dpiStages = DpiController.Load(out dpiDevice);
+            string dpiNote = DpiUi.Note(dpiDevice, dpiStages);
+
             // --- Performance / Dia a dia ---
             perfPanel = new ProfilePanel(pa, pb,
                 "Dica: velocidade 10 sem aceleração = movimento 1:1. Ajuste a sensibilidade pelo DPI do mouse e dentro do jogo. " +
-                "Jogos com configurações próprias (aba Jogos) usam as deles.");
+                "Jogos com configurações próprias (aba Jogos) usam as deles.", dpiStages, dpiNote);
             perfPanel.LoadProfile(cfg.Performance);
 
             dailyPanel = new ProfilePanel(a, b,
-                "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app.");
+                "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app. " +
+                "DPI em MANTER volta ao estágio que você usa no programa da Darmoshark.", dpiStages, dpiNote);
             dailyPanel.LoadProfile(cfg.Daily);
 
             // --- Jogos ---
-            gamesPanel = new GamesPanel(cfg, this);
+            gamesPanel = new GamesPanel(cfg, this, dpiStages);
 
             // --- Turbo ---
             var turboPanel = new Panel { BackColor = Theme.Bg };
@@ -293,10 +299,11 @@ namespace MouseModes
         private readonly SectionLabel speedLabel;
         private readonly ToggleRow precision;
         private readonly Segmented plan;
+        private readonly Segmented dpi;
         private readonly Label emptyNote;
         private Entry current;
 
-        public GamesPanel(AppConfig cfg, SettingsForm owner)
+        public GamesPanel(AppConfig cfg, SettingsForm owner, DpiStages dpiStages)
         {
             this.cfg = cfg;
             BackColor = Theme.Bg;
@@ -323,40 +330,45 @@ namespace MouseModes
             };
             list.DrawItem += DrawItem;
             list.SelectedIndexChanged += (s, e) => { list.Invalidate(); Select(list.SelectedIndex); };
-            var listHost = new FieldHost(list) { Location = new Point(0, 102), Size = new Size(440, 112), Accent = b };
+            var listHost = new FieldHost(list) { Location = new Point(0, 102), Size = new Size(440, 84), Accent = b };
 
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
             nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
-            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 222), Size = new Size(196, 38), Accent = b };
-            var add = new NeonButton { Text = "Incluir", Location = new Point(204, 222), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = "Abertos", Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
-            var remove = new NeonButton { Text = "Tirar", Style = ButtonStyle.Danger, Location = new Point(368, 222), Size = new Size(72, 38) };
+            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 194), Size = new Size(196, 38), Accent = b };
+            var add = new NeonButton { Text = "Incluir", Location = new Point(204, 194), Size = new Size(74, 38), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = "Abertos", Location = new Point(284, 194), Size = new Size(78, 38), AccentA = a, AccentB = b };
+            var remove = new NeonButton { Text = "Tirar", Style = ButtonStyle.Danger, Location = new Point(368, 194), Size = new Size(72, 38) };
             add.Click += (s, e) => AddName(nameBox.Text);
             pick.Click += (s, e) => { string p = owner.PickProcess(); if (p != null) AddName(p); };
             remove.Click += (s, e) => RemoveSelected();
 
-            customRow = new ToggleRow { Location = new Point(0, 272), Size = new Size(440, 56), Subtitle = "Desligado: usa as configurações do modo Performance" };
+            customRow = new ToggleRow { Location = new Point(0, 240), Size = new Size(440, 52), Subtitle = "Desligado: usa as configurações do modo Performance" };
             customRow.SetAccents(a, b);
             customRow.Switch.CheckedChanged += OnCustomToggled;
 
-            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 336), Size = new Size(440, 210) };
+            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 300), Size = new Size(440, 250) };
             speedLabel = new SectionLabel { Text = "Velocidade do ponteiro", Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
-            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 22), Size = new Size(448, 36), AccentA = a, AccentB = b };
+            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 20), Size = new Size(448, 36), AccentA = a, AccentB = b };
             speed.ValueChanged += () => { speedLabel.RightText = speed.Value + " / 20"; speedLabel.Invalidate(); };
-            precision = new ToggleRow { Title = "Aceleração do Windows", Subtitle = "\"Aprimorar precisão do ponteiro\"", Location = new Point(0, 66), Size = new Size(440, 52) };
+            precision = new ToggleRow { Title = "Aceleração do Windows", Subtitle = "\"Aprimorar precisão do ponteiro\"", Location = new Point(0, 60), Size = new Size(440, 48) };
             precision.SetAccents(a, b);
-            var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 130), Size = new Size(440, 20) };
-            plan = new Segmented { Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" }, Location = new Point(0, 154), Size = new Size(440, 42), AccentA = a, AccentB = b };
+            var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 116), Size = new Size(440, 20) };
+            plan = new Segmented { Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" }, Location = new Point(0, 138), Size = new Size(440, 38), AccentA = a, AccentB = b };
+            var dpiLabel = new SectionLabel { Text = "DPI do mouse", Location = new Point(0, 186), Size = new Size(440, 20) };
+            dpi = DpiUi.Make(dpiStages, a, b, new Point(0, 208));
+            dpi.Height = 38;
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
             editor.Controls.Add(planLabel);
             editor.Controls.Add(plan);
+            editor.Controls.Add(dpiLabel);
+            editor.Controls.Add(dpi);
 
             emptyNote = new Label
             {
-                Text = "Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.",
-                Location = new Point(0, 280),
+                Text = "Escolha um jogo na lista para dar a ele configurações próprias (velocidade, aceleração, energia e DPI). Rolagem e USB seguem o modo Performance.",
+                Location = new Point(0, 250),
                 Size = new Size(440, 60),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
@@ -421,6 +433,7 @@ namespace MouseModes
             speedLabel.Invalidate();
             precision.Switch.SetChecked(current.Custom.EnhancePointerPrecision, false);
             plan.SelectedIndex = (int)current.Custom.PowerPlan;
+            DpiUi.Load(dpi, current.Custom.DpiStage);
         }
 
         private void CommitEditor()
@@ -429,6 +442,7 @@ namespace MouseModes
             current.Custom.PointerSpeed = speed.Value;
             current.Custom.EnhancePointerPrecision = precision.Switch.Checked;
             current.Custom.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
+            current.Custom.DpiStage = DpiUi.Read(dpi);
         }
 
         private void AddName(string raw)
@@ -556,8 +570,9 @@ namespace MouseModes
         private readonly SectionLabel scrollLabel;
         private readonly Segmented plan;
         private readonly ToggleRow usb;
+        private readonly Segmented dpi;
 
-        public ProfilePanel(Color a, Color b, string hint)
+        public ProfilePanel(Color a, Color b, string hint, DpiStages stages, string dpiNote)
         {
             BackColor = Theme.Bg;
 
@@ -598,10 +613,13 @@ namespace MouseModes
             };
             usb.SetAccents(a, b);
 
+            var dpiLabel = new SectionLabel { Text = "DPI do mouse", Location = new Point(0, 404), Size = new Size(440, 20), RightText = dpiNote, RightColor = Theme.Faint };
+            dpi = DpiUi.Make(stages, a, b, new Point(0, 428));
+
             var hintLabel = new Label
             {
                 Text = hint,
-                Location = new Point(0, 408),
+                Location = new Point(0, 484),
                 Size = new Size(440, 54),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
@@ -617,6 +635,8 @@ namespace MouseModes
             Controls.Add(planLabel);
             Controls.Add(plan);
             Controls.Add(usb);
+            Controls.Add(dpiLabel);
+            Controls.Add(dpi);
             Controls.Add(hintLabel);
         }
 
@@ -640,6 +660,7 @@ namespace MouseModes
             scroll.Value = Math.Max(1, p.ScrollLines);
             plan.SelectedIndex = (int)p.PowerPlan;
             usb.Switch.SetChecked(p.DisableUsbSelectiveSuspend, false);
+            DpiUi.Load(dpi, p.DpiStage);
             UpdateLabels();
         }
 
@@ -650,6 +671,46 @@ namespace MouseModes
             p.ScrollLines = scroll.Value;
             p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
+            p.DpiStage = DpiUi.Read(dpi);
+        }
+    }
+
+    /// <summary>Seletor "MANTER / estágios" do DPI do mouse.</summary>
+    public static class DpiUi
+    {
+        public static Segmented Make(DpiStages stages, Color a, Color b, Point location)
+        {
+            var options = new List<string> { "MANTER" };
+            if (stages != null)
+                foreach (int v in stages.Values) options.Add(v.ToString());
+            return new Segmented
+            {
+                Options = options.ToArray(),
+                Location = location,
+                Size = new Size(440, 40),
+                AccentA = a,
+                AccentB = b,
+                Enabled = stages != null
+            };
+        }
+
+        public static void Load(Segmented seg, int dpiStage)
+        {
+            int index = dpiStage + 1;
+            seg.SelectedIndex = index >= 0 && index < seg.Options.Length ? index : 0;
+        }
+
+        public static int Read(Segmented seg)
+        {
+            return Math.Max(0, seg.SelectedIndex) - 1;
+        }
+
+        /// <summary>Texto ao lado do título: qual mouse foi achado.</summary>
+        public static string Note(Darmoshark.Device dev, DpiStages stages)
+        {
+            if (dev == null) return "nenhum Darmoshark conectado";
+            if (stages == null) return dev.Model + " · abra o programa da Darmoshark uma vez";
+            return dev.Model + (dev.Wireless ? " (2.4G)" : " (cabo)");
         }
     }
 
