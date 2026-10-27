@@ -205,6 +205,15 @@ namespace MouseModes
             }
         }
 
+        /// <summary>Abre a busca de jogos (instalados e abertos); retorna os escolhidos (pode ser vazia).</summary>
+        internal List<string> PickGames(List<string> alreadyListed)
+        {
+            using (var picker = new GamePickerForm(alreadyListed))
+            {
+                return picker.ShowDialog(this) == DialogResult.OK ? picker.Selected : new List<string>();
+            }
+        }
+
         private void AppendPicked(TextBox target)
         {
             string picked = PickProcess();
@@ -334,10 +343,13 @@ namespace MouseModes
             nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
             var nameHost = new FieldHost(nameBox) { Location = new Point(0, 222), Size = new Size(196, 38), Accent = b };
             var add = new NeonButton { Text = "Incluir", Location = new Point(204, 222), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = "Abertos", Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = "Buscar", Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
             var remove = new NeonButton { Text = "Tirar", Style = ButtonStyle.Danger, Location = new Point(368, 222), Size = new Size(72, 38) };
             add.Click += (s, e) => AddName(nameBox.Text);
-            pick.Click += (s, e) => { string p = owner.PickProcess(); if (p != null) AddName(p); };
+            pick.Click += (s, e) =>
+            {
+                foreach (string p in owner.PickGames(entries.ConvertAll(x => x.Name))) AddName(p);
+            };
             remove.Click += (s, e) => RemoveSelected();
 
             customRow = new ToggleRow { Location = new Point(0, 272), Size = new Size(440, 56), Subtitle = "Desligado: usa as configurações do modo Performance" };
@@ -655,6 +667,115 @@ namespace MouseModes
             p.ScrollLines = scroll.Value;
             p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
+        }
+    }
+
+    /// <summary>Jogos instalados (Steam, Epic) e programas abertos, para incluir vários de uma vez na lista de jogos.</summary>
+    public class GamePickerForm : GamerWindow
+    {
+        private class Item
+        {
+            public string Process;
+            public string Label;
+            public string Tag;
+        }
+
+        private readonly ListBox list;
+        private readonly Label status;
+        private readonly HashSet<string> alreadyListed;
+
+        public List<string> Selected { get; private set; }
+
+        public GamePickerForm(IEnumerable<string> alreadyListed) : base("Buscar jogos", false)
+        {
+            this.alreadyListed = new HashSet<string>(alreadyListed, StringComparer.OrdinalIgnoreCase);
+            Selected = new List<string>();
+            CloseOnEscape = true;
+            StartPosition = FormStartPosition.CenterParent;
+            ClientSize = new Size(460, 560);
+
+            Controls.Add(Note("Jogos da Steam e da Epic e programas abertos. Ctrl+clique escolhe vários.", 20, 58, 420, 20, Theme.Muted));
+
+            list = new ListBox
+            {
+                BorderStyle = BorderStyle.None,
+                IntegralHeight = false,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = 30,
+                Font = Theme.Ui(10f),
+                SelectionMode = SelectionMode.MultiExtended
+            };
+            list.DrawItem += DrawItem;
+            list.DoubleClick += (s, e) => Confirm();
+            list.SelectedIndexChanged += (s, e) => list.Invalidate();
+            Controls.Add(new FieldHost(list) { Location = new Point(20, 86), Size = new Size(420, 380), Accent = Theme.PerfB });
+
+            status = Note("Procurando jogos instalados...", 20, 472, 420, 20, Theme.Faint, 8.5f);
+            Controls.Add(status);
+
+            var ok = new NeonButton { Text = "Incluir na lista", Style = ButtonStyle.Primary, Location = new Point(20, 500), Size = new Size(420, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            ok.Click += (s, e) => Confirm();
+            Controls.Add(ok);
+
+            FinishLayout();
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            // Varrer as pastas dos jogos pode levar alguns segundos: fora da thread da tela.
+            var worker = new System.Threading.Thread(() =>
+            {
+                List<InstalledGame> games = InstalledGames.Find();
+                List<string> open = GameDetector.ListWindowedProcesses();
+                try
+                {
+                    if (IsHandleCreated && !IsDisposed) BeginInvoke((Action)(() => Fill(games, open)));
+                }
+                catch (InvalidOperationException) { } // janela fechada no meio da busca
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void Fill(List<InstalledGame> games, List<string> open)
+        {
+            var shown = new HashSet<string>(alreadyListed, StringComparer.OrdinalIgnoreCase);
+            list.BeginUpdate();
+            foreach (InstalledGame g in games)
+            {
+                if (!shown.Add(g.Process)) continue;
+                list.Items.Add(new Item { Process = g.Process, Label = g.Name + "  ·  " + g.Process, Tag = g.Store.ToUpperInvariant() });
+            }
+            int installed = list.Items.Count;
+            foreach (string p in open)
+            {
+                if (!shown.Add(p)) continue;
+                list.Items.Add(new Item { Process = p, Label = p, Tag = "ABERTO" });
+            }
+            list.EndUpdate();
+
+            int listed = games.Count - installed;
+            status.Text = games.Count == 0
+                ? "Nenhum jogo da Steam ou da Epic encontrado neste PC."
+                : installed + (installed == 1 ? " jogo instalado" : " jogos instalados") + " fora da lista" +
+                  (listed > 0 ? " (" + listed + (listed == 1 ? " já está nela)" : " já estão nela)") : "") + ".";
+            Log.Info("Busca de jogos: " + games.Count + " instalado(s) na Steam/Epic, " + installed + " fora da lista");
+        }
+
+        private void DrawItem(object sender, DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            var item = (Item)list.Items[e.Index];
+            ListPainter.Draw(e, item.Label, (e.State & DrawItemState.Selected) != 0, item.Tag, Theme.PerfA, Theme.PerfB);
+        }
+
+        private void Confirm()
+        {
+            if (list.SelectedItems.Count == 0) return;
+            foreach (object o in list.SelectedItems) Selected.Add(((Item)o).Process);
+            DialogResult = DialogResult.OK;
+            Close();
         }
     }
 
