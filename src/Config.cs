@@ -53,6 +53,13 @@ namespace MouseModes
         public MouseProfile Profile { get; set; }
     }
 
+    /// <summary>Cópia de um plano do Windows criada pelo app (ex.: Desempenho máximo).</summary>
+    public class PlanCopy
+    {
+        public string Template { get; set; }
+        public string Guid { get; set; }
+    }
+
     public class AppConfig
     {
         public MouseProfile Performance { get; set; }
@@ -81,6 +88,12 @@ namespace MouseModes
         /// <summary>Avisa quando um monitor está abaixo da taxa máxima.</summary>
         public bool MonitorCheck { get; set; }
 
+        /// <summary>
+        /// No Performance, o mouse do jogo só vale com um jogo da lista em primeiro plano.
+        /// Fora dele (alt-tab, desktop) usa velocidade, aceleração e rolagem do Dia a dia.
+        /// </summary>
+        public bool MouseOnlyWhenGameFocused { get; set; }
+
         // ---- Durante o jogo (só no Performance) ----
 
         public bool BlockWinKey { get; set; }
@@ -96,11 +109,53 @@ namespace MouseModes
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
+        /// <summary>
+        /// Último modo aplicado ao Windows. Se for Performance ao abrir, o app saiu ou caiu sem voltar ao Dia a dia.
+        /// null = desconhecido (config de versão antiga).
+        /// </summary>
+        public Mode? LastMode { get; set; }
+
+        /// <summary>
+        /// Plano de energia ativo ao entrar no Performance, para o Dia a dia com "ANTERIOR" voltar a ele.
+        /// Guardado no config para valer também depois de um travamento.
+        /// </summary>
+        public string DailyPlanGuid { get; set; }
+
+        /// <summary>
+        /// Cópias de planos que o app criou. Em alguns PCs o "powercfg /list" esconde esses planos; sem guardar
+        /// o GUID, o app criaria uma cópia nova a cada vez. Mexida pela thread do plano de energia: use os métodos.
+        /// </summary>
+        public List<PlanCopy> PlanCopies { get; set; }
+
+        // Protege PlanCopies (thread do plano de energia) enquanto a tela grava o config.
+        private readonly object planCopiesGate = new object();
+
+        /// <summary>GUID guardado da cópia deste modelo, ou null.</summary>
+        public string FindPlanCopy(string template)
+        {
+            lock (planCopiesGate)
+            {
+                PlanCopy copy = PlanCopies.Find(c => c != null && string.Equals(c.Template, template, StringComparison.OrdinalIgnoreCase));
+                Guid parsed;
+                return copy != null && System.Guid.TryParse(copy.Guid, out parsed) ? parsed.ToString() : null;
+            }
+        }
+
+        public void RememberPlanCopy(string template, string guid)
+        {
+            lock (planCopiesGate)
+            {
+                PlanCopies.RemoveAll(c => c == null || string.Equals(c.Template, template, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrEmpty(guid)) PlanCopies.Add(new PlanCopy { Template = template, Guid = guid });
+            }
+        }
+
         public AppConfig()
         {
             Games = new List<string>();
             AppsToClose = new List<string>();
             GameProfiles = new List<GameProfile>();
+            PlanCopies = new List<PlanCopy>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;
@@ -148,35 +203,63 @@ namespace MouseModes
 
         public static AppConfig LoadOrCreate()
         {
-            if (File.Exists(FilePath))
+            return LoadOrCreate(FilePath);
+        }
+
+        internal static AppConfig LoadOrCreate(string path)
+        {
+            string tmp = path + ".tmp";
+            if (File.Exists(path))
             {
                 try
                 {
-                    var serializer = new XmlSerializer(typeof(AppConfig));
-                    AppConfig loaded;
-                    using (var stream = File.OpenRead(FilePath))
-                    {
-                        loaded = (AppConfig)serializer.Deserialize(stream);
-                    }
-
-                    if (loaded.Performance == null) loaded.Performance = DefaultPerformance(MouseSettings.Read());
-                    if (loaded.Daily == null) loaded.Daily = DefaultDaily(MouseSettings.Read());
-                    if (loaded.Games == null) loaded.Games = new List<string>();
-                    if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
-                    if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
-                    loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
-                    return loaded;
+                    return Load(path);
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Arquivo corrompido: guarda uma cópia e recomeça do padrão.
-                    try { File.Copy(FilePath, FilePath + ".bak", true); } catch { }
+                    Log.Error("Configuração ilegível; cópia guardada em " + Path.GetFileName(path) + ".bak e padrão recriado", ex);
+                    try { File.Copy(path, path + ".bak", true); } catch { }
+                }
+            }
+            else if (File.Exists(tmp))
+            {
+                // Versões antigas apagavam o config antes de mover o .tmp: se caíram no meio, o .tmp é o config.
+                try
+                {
+                    AppConfig recovered = Load(tmp);
+                    recovered.SaveTo(path);
+                    Log.Warn("Configuração recuperada de " + Path.GetFileName(tmp));
+                    return recovered;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Recuperar " + Path.GetFileName(tmp), ex);
                 }
             }
 
             var created = CreateDefault();
-            created.Save();
+            created.SaveTo(path);
             return created;
+        }
+
+        private static AppConfig Load(string path)
+        {
+            var serializer = new XmlSerializer(typeof(AppConfig));
+            AppConfig loaded;
+            using (var stream = File.OpenRead(path))
+            {
+                loaded = (AppConfig)serializer.Deserialize(stream);
+            }
+
+            if (loaded.Performance == null) loaded.Performance = DefaultPerformance(MouseSettings.Read());
+            if (loaded.Daily == null) loaded.Daily = DefaultDaily(MouseSettings.Read());
+            if (loaded.Games == null) loaded.Games = new List<string>();
+            if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
+            if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
+            if (loaded.PlanCopies == null) loaded.PlanCopies = new List<PlanCopy>();
+            loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
+            return loaded;
         }
 
         public static AppConfig CreateDefault()
@@ -187,7 +270,8 @@ namespace MouseModes
             var cfg = new AppConfig
             {
                 Daily = DefaultDaily(current),
-                Performance = DefaultPerformance(current)
+                Performance = DefaultPerformance(current),
+                LastMode = Mode.DiaADia // o Windows já está como o Dia a dia: nada a aplicar na primeira abertura
             };
             cfg.Games.AddRange(new[]
             {
@@ -206,7 +290,7 @@ namespace MouseModes
         private static MouseProfile DefaultDaily(MouseProfile current)
         {
             var p = current.Clone();
-            p.PowerPlan = PowerPlanOption.Equilibrado;
+            p.PowerPlan = PowerPlanOption.NaoAlterar; // "ANTERIOR": volta ao plano que a pessoa já usava
             p.DisableUsbSelectiveSuspend = false;
             return p;
         }
@@ -225,15 +309,39 @@ namespace MouseModes
 
         public void Save()
         {
-            Directory.CreateDirectory(Folder);
-            string tmp = FilePath + ".tmp";
+            SaveTo(FilePath);
+        }
+
+        /// <summary>
+        /// Grava num .tmp (já no disco) e troca pelo arquivo de uma vez: se o PC desligar no meio,
+        /// fica o config antigo ou o novo, nunca nenhum.
+        /// </summary>
+        internal void SaveTo(string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            string tmp = path + ".tmp";
             var serializer = new XmlSerializer(typeof(AppConfig));
-            using (var stream = File.Create(tmp))
+            using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
-                serializer.Serialize(stream, this);
+                lock (planCopiesGate) serializer.Serialize(stream, this);
+                stream.Flush(true);
             }
-            if (File.Exists(FilePath)) File.Delete(FilePath);
-            File.Move(tmp, FilePath);
+
+            if (!File.Exists(path))
+            {
+                File.Move(tmp, path);
+                return;
+            }
+            try
+            {
+                File.Replace(tmp, path, null);
+            }
+            catch (PlatformNotSupportedException)
+            {
+                // Sistema de arquivos sem troca atômica (ex.: alguns drives de rede): do jeito antigo.
+                File.Delete(path);
+                File.Move(tmp, path);
+            }
         }
     }
 }

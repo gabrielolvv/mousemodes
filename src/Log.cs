@@ -15,11 +15,14 @@ namespace MouseModes
 
         public static event Action Changed;
 
+        /// <summary>Outro arquivo no lugar do log.txt (só os testes usam, para não escrever no log de verdade).</summary>
+        internal static string PathOverride;
+
         public static string FilePath
         {
             get
             {
-                return Path.Combine(Path.GetDirectoryName(AppConfig.FilePath), "log.txt");
+                return PathOverride ?? Path.Combine(Path.GetDirectoryName(AppConfig.FilePath), "log.txt");
             }
         }
 

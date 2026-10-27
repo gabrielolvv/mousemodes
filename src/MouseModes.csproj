@@ -28,4 +28,9 @@
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Os testes (tests/MouseModes.Tests) usam alguns métodos internos -->
+    <InternalsVisibleTo Include="MouseModes.Tests" />
+  </ItemGroup>
+
 </Project>

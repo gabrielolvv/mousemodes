@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
 
 namespace MouseModes
 {
     /// <summary>Plano de energia e suspensão seletiva de USB, via powercfg (não precisa de admin).</summary>
     public static class PowerSettings
     {
-        private const string BalancedGuid = "381b4222-f694-41f0-9685-aff5bb260d00";
+        private const string BalancedGuid = "381b4222-f694-41f0-9685-ff5bb260df2e";
         private const string HighPerformanceGuid = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
         private const string UsbSubgroupGuid = "2a737441-1930-4402-8d77-b2bebba308a3";
         private const string UsbSelectiveSuspendGuid = "48e6b7a6-50f5-4782-a5d4-53bb8f07e226";
@@ -22,23 +23,41 @@ namespace MouseModes
         private static readonly Regex GuidRegex =
             new Regex(@"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}");
 
-        public static void Apply(MouseProfile p, List<string> warnings)
+        /// <param name="restorePlan">
+        /// Com "MANTER/ANTERIOR": GUID de um plano para reativar (o que estava antes do Performance), ou null para não mexer.
+        /// </param>
+        public static void Apply(MouseProfile p, List<string> warnings, string restorePlan = null, AppConfig store = null)
         {
             // Cada parte isolada: se o plano falhar, o USB ainda é ajustado (e vice-versa).
             try
             {
                 switch (p.PowerPlan)
                 {
+                    case PowerPlanOption.NaoAlterar:
+                        if (restorePlan == null) break;
+                        if (Run("/setactive " + restorePlan))
+                        {
+                            Log.Info("Plano de energia anterior reativado (" + restorePlan + ")");
+                        }
+                        else if (!ActivateBalanced(store))
+                        {
+                            warnings.Add("O plano de energia anterior não existe mais e o Equilibrado também falhou (veja o Diagnóstico).");
+                        }
+                        else
+                        {
+                            Log.Warn("O plano de energia anterior (" + restorePlan + ") não existe mais; ativado o Equilibrado");
+                        }
+                        break;
                     case PowerPlanOption.Equilibrado:
-                        if (!ActivateBalanced())
+                        if (!ActivateBalanced(store))
                             warnings.Add("Não foi possível ativar um plano Equilibrado neste PC (veja o Diagnóstico).");
                         break;
                     case PowerPlanOption.AltoDesempenho:
-                        if (!ActivateFromTemplate(HighPerformanceGuid, HighCopyName, "Alto desempenho", "High performance"))
+                        if (!ActivateFromTemplate(HighPerformanceGuid, HighCopyName, store, "Alto desempenho", "High performance"))
                             warnings.Add("Não foi possível ativar o plano Alto desempenho.");
                         break;
                     case PowerPlanOption.DesempenhoMaximo:
-                        if (!ActivateFromTemplate(UltimateGuid, UltimateCopyName, "Desempenho M", "Ultimate Performance"))
+                        if (!ActivateFromTemplate(UltimateGuid, UltimateCopyName, store, "Desempenho M", "Ultimate Performance"))
                             warnings.Add("Este PC não aceitou o plano Desempenho máximo (comum em notebooks). Use Alto desempenho.");
                         break;
                 }
@@ -71,64 +90,123 @@ namespace MouseModes
         /// Equilibrado: o padrão do Windows; se ele foi removido, um plano com esse nome;
         /// se não houver, recria a partir do modelo do Windows.
         /// </summary>
-        private static bool ActivateBalanced()
+        private static bool ActivateBalanced(AppConfig store)
         {
-            if (ActivateFromTemplate(BalancedGuid, BalancedCopyName, "Equilibrado", "Balanced")) return true;
+            if (ActivateFromTemplate(BalancedGuid, BalancedCopyName, store, "Equilibrado", "Balanced")) return true;
 
-            string list;
-            if (Run("/list", out list))
-                Log.Warn("Planos de energia neste PC: " + list.Replace("\r", " ").Replace("\n", " ").Trim());
+            var described = new List<string>();
+            foreach (KeyValuePair<string, string> plan in Plans()) described.Add(plan.Value + " (" + plan.Key + ")");
+            Log.Warn("Planos de energia neste PC: " + string.Join(", ", described.ToArray()));
             return false;
         }
 
         /// <summary>
-        /// Ativa um plano do Windows que pode estar oculto (Alto desempenho, Desempenho máximo):
-        /// tenta direto, depois uma cópia criada antes pelo app, e por último cria a cópia.
+        /// Ativa um plano do Windows que pode estar oculto (Alto desempenho, Desempenho máximo): tenta o original,
+        /// depois a cópia guardada no config, depois um plano com o nome conhecido, e por último cria a cópia.
         /// </summary>
-        private static bool ActivateFromTemplate(string templateGuid, string copyName, params string[] knownNames)
+        /// <param name="store">Onde guardar o GUID da cópia criada (null = não guarda).</param>
+        private static bool ActivateFromTemplate(string templateGuid, string copyName, AppConfig store, params string[] knownNames)
         {
-            string list;
-            bool listed = Run("/list", out list);
-            string[] lines = listed ? list.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries) : new string[0];
+            Dictionary<string, string> plans = Plans();
 
             // 1) O plano original do Windows, se existir neste PC (evita o erro "parâmetros inválidos").
-            if (!listed || ContainsGuid(lines, templateGuid))
+            if (plans.Count == 0 || plans.ContainsKey(templateGuid))
             {
                 if (Run("/setactive " + templateGuid)) return true;
             }
 
-            // 2) Uma cópia criada antes pelo app, ou um plano com o nome conhecido (ex.: "Equilibrado").
+            // 2) A cópia que o app criou antes.
+            string saved = store != null ? store.FindPlanCopy(templateGuid) : null;
+            if (saved != null)
+            {
+                if (Run("/setactive " + saved)) return true;
+                Log.Info("A cópia guardada do plano (" + saved + ") não existe mais");
+                store.RememberPlanCopy(templateGuid, null);
+            }
+
+            // 3) Um plano com o nome da cópia ou do original (ex.: "Equilibrado").
             var names = new List<string>(knownNames);
             names.Insert(0, copyName);
             foreach (string name in names)
             {
-                foreach (string line in lines)
+                foreach (KeyValuePair<string, string> plan in plans)
                 {
-                    if (line.IndexOf(name, StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    Match existing = GuidRegex.Match(line);
-                    if (existing.Success && Run("/setactive " + existing.Value))
-                    {
-                        Log.Info("Plano ativado pelo nome: " + line.Trim());
-                        return true;
-                    }
+                    if (plan.Value.IndexOf(name, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    if (!Run("/setactive " + plan.Key)) continue;
+                    Log.Info("Plano ativado pelo nome: " + plan.Value + " (" + plan.Key + ")");
+                    if (store != null && name == copyName) store.RememberPlanCopy(templateGuid, plan.Key);
+                    return true;
                 }
             }
 
+            // 4) Cria a cópia e guarda o GUID: em alguns PCs o /list não mostra a cópia, e sem isso ela seria recriada.
             string output;
             if (!Run("-duplicatescheme " + templateGuid, out output)) return false;
             Match created = GuidRegex.Match(output);
             if (!created.Success) return false;
 
-            Run("/changename " + created.Value + " \"" + copyName + "\"");
-            Log.Info("Plano \"" + copyName + "\" criado (" + created.Value + ")");
-            return Run("/setactive " + created.Value);
+            string guid = created.Value.ToLowerInvariant();
+            Run("/changename " + guid + " \"" + copyName + "\"");
+            Log.Info("Plano \"" + copyName + "\" criado (" + guid + ")");
+            if (store != null) store.RememberPlanCopy(templateGuid, guid);
+            return Run("/setactive " + guid);
         }
 
-        private static bool ContainsGuid(string[] lines, string guid)
+        /// <summary>
+        /// Planos de energia deste PC (GUID → nome). O registro mostra também os que o "powercfg /list" esconde
+        /// em alguns PCs (inclusive os modelos do Windows e as cópias do app). Se não der para ler, usa o /list.
+        /// </summary>
+        internal static Dictionary<string, string> Plans()
         {
-            foreach (string line in lines)
-                if (line.IndexOf(guid, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-            return false;
+            var plans = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                using (RegistryKey root = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes", false))
+                {
+                    if (root != null)
+                    {
+                        foreach (string sub in root.GetSubKeyNames())
+                        {
+                            Guid parsed;
+                            if (!Guid.TryParse(sub, out parsed)) continue;
+                            string name;
+                            using (RegistryKey scheme = root.OpenSubKey(sub, false))
+                                name = scheme != null ? scheme.GetValue("FriendlyName") as string ?? "" : "";
+                            // Planos do Windows: "@...powrprof.dll,-15,Balanced". O texto depois da última vírgula é o nome.
+                            int comma = name.LastIndexOf(',');
+                            if (name.StartsWith("@") && comma >= 0) name = name.Substring(comma + 1);
+                            // "Overlays" são os modos de energia do Windows, não planos para ativar.
+                            if (name.IndexOf("Overlay", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                            plans[parsed.ToString()] = name;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Ler planos de energia do registro", ex);
+            }
+            if (plans.Count > 0) return plans;
+
+            string list;
+            if (Run("/list", out list))
+            {
+                foreach (string line in list.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    Match m = GuidRegex.Match(line);
+                    if (m.Success) plans[m.Value.ToLowerInvariant()] = line.Trim();
+                }
+            }
+            return plans;
+        }
+
+        /// <summary>GUID do plano de energia ativo agora, ou null se não deu para ler.</summary>
+        public static string ActivePlanGuid()
+        {
+            string output;
+            if (!Run("/getactivescheme", out output)) return null;
+            Match m = GuidRegex.Match(output);
+            return m.Success ? m.Value.ToLowerInvariant() : null;
         }
 
         /// <summary>Nome do plano de energia ativo agora (para o Diagnóstico).</summary>
@@ -173,14 +251,24 @@ namespace MouseModes
                 using (var proc = Process.Start(psi))
                 {
                     if (proc == null) return false;
-                    output = proc.StandardOutput.ReadToEnd();
-                    string error = proc.StandardError.ReadToEnd();
+                    // Lê as duas saídas em paralelo: um ReadToEnd síncrono só volta quando o processo termina
+                    // (o timeout abaixo nunca valeria) e pode travar se a outra saída encher o buffer.
+                    var outRead = proc.StandardOutput.ReadToEndAsync();
+                    var errRead = proc.StandardError.ReadToEndAsync();
                     if (!proc.WaitForExit(10000))
                     {
                         try { proc.Kill(); } catch { }
                         Log.Warn("powercfg " + args + " não respondeu em 10 s");
                         return false;
                     }
+                    // Já saiu: as leituras terminam assim que o buffer for esvaziado.
+                    if (!outRead.Wait(2000) || !errRead.Wait(2000))
+                    {
+                        Log.Warn("powercfg " + args + ": saída não terminou de chegar");
+                        return false;
+                    }
+                    output = outRead.Result;
+                    string error = errRead.Result;
                     if (proc.ExitCode != 0)
                     {
                         string detail = (error + " " + output).Trim().Replace("\r", " ").Replace("\n", " ");

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -107,8 +106,10 @@ namespace MouseModes
             try
             {
                 AppConfig cfg = AppConfig.LoadOrCreate();
-                MouseSettings.Apply(cfg.Daily);
-                PowerSettings.Apply(cfg.Daily, new List<string>());
+                // Mesma regra da abertura: se ficou no Performance, volta ao Dia a dia (com o plano anterior).
+                var modes = new ModeManager(cfg);
+                modes.Start();
+                modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
                 NotificationSilencer.Restore(cfg); // só faz algo se ficaram silenciadas
                 Startup.SetEnabled(false);
                 Log.Info("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows");

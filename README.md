@@ -29,10 +29,14 @@ clique em **Mais informações → Executar assim mesmo**.
 |---|---|---|
 | Velocidade do ponteiro | 10/20 (1:1, sem multiplicador) | a que você já usava |
 | Aceleração ("Aprimorar precisão do ponteiro") | desligada | a que você já usava |
-| Plano de energia | Alto desempenho ou Desempenho máximo | Equilibrado |
+| Plano de energia | Alto desempenho ou Desempenho máximo | o que você já usava ("Anterior") |
 | Suspensão seletiva de USB | desativada (mouse nunca "adormece") | padrão do Windows |
 
 Tudo é editável em **Ajustes**. Fechar a janela no X não encerra o app: ele fica no ícone perto do relógio.
+
+O Dia a dia acompanha o próprio Windows: se você mudar a velocidade ou a aceleração no Painel de Controle,
+é isso que volta depois do Performance. Ao abrir, o app não regrava nada; só desfaz um Performance que ficou
+aplicado porque ele foi fechado à força ou o PC desligou no meio.
 
 ### Turbo (só no modo Performance)
 
@@ -47,8 +51,14 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 ### Mais
 
 - **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração e plano próprios para cada jogo.
+- **Mouse do jogo só com o jogo na tela** (Ajustes → Performance, desligado por padrão): no alt-tab e no desktop,
+  o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
+  Turbo não mudam.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática.
+- **Buscar jogos** (Ajustes → Jogos → Buscar): lista os jogos instalados pela Steam e pela Epic, além dos programas
+  abertos, para incluir vários de uma vez. O app escolhe como processo o maior `.exe` da pasta do jogo, sem
+  desinstaladores, launchers e anti-cheat; se errar, dá para corrigir o nome à mão.
 - **Atalho global**: Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 ou Ctrl+Shift+F12. Se o escolhido já for usado
   por outro programa, o app usa o próximo livre e mostra qual na tela inicial.
 - **Taxa do monitor**: avisa se algum monitor está abaixo do máximo (ex.: 60 Hz num de 144 Hz) e ajusta com um clique.
@@ -72,6 +82,7 @@ Configuração em `%APPDATA%\MouseModes\config.xml`.
 
 ```
 src/                 código C# (WinForms, .NET Framework 4.8)
+tests/               testes automáticos (xUnit)
 installer/           script do instalador (NSIS)
 build.sh             gera dist/MouseModes.exe e dist/MouseModes-Setup.exe
 VERSION              versão do app e do instalador
@@ -94,7 +105,12 @@ padrão do Mono pode gerar chamadas que não existem no Windows.
 ```powershell
 dotnet build src/MouseModes.csproj -c Release
 # exe em src\bin\Release\net48\MouseModes.exe
+dotnet test tests/MouseModes.Tests/MouseModes.Tests.csproj -c Release
 ```
+
+Os testes só leem o Windows (mouse, registro): nenhum aplica mouse, plano de energia ou USB. Os arquivos que eles
+criam e o log ficam numa pasta temporária. O plano de energia passa por um aplicador de mentira
+(`ModeManager.PowerApplier`); um teste novo que mexa na fila precisa conferir isso antes de enfileirar pedidos.
 
 **Publicar uma versão**:
 

@@ -124,7 +124,7 @@ namespace MouseModes
             hero.Glyph = perf ? GlyphKind.Bolt : GlyphKind.Monitor;
             hero.Reason = reason ?? "";
             hero.StatLabels = new[] { "SENS", "ACEL", "ENERGIA", "USB" };
-            hero.StatValues = Stats(profile);
+            hero.StatValues = Stats(profile, perf);
             perfTile.Active = perf;
             dailyTile.Active = !perf;
             hero.Invalidate();
@@ -249,7 +249,7 @@ namespace MouseModes
             settingsButton.Invalidate();
         }
 
-        private static string[] Stats(MouseProfile p)
+        private static string[] Stats(MouseProfile p, bool perf)
         {
             string power;
             switch (p.PowerPlan)
@@ -257,7 +257,7 @@ namespace MouseModes
                 case PowerPlanOption.AltoDesempenho: power = "ALTO"; break;
                 case PowerPlanOption.DesempenhoMaximo: power = "MÁXIMO"; break;
                 case PowerPlanOption.Equilibrado: power = "EQUIL."; break;
-                default: power = "PADRÃO"; break;
+                default: power = perf ? "PADRÃO" : "ANTERIOR"; break;
             }
             return new[]
             {
