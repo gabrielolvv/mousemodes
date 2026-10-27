@@ -109,7 +109,7 @@ namespace MouseModes
         private readonly List<double[]> path = new List<double[]>(); // t, x, y
         private int targetMisses;
 
-        public AimTestForm(AimTestHost host) : base("Teste de mira", true)
+        public AimTestForm(AimTestHost host) : base(L.T("Teste de mira", "Aim test"), true)
         {
             this.host = host;
             CloseOnEscape = true;
@@ -131,8 +131,8 @@ namespace MouseModes
             dpiHost = new FieldHost(dpiBox) { Size = new Size(180, 40), Accent = Theme.PerfB };
             arena.Controls.Add(dpiHost);
 
-            startButton = new NeonButton { Text = "Começar (20 s)", Style = ButtonStyle.Primary, Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
-            againButton = new NeonButton { Text = "Testar de novo", Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Visible = false };
+            startButton = new NeonButton { Text = L.T("Começar (20 s)", "Start (20 s)"), Style = ButtonStyle.Primary, Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            againButton = new NeonButton { Text = L.T("Testar de novo", "Test again"), Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Visible = false };
             startButton.Click += (s, e) => StartRound();
             againButton.Click += (s, e) => ShowIntro();
             Controls.Add(startButton);
@@ -167,8 +167,10 @@ namespace MouseModes
             phase = Phase.Intro;
             startButton.Visible = true;
             againButton.Visible = false;
-            footer.Text = "Não sabe o DPI? Veja no programa do seu mouse. Para comparar, troque o DPI lá e faça o teste de novo: " +
-                          "os resultados ficam lado a lado.";
+            footer.Text = L.T("Não sabe o DPI? Veja no programa do seu mouse. Para comparar, troque o DPI lá e faça o teste de novo: " +
+                              "os resultados ficam lado a lado.",
+                              "Do not know your DPI? Check your mouse software. To compare, change the DPI there and run the test again: " +
+                              "the results stay side by side.");
 
             if (dpiBox.Text.Length == 0 && host.CurrentDpi != null)
             {
@@ -199,7 +201,7 @@ namespace MouseModes
             phaseStart = clock.Elapsed.TotalSeconds;
             startButton.Visible = againButton.Visible = false;
             dpiHost.Visible = false;
-            footer.Text = "Acerte o máximo de alvos, rápido e no centro · Esc cancela";
+            footer.Text = L.T("Acerte o máximo de alvos, rápido e no centro · Esc cancela", "Hit as many targets as you can, fast and centered · Esc cancels");
             arena.Cursor = Cursors.Cross;
             arena.Mode = AimArena.View.Countdown;
             arena.RoundLabel = round.Label;
@@ -392,8 +394,10 @@ namespace MouseModes
 
             startButton.Visible = false;
             againButton.Visible = true;
-            footer.Text = "Trocou o DPI no programa do mouse? Clique em Testar de novo e informe o novo valor: o resultado entra na tabela. " +
-                          "Sugestões são um ponto de partida: repita o teste algumas vezes antes de decidir.";
+            footer.Text = L.T("Trocou o DPI no programa do mouse? Clique em Testar de novo e informe o novo valor: o resultado entra na tabela. " +
+                              "Sugestões são um ponto de partida: repita o teste algumas vezes antes de decidir.",
+                              "Changed the DPI in your mouse software? Click Test again and enter the new value: the result goes into the table. " +
+                              "Suggestions are a starting point: repeat the test a few times before deciding.");
         }
 
         internal static RoundResult BestOf(List<RoundResult> rounds)
@@ -410,7 +414,7 @@ namespace MouseModes
             var lines = new List<string>();
             if (focus == null || focus.Hits == 0)
             {
-                lines.Add("Nenhum alvo acertado. Tente de novo com calma: o objetivo é acertar rápido e no centro.");
+                lines.Add(L.T("Nenhum alvo acertado. Tente de novo com calma: o objetivo é acertar rápido e no centro.", "No targets hit. Try again calmly: the goal is to hit them fast and centered."));
                 return lines;
             }
 
@@ -421,38 +425,43 @@ namespace MouseModes
 
             if (best != null && best != focus && rounds.Count > 1)
             {
-                lines.Add("Seu melhor resultado até agora: " + best.Label + " (" + best.Score.ToString("0") + " pontos/min, contra " +
-                          focus.Score.ToString("0") + " agora).");
+                lines.Add(L.T("Seu melhor resultado até agora: ", "Your best result so far: ") + best.Label + " (" + best.Score.ToString("0") +
+                          L.T(" pontos/min, contra ", " points/min, against ") + focus.Score.ToString("0") + L.T(" agora).", " now)."));
             }
 
             // Parada do 1º movimento: >1 passa do alvo (rápido demais), <1 para antes (lento demais).
             if (end > 1.10 || focus.OvershootRate > 0.35)
             {
-                lines.Add("Você costuma passar do alvo (" + focus.OvershootRate.ToString("0%") + " das vezes) e voltar: o ponteiro está rápido para a sua mão.");
-                lines.Add(Suggestion(focus, 0.8, "mais baixo"));
+                lines.Add(L.T("Você costuma passar do alvo (", "You tend to overshoot the target (") + focus.OvershootRate.ToString("0%") +
+                          L.T(" das vezes) e voltar: o ponteiro está rápido para a sua mão.", " of the time) and come back: the pointer is fast for your hand."));
+                lines.Add(Suggestion(focus, 0.8, L.T("mais baixo", "lower")));
             }
             else if (end < 0.80 && corr > 1.2)
             {
-                lines.Add("Seu 1º movimento para antes do alvo e precisa de correções (" + corr.ToString("0.0") + " por alvo): o ponteiro está lento para a sua mão.");
-                lines.Add(Suggestion(focus, 1.25, "mais alto"));
+                lines.Add(L.T("Seu 1º movimento para antes do alvo e precisa de correções (", "Your first movement stops short of the target and needs corrections (") + corr.ToString("0.0") +
+                          L.T(" por alvo): o ponteiro está lento para a sua mão.", " per target): the pointer is slow for your hand."));
+                lines.Add(Suggestion(focus, 1.25, L.T("mais alto", "higher")));
             }
             else
             {
-                lines.Add("O 1º movimento chega no alvo (parada em " + (end * 100).ToString("0") + "% da distância): " +
-                          (focus.Dpi > 0 ? focus.Dpi + " DPI está" : "o DPI está") + " equilibrado para a sua mão.");
+                lines.Add(L.T("O 1º movimento chega no alvo (parada em ", "Your first movement reaches the target (stops at ") + (end * 100).ToString("0") +
+                          L.T("% da distância): ", "% of the distance): ") +
+                          (focus.Dpi > 0 ? focus.Dpi + L.T(" DPI está", " DPI is") : L.T("o DPI está", "the DPI is")) + L.T(" equilibrado para a sua mão.", " balanced for your hand."));
             }
 
             if (focus.MissRate > 0.25)
-                lines.Add("Muitos cliques fora (" + focus.MissRate.ToString("0%") + "): você está clicando antes de parar no alvo. Priorize acertar; a velocidade vem com o treino.");
+                lines.Add(L.T("Muitos cliques fora (", "Many missed clicks (") + focus.MissRate.ToString("0%") +
+                          L.T("): você está clicando antes de parar no alvo. Priorize acertar; a velocidade vem com o treino.", "): you are clicking before stopping on the target. Focus on hitting; speed comes with practice."));
             else if (offset > 0.6)
-                lines.Add("Os acertos estão longe do centro: mire no meio do alvo antes de clicar.");
+                lines.Add(L.T("Os acertos estão longe do centro: mire no meio do alvo antes de clicar.", "Your hits are far from the center: aim at the middle of the target before clicking."));
 
             if (current != null && current.EnhancePointerPrecision)
-                lines.Add("A aceleração do Windows está ligada no modo atual: use o modo Performance (ou desligue em Ajustes) para o mesmo gesto sempre levar ao mesmo lugar.");
+                lines.Add(L.T("A aceleração do Windows está ligada no modo atual: use o modo Performance (ou desligue em Ajustes) para o mesmo gesto sempre levar ao mesmo lugar.", "Windows acceleration is on in the current mode: use Performance mode (or turn it off in Settings) so the same motion always lands in the same place."));
             if (current != null && current.PointerSpeed != 10)
-                lines.Add("Teste feito com velocidade do Windows " + current.PointerSpeed + "/20; no jogo vale DPI × sensibilidade do jogo.");
+                lines.Add(L.T("Teste feito com velocidade do Windows ", "Test done with Windows speed ") + current.PointerSpeed +
+                          L.T("/20; no jogo vale DPI × sensibilidade do jogo.", "/20; in game what counts is DPI × in-game sensitivity."));
             else
-                lines.Add("No jogo, a sensibilidade final é DPI × sensibilidade do jogo; ajuste a do jogo depois de fixar o DPI.");
+                lines.Add(L.T("No jogo, a sensibilidade final é DPI × sensibilidade do jogo; ajuste a do jogo depois de fixar o DPI.", "In game, the final sensitivity is DPI × in-game sensitivity; tune the game one after settling the DPI."));
             return lines;
         }
 
@@ -460,10 +469,12 @@ namespace MouseModes
         private static string Suggestion(RoundResult r, double factor, string direction)
         {
             if (r.Dpi <= 0)
-                return "Sugestão: " + (factor < 1 ? "baixe" : "suba") + " o DPI uns 20% no programa do seu mouse e faça o teste de novo. " +
-                       "Informe o DPI no começo do teste para receber um valor exato.";
-            return "Sugestão: no programa do seu mouse, experimente " + RoundDpi(r.Dpi * factor) + " DPI (" + direction +
-                   ") e faça o teste de novo para comparar.";
+                return L.T("Sugestão: " + (factor < 1 ? "baixe" : "suba") + " o DPI uns 20% no programa do seu mouse e faça o teste de novo. " +
+                           "Informe o DPI no começo do teste para receber um valor exato.",
+                           "Suggestion: " + (factor < 1 ? "lower" : "raise") + " the DPI by about 20% in your mouse software and run the test again. " +
+                           "Enter your DPI at the start of the test to get an exact value.");
+            return L.T("Sugestão: no programa do seu mouse, experimente ", "Suggestion: in your mouse software, try ") + RoundDpi(r.Dpi * factor) + " DPI (" + direction +
+                   L.T(") e faça o teste de novo para comparar.", ") and run the test again to compare.");
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -554,16 +565,19 @@ namespace MouseModes
             DrawTarget(g, new PointF(cx, Height * 0.24f), 46, 1f);
             var title = Theme.Display(26f);
             using (var tb = Theme.Gradient(new RectangleF(0, 0, Width, 60), Theme.PerfA, Theme.PerfB))
-                Theme.DrawSpacedCentered(g, "TESTE DE MIRA", title, tb, new RectangleF(0, Height * 0.38f, Width, 50), 2f);
+                Theme.DrawSpacedCentered(g, L.T("TESTE DE MIRA", "AIM TEST"), title, tb, new RectangleF(0, Height * 0.38f, Width, 50), 2f);
             Theme.DrawText(g,
-                "Alvos aparecem um de cada vez. Leve o mouse até eles e clique o mais rápido e no centro que conseguir.\n" +
-                "O MouseModes mede se você passa do alvo, se para antes, quantas correções faz e a precisão do clique,\n" +
-                "e no fim sugere o que mudar no DPI.",
+                L.T("Alvos aparecem um de cada vez. Leve o mouse até eles e clique o mais rápido e no centro que conseguir.\n" +
+                    "O MouseModes mede se você passa do alvo, se para antes, quantas correções faz e a precisão do clique,\n" +
+                    "e no fim sugere o que mudar no DPI.",
+                    "Targets show up one at a time. Move the mouse to them and click as fast and as centered as you can.\n" +
+                    "MouseModes measures whether you overshoot the target, stop short, how many corrections you make and how precise the click is,\n" +
+                    "and at the end it suggests what to change in the DPI."),
                 Theme.Ui(10.5f), Theme.Muted, new RectangleF(60, Height * 0.50f, Width - 120, 90), StringAlignment.Center);
             using (var lb = new SolidBrush(Theme.Muted))
-                Theme.DrawSpacedCentered(g, "SEU DPI ATUAL", Theme.Ui(7.5f, FontStyle.Bold), lb,
+                Theme.DrawSpacedCentered(g, L.T("SEU DPI ATUAL", "YOUR CURRENT DPI"), Theme.Ui(7.5f, FontStyle.Bold), lb,
                     new RectangleF(0, Height * 0.79f - 22, Width, 18), 1.6f);
-            Theme.DrawText(g, "Use a mesma pegada de quando joga · Enter começa · Esc cancela a rodada", Theme.Ui(9f), Theme.Faint,
+            Theme.DrawText(g, L.T("Use a mesma pegada de quando joga · Enter começa · Esc cancela a rodada", "Use the same grip as when you play · Enter starts · Esc cancels the round"), Theme.Ui(9f), Theme.Faint,
                 new RectangleF(0, Height * 0.93f, Width, 24), StringAlignment.Center);
         }
 
@@ -572,7 +586,7 @@ namespace MouseModes
             Theme.DrawText(g, RoundLabel, Theme.Display(16f), Theme.Muted, new RectangleF(0, Height * 0.30f, Width, 30), StringAlignment.Center);
             using (var b = Theme.Gradient(new RectangleF(0, 0, Width, Height), Theme.PerfA, Theme.PerfB, 90f))
                 Theme.DrawSpacedCentered(g, Math.Max(1, CountdownValue).ToString(), Theme.Display(90f), b, new RectangleF(0, Height * 0.36f, Width, 160), 0f);
-            Theme.DrawText(g, "deixe o mouse parado e prepare-se", Theme.Ui(10f), Theme.Faint, new RectangleF(0, Height * 0.68f, Width, 24), StringAlignment.Center);
+            Theme.DrawText(g, L.T("deixe o mouse parado e prepare-se", "keep the mouse still and get ready"), Theme.Ui(10f), Theme.Faint, new RectangleF(0, Height * 0.68f, Width, 24), StringAlignment.Center);
         }
 
         private void DrawPlaying(Graphics g)
@@ -586,7 +600,7 @@ namespace MouseModes
                     Theme.FillRounded(g, fill, 3, lb);
 
             Theme.DrawText(g, RoundLabel, Theme.Display(11f), Theme.Muted, new RectangleF(20, 30, 300, 22));
-            Theme.DrawText(g, Hits + " acertos   " + Misses + " erros", Theme.Display(11f), Theme.Text,
+            Theme.DrawText(g, Hits + L.T(" acertos   ", " hits   ") + Misses + L.T(" erros", " misses"), Theme.Display(11f), Theme.Text,
                 new RectangleF(Width - 320, 30, 300, 22), StringAlignment.Far);
 
             DrawTarget(g, Target, Radius, 1f);
@@ -618,11 +632,15 @@ namespace MouseModes
         private void DrawResults(Graphics g)
         {
             float x = 36, y = 28;
-            Theme.DrawSpaced(g, "RESULTADO", Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
+            Theme.DrawSpaced(g, L.T("RESULTADO", "RESULT"), Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
             y += 24;
 
             // Tabela: uma linha por rodada
-            string[] head = { "DPI", "PONTOS/MIN", "ACERTOS", "ERROS", "TEMPO MÉDIO", "PASSOU DO ALVO", "PARADA DO 1º MOV." };
+            string[] head =
+            {
+                "DPI", L.T("PONTOS/MIN", "POINTS/MIN"), L.T("ACERTOS", "HITS"), L.T("ERROS", "MISSES"), L.T("TEMPO MÉDIO", "AVG TIME"),
+                L.T("PASSOU DO ALVO", "OVERSHOT"), L.T("PARADA DO 1º MOV.", "1ST MOVE STOP")
+            };
             float[] col = { 0, 150, 290, 390, 480, 620, 770 };
             for (int i = 0; i < head.Length; i++)
                 Theme.DrawSpaced(g, head[i], Theme.Ui(7f, FontStyle.Bold), Theme.Faint, x + col[i], y, 1.2f);
@@ -654,7 +672,7 @@ namespace MouseModes
             }
 
             y += 10;
-            Theme.DrawSpaced(g, "O QUE FAZER", Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
+            Theme.DrawSpaced(g, L.T("O QUE FAZER", "WHAT TO DO"), Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
             y += 26;
             foreach (string line in Advice)
             {
@@ -664,7 +682,7 @@ namespace MouseModes
                 y += size.Height + 10;
             }
 
-            Theme.DrawText(g, "Parada do 1º movimento: 100% = parou em cima do alvo · acima passa do alvo · abaixo para antes.",
+            Theme.DrawText(g, L.T("Parada do 1º movimento: 100% = parou em cima do alvo · acima passa do alvo · abaixo para antes.", "1st move stop: 100% = stopped on the target · above overshoots · below stops short."),
                 Theme.Ui(8.5f), Theme.Faint, new RectangleF(x, Height - 34, Width - 2 * x, 20));
         }
     }

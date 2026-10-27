@@ -16,8 +16,15 @@ namespace MouseModes
         /// <summary>Dois cliques do mesmo botão mais rápidos que isso não são humanos.</summary>
         private const double GhostMs = 60;
 
-        private static readonly string[] Names = { "Esquerdo", "Direito", "Meio", "Lateral 1", "Lateral 2" };
-        private static readonly string[] Short = { "ESQ", "DIR", "MEIO", "LAT 1", "LAT 2" };
+        // Propriedades, não campos: o texto segue o idioma escolhido ao abrir o app.
+        private static string[] Names
+        {
+            get { return new[] { L.T("Esquerdo", "Left"), L.T("Direito", "Right"), L.T("Meio", "Middle"), L.T("Lateral 1", "Side 1"), L.T("Lateral 2", "Side 2") }; }
+        }
+        private static string[] Short
+        {
+            get { return new[] { L.T("ESQ", "LEFT"), L.T("DIR", "RIGHT"), L.T("MEIO", "MID"), L.T("LAT 1", "SIDE1"), L.T("LAT 2", "SIDE2") }; }
+        }
         private static readonly ushort[] DownFlags = { RawMouse.LeftDown, RawMouse.RightDown, RawMouse.MiddleDown, RawMouse.Button4Down, RawMouse.Button5Down };
         private static readonly ushort[] UpFlags = { RawMouse.LeftUp, RawMouse.RightUp, RawMouse.MiddleUp, RawMouse.Button4Up, RawMouse.Button5Up };
 
@@ -30,15 +37,17 @@ namespace MouseModes
         private readonly TextBox events;
         private readonly List<string> eventLines = new List<string>();
 
-        public ClickTestForm() : base("Teste de clique", true)
+        public ClickTestForm() : base(L.T("Teste de clique", "Click test"), true)
         {
             CloseOnEscape = true;
             ClientSize = new Size(520, 560);
             TitleBar.AccentA = Theme.DailyA;
             TitleBar.AccentB = Theme.DailyB;
 
-            Controls.Add(Note("Clique normalmente com cada botão, sem pressa, uns 30 cliques em cada. " +
-                              "Se aparecer clique fantasma, o switch daquele botão está gasto.", 20, 56, 480, 36, Theme.Muted, 9f));
+            Controls.Add(Note(L.T("Clique normalmente com cada botão, sem pressa, uns 30 cliques em cada. " +
+                                  "Se aparecer clique fantasma, o switch daquele botão está gasto.",
+                                  "Click normally with each button, without rushing, about 30 clicks each. " +
+                                  "If a ghost click shows up, that button's switch is worn."), 20, 56, 480, 36, Theme.Muted, 9f));
 
             for (int i = 0; i < 5; i++)
             {
@@ -49,7 +58,7 @@ namespace MouseModes
             summary = new StatusRow { Location = new Point(20, 226), Size = new Size(480, 60), Glyph = GlyphKind.Mouse };
             Controls.Add(summary);
 
-            Controls.Add(new SectionLabel { Text = "Últimos cliques", Location = new Point(20, 300), Size = new Size(480, 20) });
+            Controls.Add(new SectionLabel { Text = L.T("Últimos cliques", "Last clicks"), Location = new Point(20, 300), Size = new Size(480, 20) });
             events = new TextBox
             {
                 Multiline = true,
@@ -62,7 +71,7 @@ namespace MouseModes
             };
             Controls.Add(new FieldHost(events) { Location = new Point(20, 324), Size = new Size(480, 160), Accent = Theme.DailyB });
 
-            var reset = new NeonButton { Text = "Zerar", Location = new Point(20, 498), Size = new Size(480, 44) };
+            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 498), Size = new Size(480, 44) };
             reset.Click += (s, e) => Reset();
             Controls.Add(reset);
 
@@ -77,7 +86,7 @@ namespace MouseModes
             if (!raw.Register(Handle, false, out error))
             {
                 summary.Warning = true;
-                summary.Title = "Raw Input indisponível";
+                summary.Title = L.T("Raw Input indisponível", "Raw Input unavailable");
                 summary.Subtitle = error;
                 Log.Warn("Teste de clique: Raw Input indisponível (" + error + ")");
             }
@@ -120,8 +129,8 @@ namespace MouseModes
                         if (gap < minGhost[i]) minGhost[i] = gap;
                         Log.Warn("Teste de clique: clique fantasma no botão " + Names[i] + " (" + gap.ToString("0") + " ms)");
                     }
-                    AddEvent(Short[i].PadRight(5) + (ghost ? "  FANTASMA  " : "  clique    ") +
-                             (gap >= 0 ? gap.ToString("0").PadLeft(6) + " ms desde o anterior" : "      primeiro clique"));
+                    AddEvent(Short[i].PadRight(5) + (ghost ? L.T("  FANTASMA  ", "  GHOST     ") : L.T("  clique    ", "  click     ")) +
+                             (gap >= 0 ? gap.ToString("0").PadLeft(6) + L.T(" ms desde o anterior", " ms since the previous") : L.T("      primeiro clique", "      first click")));
                     tiles[i].Invalidate();
                     UpdateSummary();
                 }
@@ -155,19 +164,20 @@ namespace MouseModes
             if (total == 0)
             {
                 summary.Warning = false;
-                summary.Title = "Aguardando cliques";
-                summary.Subtitle = "Clique em qualquer lugar desta janela";
+                summary.Title = L.T("Aguardando cliques", "Waiting for clicks");
+                summary.Subtitle = L.T("Clique em qualquer lugar desta janela", "Click anywhere in this window");
             }
             else if (ghosts == 0)
             {
                 summary.Warning = false;
-                summary.Title = "Nenhum clique fantasma";
-                summary.Subtitle = total + (total == 1 ? " clique testado" : " cliques testados") + (total < 30 ? " · continue clicando" : " · switches ok");
+                summary.Title = L.T("Nenhum clique fantasma", "No ghost clicks");
+                summary.Subtitle = total + (total == 1 ? L.T(" clique testado", " click tested") : L.T(" cliques testados", " clicks tested")) +
+                    (total < 30 ? L.T(" · continue clicando", " · keep clicking") : " · switches ok");
             }
             else
             {
                 summary.Warning = true;
-                summary.Title = ghosts + (ghosts == 1 ? " clique fantasma" : " cliques fantasmas");
+                summary.Title = ghosts + (ghosts == 1 ? L.T(" clique fantasma", " ghost click") : L.T(" cliques fantasmas", " ghost clicks"));
                 summary.Subtitle = string.Join("  ·  ", bad.ToArray());
             }
             summary.Invalidate();
@@ -223,7 +233,7 @@ namespace MouseModes
                     Theme.DrawSpacedCentered(g, Caption, Theme.Ui(7.5f, FontStyle.Bold), tb, new RectangleF(r.X, r.Y + 8, r.Width, 18), 1.4f);
                 Theme.DrawText(g, Clicks.ToString(), Theme.Display(22f), IsDown ? Color.White : Theme.Text,
                     new RectangleF(r.X, r.Y + 28, r.Width, 40), StringAlignment.Center, StringAlignment.Center, false);
-                Theme.DrawText(g, Ghosts == 0 ? "sem fantasma" : Ghosts + (Ghosts == 1 ? " fantasma" : " fantasmas"),
+                Theme.DrawText(g, Ghosts == 0 ? L.T("sem fantasma", "no ghosts") : Ghosts + (Ghosts == 1 ? L.T(" fantasma", " ghost") : L.T(" fantasmas", " ghosts")),
                     Theme.Ui(7.5f, FontStyle.Bold), IsDown ? Color.White : bad ? Theme.Danger : Theme.Faint,
                     new RectangleF(r.X, r.Bottom - 30, r.Width, 20), StringAlignment.Center, StringAlignment.Center, false);
             }

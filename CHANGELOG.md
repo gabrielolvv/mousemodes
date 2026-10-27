@@ -9,8 +9,9 @@ Cada versão tem uma seção `## X.Y.Z`. A Release do GitHub usa a seção da pr
 - **Teste de mira e DPI** (botão na tela inicial e no ícone da bandeja): alvos por 20 s. O app mede se você passa do
   alvo, se para antes, quantas correções faz e a precisão do clique, e sugere quanto subir ou baixar o DPI no programa
   do seu mouse. As rodadas ficam lado a lado para comparar DPIs.
-- **Inglês** (em partes): a tela principal, o ícone da bandeja e os Ajustes seguem o idioma do Windows (português ou inglês),
-  com escolha em ícone da bandeja → Idioma / Language. README em inglês (`README.en.md`).
+- **Inglês**: todas as telas seguem o idioma do Windows (português ou inglês), com escolha em ícone da bandeja →
+  Idioma / Language. As mensagens do registro do Diagnóstico continuam em português. README em inglês
+  (`README.en.md`).
 
 ### Correções
 

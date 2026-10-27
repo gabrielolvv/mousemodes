@@ -28,16 +28,16 @@ namespace MouseModes
             int build = WindowsBuild();
             var checks = new List<WindowsCheck>
             {
-                Safe("Modo de Jogo", () => GameMode(
+                Safe(L.T("Modo de Jogo", "Game Mode"), () => GameMode(
                     HkcuValue(@"Software\Microsoft\GameBar", "AutoGameModeEnabled"))),
-                Safe("Gravação em segundo plano", () => BackgroundRecording(
+                Safe(L.T("Gravação em segundo plano", "Background recording"), () => BackgroundRecording(
                     HkcuValue(@"Software\Microsoft\Windows\CurrentVersion\GameDVR", "HistoricalCaptureEnabled"), build)),
-                Safe("Agendamento de GPU acelerado", () => HardwareScheduling(
+                Safe(L.T("Agendamento de GPU acelerado", "Hardware-accelerated GPU scheduling"), () => HardwareScheduling(
                     HklmValue(@"SYSTEM\CurrentControlSet\Control\GraphicsDrivers", "HwSchMode")))
             };
             if (build >= 22000)
             {
-                checks.Add(Safe("Otimizações para jogos em janela", () => WindowedOptimizations(
+                checks.Add(Safe(L.T("Otimizações para jogos em janela", "Optimizations for windowed games"), () => WindowedOptimizations(
                     HkcuValue(@"Software\Microsoft\DirectX\UserGpuPreferences", "DirectXUserGlobalSettings") as string)));
             }
             return checks;
@@ -49,10 +49,10 @@ namespace MouseModes
             bool on = !(value is int) || (int)value != 0;
             return new WindowsCheck
             {
-                Name = "Modo de Jogo",
-                State = on ? "Ligado" : "Desligado",
+                Name = L.T("Modo de Jogo", "Game Mode"),
+                State = on ? L.T("Ligado", "On") : L.T("Desligado", "Off"),
                 Ok = on,
-                Advice = on ? "" : "Ligue: o Windows dá prioridade ao jogo e segura atualizações durante a partida.",
+                Advice = on ? "" : L.T("Ligue: o Windows dá prioridade ao jogo e segura atualizações durante a partida.", "Turn it on: Windows gives the game priority and holds back updates during a match."),
                 SettingsUri = "ms-settings:gaming-gamemode"
             };
         }
@@ -63,10 +63,10 @@ namespace MouseModes
             bool on = value is int && (int)value != 0;
             return new WindowsCheck
             {
-                Name = "Gravação em segundo plano",
-                State = on ? "Ligada" : "Desligada",
+                Name = L.T("Gravação em segundo plano", "Background recording"),
+                State = on ? L.T("Ligada", "On") : L.T("Desligada", "Off"),
                 Ok = !on,
-                Advice = on ? "Desligue se não usa: ela grava o jogo o tempo todo e custa FPS." : "",
+                Advice = on ? L.T("Desligue se não usa: ela grava o jogo o tempo todo e custa FPS.", "Turn it off if you do not use it: it records the game all the time and costs FPS.") : "",
                 SettingsUri = build >= 22000 ? "ms-settings:gaming-captures" : "ms-settings:gaming-gamedvr"
             };
         }
@@ -74,36 +74,36 @@ namespace MouseModes
         /// <summary>HwSchMode: 2 = ligado, 1 = desligado, sem valor = placa ou driver sem suporte.</summary>
         internal static WindowsCheck HardwareScheduling(object value)
         {
-            var check = new WindowsCheck { Name = "Agendamento de GPU acelerado", SettingsUri = GraphicsUri };
+            var check = new WindowsCheck { Name = L.T("Agendamento de GPU acelerado", "Hardware-accelerated GPU scheduling"), SettingsUri = GraphicsUri };
             if (!(value is int))
             {
-                check.State = "Sem suporte";
-                check.Advice = "A placa de vídeo ou o driver não oferecem esta opção.";
+                check.State = L.T("Sem suporte", "Not supported");
+                check.Advice = L.T("A placa de vídeo ou o driver não oferecem esta opção.", "The graphics card or driver does not offer this option.");
                 return check;
             }
             bool on = (int)value == 2;
-            check.State = on ? "Ligado" : "Desligado";
+            check.State = on ? L.T("Ligado", "On") : L.T("Desligado", "Off");
             check.Ok = on ? true : (bool?)null;
-            check.Advice = on ? "" : "Em placas recentes, ligar costuma reduzir o atraso. Vale testar nos seus jogos; exige reiniciar.";
+            check.Advice = on ? "" : L.T("Em placas recentes, ligar costuma reduzir o atraso. Vale testar nos seus jogos; exige reiniciar.", "On recent cards, turning it on usually reduces delay. Worth testing in your games; needs a restart.");
             return check;
         }
 
         /// <summary>DirectXUserGlobalSettings: "SwapEffectUpgradeEnable=1;" liga; sem a chave vale o padrão do Windows.</summary>
         internal static WindowsCheck WindowedOptimizations(string settings)
         {
-            var check = new WindowsCheck { Name = "Otimizações para jogos em janela", SettingsUri = GraphicsUri };
+            var check = new WindowsCheck { Name = L.T("Otimizações para jogos em janela", "Optimizations for windowed games"), SettingsUri = GraphicsUri };
             string flag = Flag(settings, "SwapEffectUpgradeEnable");
             if (flag == "1")
             {
-                check.State = "Ligadas";
+                check.State = L.T("Ligadas", "On");
                 check.Ok = true;
                 check.Advice = "";
             }
             else
             {
-                check.State = flag == "0" ? "Desligadas" : "Padrão do Windows";
+                check.State = flag == "0" ? L.T("Desligadas", "Off") : L.T("Padrão do Windows", "Windows default");
                 check.Ok = flag == "0" ? false : (bool?)null;
-                check.Advice = "Ligue: diminui o atraso em jogos em janela ou sem borda.";
+                check.Advice = L.T("Ligue: diminui o atraso em jogos em janela ou sem borda.", "Turn them on: less delay in windowed and borderless games.");
             }
             return check;
         }
@@ -142,7 +142,7 @@ namespace MouseModes
             catch (Exception ex)
             {
                 Log.Error("Ler " + name, ex);
-                return new WindowsCheck { Name = name, State = "Não foi possível ler", Advice = "", SettingsUri = GraphicsUri };
+                return new WindowsCheck { Name = name, State = L.T("Não foi possível ler", "Could not read"), Advice = "", SettingsUri = GraphicsUri };
             }
         }
 

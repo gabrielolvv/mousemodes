@@ -89,9 +89,8 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   Antes de importar, o app mostra quantos jogos e quais programas para fechar vêm no arquivo.
 
 - **Idioma**: a tela segue o idioma do Windows (português num Windows em português, inglês nos outros). Dá para
-  escolher no ícone da bandeja → Idioma / Language; vale na próxima vez que o app abrir. A tradução está sendo feita
-  por partes: a tela principal, a bandeja e os Ajustes já estão em inglês; o Diagnóstico e as janelas de
-  polling, clique e mira vêm depois.
+  escolher no ícone da bandeja → Idioma / Language; vale na próxima vez que o app abrir. Todas as telas estão
+  traduzidas; só as mensagens do registro do Diagnóstico continuam em português.
 
 Configuração em `%APPDATA%\MouseModes\config.xml`.
 

@@ -59,20 +59,20 @@ namespace MouseModes
             uint flags = persist ? SPIF_UPDATEINIFILE | SPIF_SENDCHANGE : 0;
 
             int speed = Math.Max(1, Math.Min(20, p.PointerSpeed));
-            Check(SpiPtr(SPI_SETMOUSESPEED, 0, new IntPtr(speed), flags), "a velocidade do ponteiro");
+            Check(SpiPtr(SPI_SETMOUSESPEED, 0, new IntPtr(speed), flags), L.T("a velocidade do ponteiro", "the pointer speed"));
 
             // Valores padrão do Windows quando a precisão está ligada: 6, 10, 1.
             int[] accel = p.EnhancePointerPrecision ? new[] { 6, 10, 1 } : new[] { 0, 0, 0 };
-            Check(SpiArray(SPI_SETMOUSE, 0, accel, flags), "a precisão do ponteiro");
+            Check(SpiArray(SPI_SETMOUSE, 0, accel, flags), L.T("a precisão do ponteiro", "the pointer precision"));
 
             int lines = Math.Max(1, Math.Min(100, p.ScrollLines));
-            Check(SpiPtr(SPI_SETWHEELSCROLLLINES, (uint)lines, IntPtr.Zero, flags), "as linhas de rolagem");
+            Check(SpiPtr(SPI_SETWHEELSCROLLLINES, (uint)lines, IntPtr.Zero, flags), L.T("as linhas de rolagem", "the scroll lines"));
         }
 
         private static void Check(bool ok, string what)
         {
             if (!ok)
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Não foi possível ajustar " + what + ".");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), L.T("Não foi possível ajustar ", "Could not set ") + what + ".");
         }
     }
 }

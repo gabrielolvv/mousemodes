@@ -41,7 +41,7 @@ namespace MouseModes
                         }
                         else if (!ActivateBalanced(store))
                         {
-                            warnings.Add("O plano de energia anterior não existe mais e o Equilibrado também falhou (veja o Diagnóstico).");
+                            warnings.Add(L.T("O plano de energia anterior não existe mais e o Equilibrado também falhou (veja o Diagnóstico).", "The previous power plan no longer exists and Balanced also failed (see Diagnostics)."));
                         }
                         else
                         {
@@ -50,22 +50,22 @@ namespace MouseModes
                         break;
                     case PowerPlanOption.Equilibrado:
                         if (!ActivateBalanced(store))
-                            warnings.Add("Não foi possível ativar um plano Equilibrado neste PC (veja o Diagnóstico).");
+                            warnings.Add(L.T("Não foi possível ativar um plano Equilibrado neste PC (veja o Diagnóstico).", "Could not turn on a Balanced plan on this PC (see Diagnostics)."));
                         break;
                     case PowerPlanOption.AltoDesempenho:
                         if (!ActivateFromTemplate(HighPerformanceGuid, HighCopyName, store, "Alto desempenho", "High performance"))
-                            warnings.Add("Não foi possível ativar o plano Alto desempenho.");
+                            warnings.Add(L.T("Não foi possível ativar o plano Alto desempenho.", "Could not turn on the High performance plan."));
                         break;
                     case PowerPlanOption.DesempenhoMaximo:
                         if (!ActivateFromTemplate(UltimateGuid, UltimateCopyName, store, "Desempenho M", "Ultimate Performance"))
-                            warnings.Add("Este PC não aceitou o plano Desempenho máximo (comum em notebooks). Use Alto desempenho.");
+                            warnings.Add(L.T("Este PC não aceitou o plano Desempenho máximo (comum em notebooks). Use Alto desempenho.", "This PC did not accept the Ultimate Performance plan (common on laptops). Use High performance."));
                         break;
                 }
             }
             catch (Exception ex)
             {
                 Log.Error("Plano de energia", ex);
-                warnings.Add("Erro ao trocar o plano de energia: " + ex.Message);
+                warnings.Add(L.T("Erro ao trocar o plano de energia: ", "Error changing the power plan: ") + ex.Message);
             }
 
             try
@@ -77,12 +77,12 @@ namespace MouseModes
                           & Run("/setdcvalueindex" + setting)
                           & Run("/setactive SCHEME_CURRENT");
                 if (!ok)
-                    warnings.Add("Não foi possível ajustar a suspensão seletiva de USB.");
+                    warnings.Add(L.T("Não foi possível ajustar a suspensão seletiva de USB.", "Could not set USB selective suspend."));
             }
             catch (Exception ex)
             {
                 Log.Error("Suspensão seletiva de USB", ex);
-                warnings.Add("Erro ao ajustar o USB: " + ex.Message);
+                warnings.Add(L.T("Erro ao ajustar o USB: ", "Error setting USB: ") + ex.Message);
             }
         }
 
@@ -213,7 +213,7 @@ namespace MouseModes
         public static string ActivePlanDescription()
         {
             string output;
-            return Run("/getactivescheme", out output) ? output.Trim() : "(não foi possível ler)";
+            return Run("/getactivescheme", out output) ? output.Trim() : L.T("(não foi possível ler)", "(could not read)");
         }
 
         /// <summary>Padrão do Windows: Equilibrado + suspensão seletiva de USB ligada.</summary>
