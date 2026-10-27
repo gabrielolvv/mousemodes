@@ -108,6 +108,12 @@ namespace MouseModes
         /// </summary>
         public Mode? LastMode { get; set; }
 
+        /// <summary>
+        /// Plano de energia ativo ao entrar no Performance, para o Dia a dia com "ANTERIOR" voltar a ele.
+        /// Guardado no config para valer também depois de um travamento.
+        /// </summary>
+        public string DailyPlanGuid { get; set; }
+
         public AppConfig()
         {
             Games = new List<string>();
@@ -219,7 +225,7 @@ namespace MouseModes
         private static MouseProfile DefaultDaily(MouseProfile current)
         {
             var p = current.Clone();
-            p.PowerPlan = PowerPlanOption.Equilibrado;
+            p.PowerPlan = PowerPlanOption.NaoAlterar; // "ANTERIOR": volta ao plano que a pessoa já usava
             p.DisableUsbSelectiveSuspend = false;
             return p;
         }

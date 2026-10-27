@@ -57,7 +57,9 @@ namespace MouseModes
             perfPanel.Controls.Add(focusRow);
 
             dailyPanel = new ProfilePanel(a, b,
-                "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app.");
+                "Acompanha o mouse do Windows e volta ao fechar o jogo ou ao sair do app. " +
+                "Plano ANTERIOR: volta ao plano de energia que estava ativo antes do Performance.",
+                "ANTERIOR");
             dailyPanel.LoadProfile(cfg.Daily);
 
             // --- Jogos ---
@@ -574,7 +576,10 @@ namespace MouseModes
         private readonly Segmented plan;
         private readonly ToggleRow usb;
 
-        public ProfilePanel(Color a, Color b, string hint)
+        /// <param name="keepPlanLabel">
+        /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "ANTERIOR": volta ao plano de antes do Performance.
+        /// </param>
+        public ProfilePanel(Color a, Color b, string hint, string keepPlanLabel = "MANTER")
         {
             BackColor = Theme.Bg;
 
@@ -599,7 +604,7 @@ namespace MouseModes
             var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 252), Size = new Size(440, 20) };
             plan = new Segmented
             {
-                Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" },
+                Options = new[] { keepPlanLabel, "EQUILIBRADO", "ALTO", "MÁXIMO" },
                 Location = new Point(0, 276),
                 Size = new Size(440, 42),
                 AccentA = a,

@@ -22,13 +22,31 @@ namespace MouseModes
         private static readonly Regex GuidRegex =
             new Regex(@"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}");
 
-        public static void Apply(MouseProfile p, List<string> warnings)
+        /// <param name="restorePlan">
+        /// Com "MANTER/ANTERIOR": GUID de um plano para reativar (o que estava antes do Performance), ou null para não mexer.
+        /// </param>
+        public static void Apply(MouseProfile p, List<string> warnings, string restorePlan = null)
         {
             // Cada parte isolada: se o plano falhar, o USB ainda é ajustado (e vice-versa).
             try
             {
                 switch (p.PowerPlan)
                 {
+                    case PowerPlanOption.NaoAlterar:
+                        if (restorePlan == null) break;
+                        if (Run("/setactive " + restorePlan))
+                        {
+                            Log.Info("Plano de energia anterior reativado (" + restorePlan + ")");
+                        }
+                        else if (!ActivateBalanced())
+                        {
+                            warnings.Add("O plano de energia anterior não existe mais e o Equilibrado também falhou (veja o Diagnóstico).");
+                        }
+                        else
+                        {
+                            Log.Warn("O plano de energia anterior (" + restorePlan + ") não existe mais; ativado o Equilibrado");
+                        }
+                        break;
                     case PowerPlanOption.Equilibrado:
                         if (!ActivateBalanced())
                             warnings.Add("Não foi possível ativar um plano Equilibrado neste PC (veja o Diagnóstico).");
@@ -129,6 +147,15 @@ namespace MouseModes
             foreach (string line in lines)
                 if (line.IndexOf(guid, StringComparison.OrdinalIgnoreCase) >= 0) return true;
             return false;
+        }
+
+        /// <summary>GUID do plano de energia ativo agora, ou null se não deu para ler.</summary>
+        public static string ActivePlanGuid()
+        {
+            string output;
+            if (!Run("/getactivescheme", out output)) return null;
+            Match m = GuidRegex.Match(output);
+            return m.Success ? m.Value.ToLowerInvariant() : null;
         }
 
         /// <summary>Nome do plano de energia ativo agora (para o Diagnóstico).</summary>

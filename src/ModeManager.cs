@@ -21,6 +21,8 @@ namespace MouseModes
         /// <summary>Performance aplicado, mas com o mouse do Dia a dia no momento (jogo fora da tela).</summary>
         public bool DailyMouseInUse { get; private set; }
 
+        private bool recovering; // Start() desfazendo um Performance que ficou aplicado
+
         /// <summary>(modo aplicado, motivo, avisos de coisas que falharam)</summary>
         public event Action<Mode, string, List<string>> ModeChanged;
 
@@ -39,9 +41,11 @@ namespace MouseModes
         {
             if (cfg.LastMode != Mode.DiaADia)
             {
-                if (cfg.LastMode == Mode.Performance)
-                    Log.Warn("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia");
-                Apply(Mode.DiaADia, cfg.LastMode == Mode.Performance ? "Recuperado ao iniciar" : "Iniciado");
+                bool crashed = cfg.LastMode == Mode.Performance;
+                if (crashed) Log.Warn("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia");
+                recovering = crashed; // o Windows ainda está como Performance: o plano anterior também volta
+                try { Apply(Mode.DiaADia, crashed ? "Recuperado ao iniciar" : "Iniciado"); }
+                finally { recovering = false; }
                 return;
             }
 
@@ -59,7 +63,20 @@ namespace MouseModes
         {
             // Saindo do Dia a dia: o perfil passa a ser o mouse como está agora no Windows,
             // inclusive o que a pessoa mudou fora do app. É isso que volta depois.
-            if (mode == Mode.Performance && Current == Mode.DiaADia) SyncDailyFromWindows();
+            if (mode == Mode.Performance && Current == Mode.DiaADia)
+            {
+                SyncDailyFromWindows();
+                RememberDailyPlan();
+            }
+
+            // Plano "ANTERIOR" só volta ao sair do Performance; salvar os Ajustes no Dia a dia não mexe no plano.
+            string restorePlan = null;
+            bool leavingPerformance = mode == Mode.DiaADia && (Current == Mode.Performance || recovering);
+            if (leavingPerformance && cfg.Daily.PowerPlan == PowerPlanOption.NaoAlterar)
+            {
+                restorePlan = ValidGuid(cfg.DailyPlanGuid);
+                if (restorePlan == null) Log.Info("Plano de energia anterior desconhecido; o atual fica");
+            }
 
             MouseProfile profile;
             string gameProfile = null;
@@ -79,7 +96,7 @@ namespace MouseModes
             try { MouseSettings.Apply(profile); }
             catch (Exception ex) { warnings.Add(ex.Message); }
 
-            try { PowerSettings.Apply(profile, warnings); }
+            try { PowerSettings.Apply(profile, warnings, restorePlan); }
             catch (Exception ex) { warnings.Add(ex.Message); }
 
             Current = mode;
@@ -132,6 +149,23 @@ namespace MouseModes
             d.PointerSpeed = now.PointerSpeed;
             d.EnhancePointerPrecision = now.EnhancePointerPrecision;
             d.ScrollLines = now.ScrollLines;
+        }
+
+        /// <summary>Com o Dia a dia em "ANTERIOR", guarda o plano de energia ativo antes de o Performance trocar.</summary>
+        private void RememberDailyPlan()
+        {
+            if (cfg.Daily.PowerPlan != PowerPlanOption.NaoAlterar) return;
+            string guid = PowerSettings.ActivePlanGuid();
+            if (guid == null || guid == cfg.DailyPlanGuid) return;
+            cfg.DailyPlanGuid = guid;
+            Log.Info("Plano de energia do Dia a dia guardado: " + guid);
+        }
+
+        /// <summary>O config é editável à mão: só passa adiante (para o powercfg) um GUID de verdade.</summary>
+        private static string ValidGuid(string value)
+        {
+            Guid parsed;
+            return value != null && Guid.TryParse(value, out parsed) ? parsed.ToString() : null;
         }
 
         private static string OnOff(bool on)

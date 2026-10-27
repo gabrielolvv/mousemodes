@@ -29,7 +29,7 @@ clique em **Mais informações → Executar assim mesmo**.
 |---|---|---|
 | Velocidade do ponteiro | 10/20 (1:1, sem multiplicador) | a que você já usava |
 | Aceleração ("Aprimorar precisão do ponteiro") | desligada | a que você já usava |
-| Plano de energia | Alto desempenho ou Desempenho máximo | Equilibrado |
+| Plano de energia | Alto desempenho ou Desempenho máximo | o que você já usava ("Anterior") |
 | Suspensão seletiva de USB | desativada (mouse nunca "adormece") | padrão do Windows |
 
 Tudo é editável em **Ajustes**. Fechar a janela no X não encerra o app: ele fica no ícone perto do relógio.
