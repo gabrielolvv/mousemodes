@@ -39,7 +39,7 @@ namespace MouseModes
         public event Action DiagnosticsRequested;
         public event Action RestoreDefaultsRequested;
 
-        public SettingsForm(AppConfig cfg) : base("Configurações", false)
+        public SettingsForm(AppConfig cfg) : base(L.T("Configurações", "Settings"), false)
         {
             this.cfg = cfg;
             CloseOnEscape = true;
@@ -50,17 +50,21 @@ namespace MouseModes
 
             // --- Performance / Dia a dia ---
             perfPanel = new ProfilePanel(pa, pb,
-                "Dica: velocidade 10 sem aceleração = movimento 1:1. Ajuste a sensibilidade pelo DPI do mouse e dentro do jogo. " +
-                "Jogos com configurações próprias (aba Jogos) usam as deles.");
+                L.T("Dica: velocidade 10 sem aceleração = movimento 1:1. Ajuste a sensibilidade pelo DPI do mouse e dentro do jogo. " +
+                    "Jogos com configurações próprias (aba Jogos) usam as deles.",
+                    "Tip: speed 10 without acceleration = 1:1 movement. Tune sensitivity with the mouse DPI and inside the game. " +
+                    "Games with their own settings (Games tab) use theirs."));
             perfPanel.LoadProfile(cfg.Performance);
-            focusRow = MakeRow("Mouse do jogo só com o jogo na tela", "No alt-tab e no desktop, usa o mouse do Dia a dia", pa, pb, 474, 60);
+            focusRow = MakeRow(L.T("Mouse do jogo só com o jogo na tela", "Game mouse only with the game on screen"), L.T("No alt-tab e no desktop, usa o mouse do Dia a dia", "On alt-tab and the desktop, uses the Daily mouse"), pa, pb, 474, 60);
             focusRow.Switch.SetChecked(cfg.MouseOnlyWhenGameFocused, false);
             perfPanel.Controls.Add(focusRow);
 
             dailyPanel = new ProfilePanel(a, b,
-                "Acompanha o mouse do Windows e volta ao fechar o jogo ou ao sair do app. " +
-                "Plano ANTERIOR: volta ao plano de energia que estava ativo antes do Performance.",
-                "ANTERIOR");
+                L.T("Acompanha o mouse do Windows e volta ao fechar o jogo ou ao sair do app. " +
+                    "Plano ANTERIOR: volta ao plano de energia que estava ativo antes do Performance.",
+                    "Follows the Windows mouse and comes back when the game closes or the app quits. " +
+                    "PREVIOUS plan: goes back to the power plan that was active before Performance."),
+                L.T("ANTERIOR", "PREVIOUS"));
             dailyPanel.LoadProfile(cfg.Daily);
 
             // --- Jogos ---
@@ -68,24 +72,24 @@ namespace MouseModes
 
             // --- Turbo ---
             var turboPanel = new Panel { BackColor = Theme.Bg };
-            boostRow = MakeRow("Prioridade alta para o jogo", "Enquanto o modo Performance estiver ativo", pa, pb, 8, 52);
+            boostRow = MakeRow(L.T("Prioridade alta para o jogo", "High priority for the game"), L.T("Enquanto o modo Performance estiver ativo", "While Performance mode is on"), pa, pb, 8, 52);
             boostRow.Switch.SetChecked(cfg.BoostGamePriority, false);
-            winKeyRow = MakeRow("Bloquear a tecla Windows", "Só quando um jogo da lista estiver em primeiro plano", pa, pb, 66, 52);
+            winKeyRow = MakeRow(L.T("Bloquear a tecla Windows", "Block the Windows key"), L.T("Só quando um jogo da lista estiver em primeiro plano", "Only while a game from the list is in the foreground"), pa, pb, 66, 52);
             winKeyRow.Switch.SetChecked(cfg.BlockWinKey, false);
-            stickyRow = MakeRow("Sem aviso das Teclas de Aderência", "Desliga o atalho Shift 5x e outros de acessibilidade", pa, pb, 124, 52);
+            stickyRow = MakeRow(L.T("Sem aviso das Teclas de Aderência", "No Sticky Keys prompt"), L.T("Desliga o atalho Shift 5x e outros de acessibilidade", "Turns off Shift 5x and other accessibility shortcuts"), pa, pb, 124, 52);
             stickyRow.Switch.SetChecked(cfg.DisableAccessibilityHotkeys, false);
-            silenceRow = MakeRow("Silenciar notificações do Windows", "Voltam ao normal quando sair do Performance", pa, pb, 182, 52);
+            silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb, 182, 52);
             silenceRow.Switch.SetChecked(cfg.SilenceNotifications, false);
-            closeRow = MakeRow("Fechar programas ao entrar em Performance", "Os da lista abaixo. Eles não são reabertos depois.", pa, pb, 240, 52);
+            closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb, 240, 52);
             closeRow.Switch.SetChecked(cfg.CloseAppsOnPerformance, false);
 
-            var appsLabel = new SectionLabel { Text = "Programas para fechar", Location = new Point(0, 306), Size = new Size(440, 20) };
-            var appsNote = Note("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", 0, 326, 440, 18, Theme.Faint, 8f);
+            var appsLabel = new SectionLabel { Text = L.T("Programas para fechar", "Programs to close"), Location = new Point(0, 306), Size = new Size(440, 20) };
+            var appsNote = Note(L.T("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", "One per line. E.g.: OneDrive, EpicGamesLauncher, Spotify, chrome"), 0, 326, 440, 18, Theme.Faint, 8f);
             appsToClose = NewListBox(cfg.AppsToClose);
             var appsHost = new FieldHost(appsToClose) { Location = new Point(0, 346), Size = new Size(440, 80), Accent = pb };
-            var pickApp = new NeonButton { Text = "Escolher programa aberto", Glyph = GlyphKind.Mouse, Location = new Point(0, 434), Size = new Size(440, 38), AccentA = pa, AccentB = pb };
+            var pickApp = new NeonButton { Text = L.T("Escolher programa aberto", "Pick an open program"), Glyph = GlyphKind.Mouse, Location = new Point(0, 434), Size = new Size(440, 38), AccentA = pa, AccentB = pb };
             pickApp.Click += (s, e) => AppendPicked(appsToClose);
-            forceRow = MakeRow("Forçar se não fechar", "Encerra à força: pode perder trabalho não salvo", pa, pb, 482, 52);
+            forceRow = MakeRow(L.T("Forçar se não fechar", "Force if it does not close"), L.T("Encerra à força: pode perder trabalho não salvo", "Kills it: unsaved work may be lost"), pa, pb, 482, 52);
             forceRow.Switch.SetChecked(cfg.ForceCloseApps, false);
 
             foreach (Control c in new Control[] { boostRow, winKeyRow, stickyRow, silenceRow, closeRow, appsLabel, appsNote, appsHost, pickApp, forceRow })
@@ -94,18 +98,18 @@ namespace MouseModes
             // --- Geral ---
             var generalPanel = new Panel { BackColor = Theme.Bg };
             // Linhas de 50 px a cada 56: com o aviso de versão nova, a página ainda cabe nos 554 px.
-            startWithWindows = MakeRow("Iniciar com o Windows", "Abre direto na bandeja, sem mostrar a janela", a, b, 8, 50);
+            startWithWindows = MakeRow(L.T("Iniciar com o Windows", "Start with Windows"), L.T("Abre direto na bandeja, sem mostrar a janela", "Opens straight in the tray, without showing the window"), a, b, 8, 50);
             try { startWithWindows.Switch.SetChecked(Startup.IsEnabled(), false); } catch { }
-            restoreOnExit = MakeRow("Voltar ao Dia a dia ao sair", "Desfaz o modo Performance quando o app fecha", a, b, 64, 50);
+            restoreOnExit = MakeRow(L.T("Voltar ao Dia a dia ao sair", "Back to Daily on quit"), L.T("Desfaz o modo Performance quando o app fecha", "Undoes Performance mode when the app closes"), a, b, 64, 50);
             restoreOnExit.Switch.SetChecked(cfg.RestoreDailyOnExit, false);
-            notifications = MakeRow("Avisos do MouseModes", "Mostra perto do relógio quando o modo muda", a, b, 120, 50);
+            notifications = MakeRow(L.T("Avisos do MouseModes", "MouseModes notices"), L.T("Mostra perto do relógio quando o modo muda", "Shows next to the clock when the mode changes"), a, b, 120, 50);
             notifications.Switch.SetChecked(cfg.ShowNotifications, false);
-            monitorCheckRow = MakeRow("Avisar sobre a taxa do monitor", "Mostra na tela inicial se algum monitor está abaixo do máximo", a, b, 176, 50);
+            monitorCheckRow = MakeRow(L.T("Avisar sobre a taxa do monitor", "Warn about the monitor refresh rate"), L.T("Mostra na tela inicial se algum monitor está abaixo do máximo", "Shows on the main screen if a monitor is below its max"), a, b, 176, 50);
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
-            updateRow = MakeRow("Avisar sobre versão nova", "Uma vez por dia consulta o GitHub; nunca durante o jogo", a, b, 232, 50);
+            updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b, 232, 50);
             updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
 
-            var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 296), Size = new Size(440, 20) };
+            var hotkeyLabel = new SectionLabel { Text = L.T("Atalho para trocar de modo", "Hotkey to switch modes"), Location = new Point(0, 296), Size = new Size(440, 20) };
             // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
             hotkeyBox = new HotkeyBox();
             uint savedMods;
@@ -114,7 +118,7 @@ namespace MouseModes
                 HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
             hotkeyBox.SetValue(savedMods, savedKey);
             var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 320), Size = new Size(300, 40), Accent = b };
-            var hotkeyDefault = new NeonButton { Text = "Padrão", Location = new Point(310, 320), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            var hotkeyDefault = new NeonButton { Text = L.T("Padrão", "Default"), Location = new Point(310, 320), Size = new Size(130, 40), AccentA = a, AccentB = b };
             hotkeyDefault.Click += (s, e) =>
             {
                 uint mods;
@@ -123,17 +127,19 @@ namespace MouseModes
                 hotkeyBox.SetValue(mods, key);
             };
 
-            var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 372), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var maintenance = new SectionLabel { Text = L.T("Manutenção", "Maintenance"), Location = new Point(0, 372), Size = new Size(440, 20) };
+            var diag = new NeonButton { Text = L.T("Diagnóstico", "Diagnostics"), Location = new Point(0, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
-            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var export = new NeonButton { Text = L.T("Exportar", "Export"), Location = new Point(150, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             export.Click += (s, e) => ExportConfig();
-            var import = new NeonButton { Text = "Importar", Location = new Point(300, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var import = new NeonButton { Text = L.T("Importar", "Import"), Location = new Point(300, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             import.Click += (s, e) => ImportConfig();
-            var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 450), Size = new Size(440, 42) };
+            var restore = new NeonButton { Text = L.T("Restaurar padrões do Windows", "Restore Windows defaults"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 450), Size = new Size(440, 42) };
             restore.Click += (s, e) => ConfirmRestore();
-            var restoreNote = Note("Restaurar volta o mouse e a energia ao padrão de fábrica: velocidade 10, aceleração ligada, " +
-                                   "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
+            var restoreNote = Note(L.T("Restaurar volta o mouse e a energia ao padrão de fábrica: velocidade 10, aceleração ligada, " +
+                                       "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
+                                       "Restore puts mouse and power back to factory defaults: speed 10, acceleration on, " +
+                                       "scroll 3, Balanced plan and default USB. Daily mode starts using these values."),
                                    0, 500, 440, 54, Theme.Faint, 8.5f);
 
             foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, updateRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
@@ -151,10 +157,10 @@ namespace MouseModes
             nav = new[]
             {
                 new NavItem { Text = "Performance", Glyph = GlyphKind.Bolt, AccentA = pa, AccentB = pb },
-                new NavItem { Text = "Dia a dia", Glyph = GlyphKind.Monitor, AccentA = a, AccentB = b },
-                new NavItem { Text = "Jogos", Glyph = GlyphKind.Mouse, AccentA = pa, AccentB = pb },
+                new NavItem { Text = L.T("Dia a dia", "Daily"), Glyph = GlyphKind.Monitor, AccentA = a, AccentB = b },
+                new NavItem { Text = L.T("Jogos", "Games"), Glyph = GlyphKind.Mouse, AccentA = pa, AccentB = pb },
                 new NavItem { Text = "Turbo", Glyph = GlyphKind.Gauge, AccentA = pa, AccentB = pb },
-                new NavItem { Text = "Geral", Glyph = GlyphKind.Gear, AccentA = a, AccentB = b }
+                new NavItem { Text = L.T("Geral", "General"), Glyph = GlyphKind.Gear, AccentA = a, AccentB = b }
             };
             for (int i = 0; i < nav.Length; i++)
             {
@@ -167,8 +173,8 @@ namespace MouseModes
             Controls.Add(new SideDivider { Location = new Point(190, PageY), Size = new Size(1, PageH) });
 
             // --- Botões ---
-            var cancel = new NeonButton { Text = "Cancelar", Location = new Point(370, 626), Size = new Size(130, 42) };
-            save = new NeonButton { Text = "Salvar", Style = ButtonStyle.Primary, Location = new Point(510, 626), Size = new Size(130, 42), AccentA = a, AccentB = b };
+            var cancel = new NeonButton { Text = L.T("Cancelar", "Cancel"), Location = new Point(370, 626), Size = new Size(130, 42) };
+            save = new NeonButton { Text = L.T("Salvar", "Save"), Style = ButtonStyle.Primary, Location = new Point(510, 626), Size = new Size(130, 42), AccentA = a, AccentB = b };
             cancel.Click += (s, e) => Close();
             save.Click += (s, e) => SaveAndClose();
             Controls.Add(cancel);
@@ -253,9 +259,11 @@ namespace MouseModes
 
         private void ConfirmRestore()
         {
-            bool yes = ConfirmDialog.Ask(this, "Restaurar padrões do Windows?",
-                "O mouse e a energia voltam ao padrão de fábrica e o modo muda para Dia a dia. " +
-                "Alterações não salvas nesta janela serão descartadas.", "Restaurar");
+            bool yes = ConfirmDialog.Ask(this, L.T("Restaurar padrões do Windows?", "Restore Windows defaults?"),
+                L.T("O mouse e a energia voltam ao padrão de fábrica e o modo muda para Dia a dia. " +
+                    "Alterações não salvas nesta janela serão descartadas.",
+                    "Mouse and power go back to factory defaults and the mode switches to Daily. " +
+                    "Unsaved changes in this window will be discarded."), L.T("Restaurar", "Restore"));
             if (!yes) return;
             Close();
             if (RestoreDefaultsRequested != null) RestoreDefaultsRequested();
@@ -266,9 +274,9 @@ namespace MouseModes
         {
             using (var dialog = new SaveFileDialog
             {
-                Title = "Exportar configuração do MouseModes",
+                Title = L.T("Exportar configuração do MouseModes", "Export MouseModes settings"),
                 FileName = "MouseModes-config.xml",
-                Filter = "Configuração do MouseModes (*.xml)|*.xml",
+                Filter = L.T("Configuração do MouseModes (*.xml)|*.xml", "MouseModes settings (*.xml)|*.xml"),
                 DefaultExt = "xml"
             })
             {
@@ -277,13 +285,14 @@ namespace MouseModes
                 {
                     cfg.ForExport().SaveTo(dialog.FileName);
                     Log.Info("Configuração exportada para " + dialog.FileName);
-                    ConfirmDialog.Inform(this, "Configuração exportada",
-                        "Jogos, perfis, Turbo e ajustes gerais foram salvos no arquivo. Use \"Importar\" no outro PC.");
+                    ConfirmDialog.Inform(this, L.T("Configuração exportada", "Settings exported"),
+                        L.T("Jogos, perfis, Turbo e ajustes gerais foram salvos no arquivo. Use \"Importar\" no outro PC.",
+                            "Games, profiles, Turbo and general settings were saved to the file. Use \"Import\" on the other PC."));
                 }
                 catch (Exception ex)
                 {
                     Log.Error("Exportar configuração", ex);
-                    ConfirmDialog.Inform(this, "Não foi possível exportar", ex.Message);
+                    ConfirmDialog.Inform(this, L.T("Não foi possível exportar", "Could not export"), ex.Message);
                 }
             }
         }
@@ -294,8 +303,8 @@ namespace MouseModes
             string path;
             using (var dialog = new OpenFileDialog
             {
-                Title = "Importar configuração do MouseModes",
-                Filter = "Configuração do MouseModes (*.xml)|*.xml|Todos os arquivos (*.*)|*.*"
+                Title = L.T("Importar configuração do MouseModes", "Import MouseModes settings"),
+                Filter = L.T("Configuração do MouseModes (*.xml)|*.xml|Todos os arquivos (*.*)|*.*", "MouseModes settings (*.xml)|*.xml|All files (*.*)|*.*")
             })
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -310,19 +319,21 @@ namespace MouseModes
             catch (Exception ex)
             {
                 Log.Error("Importar configuração de " + path, ex);
-                ConfirmDialog.Inform(this, "Arquivo não reconhecido", "Este arquivo não é uma configuração do MouseModes.");
+                ConfirmDialog.Inform(this, L.T("Arquivo não reconhecido", "File not recognized"), L.T("Este arquivo não é uma configuração do MouseModes.", "This file is not a MouseModes settings file."));
                 return;
             }
 
             // O arquivo pode ter vindo de outra pessoa: mostra o que ele traz, inclusive os programas que seriam fechados.
             List<string> apps = imported.AppsToClose;
             string names = string.Join(", ", apps.GetRange(0, Math.Min(5, apps.Count)).ToArray()) + (apps.Count > 5 ? ", …" : "");
-            string closing = apps.Count == 0 ? "nenhum programa para fechar"
-                : apps.Count + " programa(s) para fechar (" + names + ")" +
-                  (imported.CloseAppsOnPerformance ? "" : ", com o fechamento desligado");
-            bool yes = ConfirmDialog.Ask(this, "Importar configuração?",
-                "Traz " + imported.Games.Count + " jogo(s), " + imported.GameProfiles.Count + " perfil(is) próprio(s) e " + closing + ". " +
-                "As configurações atuais e as mudanças não salvas nesta janela serão substituídas.", "Importar");
+            string closing = apps.Count == 0 ? L.T("nenhum programa para fechar", "no programs to close")
+                : apps.Count + L.T(" programa(s) para fechar (", " program(s) to close (") + names + ")" +
+                  (imported.CloseAppsOnPerformance ? "" : L.T(", com o fechamento desligado", ", with closing turned off"));
+            bool yes = ConfirmDialog.Ask(this, L.T("Importar configuração?", "Import settings?"),
+                L.T("Traz ", "It brings ") + imported.Games.Count + L.T(" jogo(s), ", " game(s), ") + imported.GameProfiles.Count +
+                L.T(" perfil(is) próprio(s) e ", " own profile(s) and ") + closing + ". " +
+                L.T("As configurações atuais e as mudanças não salvas nesta janela serão substituídas.", "The current settings and the unsaved changes in this window will be replaced."),
+                L.T("Importar", "Import"));
             if (!yes) return;
 
             cfg.CopySettingsFrom(imported);
@@ -333,7 +344,7 @@ namespace MouseModes
             catch (Exception ex)
             {
                 Log.Error("Salvar configuração importada", ex);
-                ConfirmDialog.Inform(this, "Não foi possível salvar", ex.Message);
+                ConfirmDialog.Inform(this, L.T("Não foi possível salvar", "Could not save"), ex.Message);
                 return;
             }
             Log.Info("Configuração importada de " + path + ": " + cfg.Games.Count + " jogo(s), " + cfg.AppsToClose.Count + " programa(s) para fechar");
@@ -381,7 +392,7 @@ namespace MouseModes
             catch (Exception ex)
             {
                 Log.Error("Salvar configurações", ex);
-                ConfirmDialog.Inform(this, "Não foi possível salvar", ex.Message);
+                ConfirmDialog.Inform(this, L.T("Não foi possível salvar", "Could not save"), ex.Message);
                 return;
             }
             Log.Info("Configurações salvas");
@@ -432,11 +443,11 @@ namespace MouseModes
                 entries.Add(new Entry { Name = g, Custom = gp != null ? gp.Profile.Clone() : null });
             }
 
-            autoSwitch = new ToggleRow { Title = "Troca automática", Subtitle = "Ativa Performance quando um jogo da lista abrir", Location = new Point(0, 8), Size = new Size(440, 56) };
+            autoSwitch = new ToggleRow { Title = L.T("Troca automática", "Automatic switch"), Subtitle = L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), Location = new Point(0, 8), Size = new Size(440, 56) };
             autoSwitch.SetAccents(a, b);
             autoSwitch.Switch.SetChecked(cfg.AutoSwitch, false);
 
-            var listLabel = new SectionLabel { Text = "Jogos (começo do nome do processo)", Location = new Point(0, 78), Size = new Size(440, 20) };
+            var listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 78), Size = new Size(440, 20) };
             list = new ListBox
             {
                 BorderStyle = BorderStyle.None,
@@ -452,9 +463,9 @@ namespace MouseModes
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
             nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
             var nameHost = new FieldHost(nameBox) { Location = new Point(0, 222), Size = new Size(196, 38), Accent = b };
-            var add = new NeonButton { Text = "Incluir", Location = new Point(204, 222), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = "Buscar", Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
-            var remove = new NeonButton { Text = "Tirar", Style = ButtonStyle.Danger, Location = new Point(368, 222), Size = new Size(72, 38) };
+            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 222), Size = new Size(74, 38), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
+            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 222), Size = new Size(72, 38) };
             add.Click += (s, e) => AddName(nameBox.Text);
             pick.Click += (s, e) =>
             {
@@ -462,18 +473,18 @@ namespace MouseModes
             };
             remove.Click += (s, e) => RemoveSelected();
 
-            customRow = new ToggleRow { Location = new Point(0, 272), Size = new Size(440, 56), Subtitle = "Desligado: usa as configurações do modo Performance" };
+            customRow = new ToggleRow { Location = new Point(0, 272), Size = new Size(440, 56), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
             customRow.SetAccents(a, b);
             customRow.Switch.CheckedChanged += OnCustomToggled;
 
             editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 336), Size = new Size(440, 210) };
-            speedLabel = new SectionLabel { Text = "Velocidade do ponteiro", Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
+            speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
             speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 22), Size = new Size(448, 36), AccentA = a, AccentB = b };
             speed.ValueChanged += () => { speedLabel.RightText = speed.Value + " / 20"; speedLabel.Invalidate(); };
-            precision = new ToggleRow { Title = "Aceleração do Windows", Subtitle = "\"Aprimorar precisão do ponteiro\"", Location = new Point(0, 66), Size = new Size(440, 52) };
+            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 66), Size = new Size(440, 52) };
             precision.SetAccents(a, b);
-            var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 130), Size = new Size(440, 20) };
-            plan = new Segmented { Options = new[] { "MANTER", "EQUILIBRADO", "ALTO", "MÁXIMO" }, Location = new Point(0, 154), Size = new Size(440, 42), AccentA = a, AccentB = b };
+            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 130), Size = new Size(440, 20) };
+            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 154), Size = new Size(440, 42), AccentA = a, AccentB = b };
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
@@ -482,7 +493,7 @@ namespace MouseModes
 
             emptyNote = new Label
             {
-                Text = "Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.",
+                Text = L.T("Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.", "Pick a game in the list to give it its own settings. Scroll and USB follow Performance mode."),
                 Location = new Point(0, 280),
                 Size = new Size(440, 60),
                 ForeColor = Theme.Faint,
@@ -515,7 +526,7 @@ namespace MouseModes
             emptyNote.Visible = !has;
             if (has)
             {
-                customRow.Title = "Configurações próprias para " + current.Name;
+                customRow.Title = L.T("Configurações próprias para ", "Own settings for ") + current.Name;
                 customRow.Switch.SetChecked(current.Custom != null, false);
                 customRow.Invalidate();
                 LoadEditor();
@@ -598,7 +609,7 @@ namespace MouseModes
             if (e.Index < 0 || e.Index >= entries.Count) return;
             Entry entry = entries[e.Index];
             bool sel = (e.State & DrawItemState.Selected) != 0;
-            ListPainter.Draw(e, entry.Name, sel, entry.Custom != null ? "PRÓPRIO" : null, Theme.PerfA, Theme.PerfB);
+            ListPainter.Draw(e, entry.Name, sel, entry.Custom != null ? L.T("PRÓPRIO", "OWN") : null, Theme.PerfA, Theme.PerfB);
         }
     }
 
@@ -643,7 +654,7 @@ namespace MouseModes
             Controls.Add(Note(message, 22, 60, 376, 80, Theme.Muted, 9.5f));
             if (confirmText != null)
             {
-                var cancel = new NeonButton { Text = "Cancelar", Location = new Point(132, 150), Size = new Size(126, 42) };
+                var cancel = new NeonButton { Text = L.T("Cancelar", "Cancel"), Location = new Point(132, 150), Size = new Size(126, 42) };
                 cancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
                 Controls.Add(cancel);
             }
@@ -687,32 +698,32 @@ namespace MouseModes
         /// <param name="keepPlanLabel">
         /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "ANTERIOR": volta ao plano de antes do Performance.
         /// </param>
-        public ProfilePanel(Color a, Color b, string hint, string keepPlanLabel = "MANTER")
+        public ProfilePanel(Color a, Color b, string hint, string keepPlanLabel = null)
         {
             BackColor = Theme.Bg;
 
-            speedLabel = new SectionLabel { Text = "Velocidade do ponteiro", Location = new Point(0, 8), Size = new Size(440, 20), RightColor = b };
+            speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 8), Size = new Size(440, 20), RightColor = b };
             speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 30), Size = new Size(448, 36), AccentA = a, AccentB = b };
             speedNote = new Label { Location = new Point(0, 68), Size = new Size(440, 20), ForeColor = Theme.Muted, Font = Theme.Ui(8.5f), BackColor = Color.Transparent };
             speed.ValueChanged += UpdateLabels;
 
             precision = new ToggleRow
             {
-                Title = "Aceleração do Windows",
-                Subtitle = "\"Aprimorar precisão do ponteiro\" (aceleração)",
+                Title = L.T("Aceleração do Windows", "Windows acceleration"),
+                Subtitle = L.T("\"Aprimorar precisão do ponteiro\" (aceleração)", "\"Enhance pointer precision\" (acceleration)"),
                 Location = new Point(0, 98),
                 Size = new Size(440, 60)
             };
             precision.SetAccents(a, b);
 
-            scrollLabel = new SectionLabel { Text = "Linhas por giro da roda", Location = new Point(0, 176), Size = new Size(440, 20), RightColor = b };
+            scrollLabel = new SectionLabel { Text = L.T("Linhas por giro da roda", "Lines per wheel notch"), Location = new Point(0, 176), Size = new Size(440, 20), RightColor = b };
             scroll = new NeonSlider { Minimum = 1, Maximum = 20, Location = new Point(-4, 198), Size = new Size(448, 36), AccentA = a, AccentB = b };
             scroll.ValueChanged += UpdateLabels;
 
-            var planLabel = new SectionLabel { Text = "Plano de energia", Location = new Point(0, 252), Size = new Size(440, 20) };
+            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 252), Size = new Size(440, 20) };
             plan = new Segmented
             {
-                Options = new[] { keepPlanLabel, "EQUILIBRADO", "ALTO", "MÁXIMO" },
+                Options = new[] { keepPlanLabel ?? L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") },
                 Location = new Point(0, 276),
                 Size = new Size(440, 42),
                 AccentA = a,
@@ -721,8 +732,8 @@ namespace MouseModes
 
             usb = new ToggleRow
             {
-                Title = "USB sempre ativo",
-                Subtitle = "Desativa a suspensão seletiva: o mouse nunca \"adormece\"",
+                Title = L.T("USB sempre ativo", "USB always on"),
+                Subtitle = L.T("Desativa a suspensão seletiva: o mouse nunca \"adormece\"", "Turns off selective suspend: the mouse never \"falls asleep\""),
                 Location = new Point(0, 332),
                 Size = new Size(440, 60)
             };
@@ -755,9 +766,9 @@ namespace MouseModes
             int v = speed.Value;
             speedLabel.RightText = v + " / 20";
             speedNote.Text = v == 10
-                ? "1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)"
-                : v > 10 ? "Multiplica o movimento: pode pular pixels" : "Reduz o movimento do sensor";
-            scrollLabel.RightText = scroll.Value + (scroll.Value == 1 ? " linha" : " linhas");
+                ? L.T("1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)", "1:1 — the pointer moves exactly what the sensor reads (recommended for games)")
+                : v > 10 ? L.T("Multiplica o movimento: pode pular pixels", "Multiplies movement: may skip pixels") : L.T("Reduz o movimento do sensor", "Reduces the sensor movement");
+            scrollLabel.RightText = scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
             speedLabel.Invalidate();
             scrollLabel.Invalidate();
         }
@@ -799,7 +810,7 @@ namespace MouseModes
 
         public List<string> Selected { get; private set; }
 
-        public GamePickerForm(IEnumerable<string> alreadyListed) : base("Buscar jogos", false)
+        public GamePickerForm(IEnumerable<string> alreadyListed) : base(L.T("Buscar jogos", "Find games"), false)
         {
             this.alreadyListed = new HashSet<string>(alreadyListed, StringComparer.OrdinalIgnoreCase);
             Selected = new List<string>();
@@ -807,7 +818,7 @@ namespace MouseModes
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(460, 560);
 
-            Controls.Add(Note("Jogos da Steam e da Epic e programas abertos. Ctrl+clique escolhe vários.", 20, 58, 420, 20, Theme.Muted));
+            Controls.Add(Note(L.T("Jogos da Steam e da Epic e programas abertos. Ctrl+clique escolhe vários.", "Steam and Epic games plus open programs. Ctrl+click picks several."), 20, 58, 420, 20, Theme.Muted));
 
             list = new ListBox
             {
@@ -823,10 +834,10 @@ namespace MouseModes
             list.SelectedIndexChanged += (s, e) => list.Invalidate();
             Controls.Add(new FieldHost(list) { Location = new Point(20, 86), Size = new Size(420, 380), Accent = Theme.PerfB });
 
-            status = Note("Procurando jogos instalados...", 20, 472, 420, 20, Theme.Faint, 8.5f);
+            status = Note(L.T("Procurando jogos instalados...", "Looking for installed games..."), 20, 472, 420, 20, Theme.Faint, 8.5f);
             Controls.Add(status);
 
-            var ok = new NeonButton { Text = "Incluir na lista", Style = ButtonStyle.Primary, Location = new Point(20, 500), Size = new Size(420, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var ok = new NeonButton { Text = L.T("Incluir na lista", "Add to the list"), Style = ButtonStyle.Primary, Location = new Point(20, 500), Size = new Size(420, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             ok.Click += (s, e) => Confirm();
             Controls.Add(ok);
 
@@ -864,15 +875,15 @@ namespace MouseModes
             foreach (string p in open)
             {
                 if (!shown.Add(p)) continue;
-                list.Items.Add(new Item { Process = p, Label = p, Tag = "ABERTO" });
+                list.Items.Add(new Item { Process = p, Label = p, Tag = L.T("ABERTO", "OPEN") });
             }
             list.EndUpdate();
 
             int listed = games.Count - installed;
             status.Text = games.Count == 0
-                ? "Nenhum jogo da Steam ou da Epic encontrado neste PC."
-                : installed + (installed == 1 ? " jogo instalado" : " jogos instalados") + " fora da lista" +
-                  (listed > 0 ? " (" + listed + (listed == 1 ? " já está nela)" : " já estão nela)") : "") + ".";
+                ? L.T("Nenhum jogo da Steam ou da Epic encontrado neste PC.", "No Steam or Epic game found on this PC.")
+                : installed + (installed == 1 ? L.T(" jogo instalado", " installed game") : L.T(" jogos instalados", " installed games")) + L.T(" fora da lista", " not in the list") +
+                  (listed > 0 ? " (" + listed + (listed == 1 ? L.T(" já está nela)", " already in it)") : L.T(" já estão nela)", " already in it)")) : "") + ".";
             Log.Info("Busca de jogos: " + games.Count + " instalado(s) na Steam/Epic, " + installed + " fora da lista");
         }
 
@@ -899,13 +910,13 @@ namespace MouseModes
 
         public string Selected { get; private set; }
 
-        public ProcessPickerForm() : base("Escolher programa", false)
+        public ProcessPickerForm() : base(L.T("Escolher programa", "Pick a program"), false)
         {
             CloseOnEscape = true;
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(400, 520);
 
-            Controls.Add(Note("Deixe o programa ou jogo aberto e escolha o processo dele.", 20, 58, 360, 20, Theme.Muted));
+            Controls.Add(Note(L.T("Deixe o programa ou jogo aberto e escolha o processo dele.", "Leave the program or game open and pick its process."), 20, 58, 360, 20, Theme.Muted));
 
             list = new ListBox
             {
@@ -921,7 +932,7 @@ namespace MouseModes
             list.SelectedIndexChanged += (s, e) => list.Invalidate();
             Controls.Add(new FieldHost(list) { Location = new Point(20, 86), Size = new Size(360, 360), Accent = Theme.DailyB });
 
-            var ok = new NeonButton { Text = "Adicionar", Style = ButtonStyle.Primary, Location = new Point(20, 460), Size = new Size(360, 44) };
+            var ok = new NeonButton { Text = L.T("Adicionar", "Add"), Style = ButtonStyle.Primary, Location = new Point(20, 460), Size = new Size(360, 44) };
             ok.Click += (s, e) => Confirm();
             Controls.Add(ok);
 
@@ -946,7 +957,7 @@ namespace MouseModes
     /// <summary>Campo que grava um atalho: clique e aperte a combinação. Esc cancela; Ctrl ou Alt é obrigatório.</summary>
     public class HotkeyBox : TextBox
     {
-        private const string Waiting = "Aperte o atalho (Esc cancela)";
+        private static string Waiting { get { return L.T("Aperte o atalho (Esc cancela)", "Press the hotkey (Esc cancels)"); } }
 
         public uint Mods { get; private set; }
         public Keys Key { get; private set; }

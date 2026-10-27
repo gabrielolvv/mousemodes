@@ -90,7 +90,8 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 
 - **Idioma**: a tela segue o idioma do Windows (português num Windows em português, inglês nos outros). Dá para
   escolher no ícone da bandeja → Idioma / Language; vale na próxima vez que o app abrir. A tradução está sendo feita
-  por partes: a tela principal e a bandeja já estão em inglês, os Ajustes e as outras janelas vêm depois.
+  por partes: a tela principal, a bandeja e os Ajustes já estão em inglês; o Diagnóstico e as janelas de
+  polling, clique e mira vêm depois.
 
 Configuração em `%APPDATA%\MouseModes\config.xml`.
 
