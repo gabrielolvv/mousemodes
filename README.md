@@ -68,6 +68,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão
   "Abrir" leva à tela do Windows onde você decide.
 - **Restaurar padrões do Windows** (Ajustes → Geral).
+- **Exportar e importar** (Ajustes → Geral): leva jogos, perfis, Turbo e ajustes gerais para outro PC num arquivo
+  `.xml`. O que só vale neste PC (modo aplicado, planos de energia daqui, estado das notificações) fica de fora.
+  Antes de importar, o app mostra quantos jogos e quais programas para fechar vêm no arquivo.
 
 Configuração em `%APPDATA%\MouseModes\config.xml`.
 

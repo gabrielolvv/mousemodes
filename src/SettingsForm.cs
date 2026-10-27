@@ -113,15 +113,19 @@ namespace MouseModes
             hotkeyChoice.SelectedIndex = Math.Max(0, Math.Min(HotkeyWindow.Choices.Length - 1, cfg.Hotkey));
 
             var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 340), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = "Diagnóstico e registro", Glyph = GlyphKind.Gauge, Location = new Point(0, 366), Size = new Size(440, 42), AccentA = a, AccentB = b };
+            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
             diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
+            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            export.Click += (s, e) => ExportConfig();
+            var import = new NeonButton { Text = "Importar", Location = new Point(300, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            import.Click += (s, e) => ImportConfig();
             var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 418), Size = new Size(440, 42) };
             restore.Click += (s, e) => ConfirmRestore();
             var restoreNote = Note("Restaurar volta o mouse e a energia ao padrão de fábrica: velocidade 10, aceleração ligada, " +
                                    "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
                                    0, 470, 440, 54, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyChoice, maintenance, diag, restore, restoreNote })
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyChoice, maintenance, diag, export, import, restore, restoreNote })
                 generalPanel.Controls.Add(c);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel };
@@ -244,6 +248,88 @@ namespace MouseModes
             if (!yes) return;
             Close();
             if (RestoreDefaultsRequested != null) RestoreDefaultsRequested();
+        }
+
+        /// <summary>Grava a configuração salva (não as mudanças desta janela ainda não salvas) num arquivo.</summary>
+        private void ExportConfig()
+        {
+            using (var dialog = new SaveFileDialog
+            {
+                Title = "Exportar configuração do MouseModes",
+                FileName = "MouseModes-config.xml",
+                Filter = "Configuração do MouseModes (*.xml)|*.xml",
+                DefaultExt = "xml"
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    cfg.ForExport().SaveTo(dialog.FileName);
+                    Log.Info("Configuração exportada para " + dialog.FileName);
+                    ConfirmDialog.Inform(this, "Configuração exportada",
+                        "Jogos, perfis, Turbo e ajustes gerais foram salvos no arquivo. Use \"Importar\" no outro PC.");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Exportar configuração", ex);
+                    ConfirmDialog.Inform(this, "Não foi possível exportar", ex.Message);
+                }
+            }
+        }
+
+        /// <summary>Troca as configurações pelas de um arquivo exportado, depois de mostrar o que vem nele.</summary>
+        private void ImportConfig()
+        {
+            string path;
+            using (var dialog = new OpenFileDialog
+            {
+                Title = "Importar configuração do MouseModes",
+                Filter = "Configuração do MouseModes (*.xml)|*.xml|Todos os arquivos (*.*)|*.*"
+            })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                path = dialog.FileName;
+            }
+
+            AppConfig imported;
+            try
+            {
+                imported = AppConfig.Import(path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Importar configuração de " + path, ex);
+                ConfirmDialog.Inform(this, "Arquivo não reconhecido", "Este arquivo não é uma configuração do MouseModes.");
+                return;
+            }
+
+            // O arquivo pode ter vindo de outra pessoa: mostra o que ele traz, inclusive os programas que seriam fechados.
+            List<string> apps = imported.AppsToClose;
+            string names = string.Join(", ", apps.GetRange(0, Math.Min(5, apps.Count)).ToArray()) + (apps.Count > 5 ? ", …" : "");
+            string closing = apps.Count == 0 ? "nenhum programa para fechar"
+                : apps.Count + " programa(s) para fechar (" + names + ")" +
+                  (imported.CloseAppsOnPerformance ? "" : ", com o fechamento desligado");
+            bool yes = ConfirmDialog.Ask(this, "Importar configuração?",
+                "Traz " + imported.Games.Count + " jogo(s), " + imported.GameProfiles.Count + " perfil(is) próprio(s) e " + closing + ". " +
+                "As configurações atuais e as mudanças não salvas nesta janela serão substituídas.", "Importar");
+            if (!yes) return;
+
+            cfg.CopySettingsFrom(imported);
+            try
+            {
+                cfg.Save();
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Salvar configuração importada", ex);
+                ConfirmDialog.Inform(this, "Não foi possível salvar", ex.Message);
+                return;
+            }
+            Log.Info("Configuração importada de " + path + ": " + cfg.Games.Count + " jogo(s), " + cfg.AppsToClose.Count + " programa(s) para fechar");
+
+            var handler = Saved;
+            if (handler != null) handler();
+            Close();
         }
 
         private void SaveAndClose()
