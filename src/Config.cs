@@ -96,6 +96,12 @@ namespace MouseModes
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
+        /// <summary>
+        /// Último modo aplicado ao Windows. Se for Performance ao abrir, o app saiu ou caiu sem voltar ao Dia a dia.
+        /// null = desconhecido (config de versão antiga).
+        /// </summary>
+        public Mode? LastMode { get; set; }
+
         public AppConfig()
         {
             Games = new List<string>();
@@ -187,7 +193,8 @@ namespace MouseModes
             var cfg = new AppConfig
             {
                 Daily = DefaultDaily(current),
-                Performance = DefaultPerformance(current)
+                Performance = DefaultPerformance(current),
+                LastMode = Mode.DiaADia // o Windows já está como o Dia a dia: nada a aplicar na primeira abertura
             };
             cfg.Games.AddRange(new[]
             {

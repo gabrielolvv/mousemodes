@@ -145,8 +145,9 @@ namespace MouseModes
             // "Iniciar com o Windows" aponta para o exe; se ele mudou de lugar (ex.: instalado), corrige.
             try { Startup.RefreshPath(); } catch (Exception ex) { Log.Error("Atualizar Iniciar com o Windows", ex); }
 
-            // Sempre começa no Dia a dia; se um jogo já estiver aberto, o detector troca logo em seguida.
-            modes.Apply(Mode.DiaADia, "Iniciado");
+            // Sempre começa no Dia a dia, sem regravar o Windows (só desfaz um Performance que ficou para trás).
+            // Se um jogo já estiver aberto, o detector troca logo em seguida.
+            modes.Start();
 
             gameTimer = new Timer { Interval = 3000 };
             gameTimer.Tick += (s, e) => CheckGames();

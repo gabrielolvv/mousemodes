@@ -28,8 +28,36 @@ namespace MouseModes
             CurrentProfile = cfg.Daily;
         }
 
+        /// <summary>
+        /// Abertura do app. Se da última vez ele saiu (ou caiu) com o Performance aplicado, volta ao Dia a dia.
+        /// Senão o Windows já está no Dia a dia: não mexe em nada, só traz para o perfil o mouse de agora.
+        /// </summary>
+        public void Start()
+        {
+            if (cfg.LastMode != Mode.DiaADia)
+            {
+                if (cfg.LastMode == Mode.Performance)
+                    Log.Warn("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia");
+                Apply(Mode.DiaADia, cfg.LastMode == Mode.Performance ? "Recuperado ao iniciar" : "Iniciado");
+                return;
+            }
+
+            SyncDailyFromWindows();
+            Current = Mode.DiaADia;
+            CurrentProfile = cfg.Daily;
+            CurrentGameProfile = null;
+            Log.Info("Modo Dia a dia — Iniciado (configurações do Windows mantidas)");
+
+            var handler = ModeChanged;
+            if (handler != null) handler(Mode.DiaADia, "Iniciado", new List<string>());
+        }
+
         public void Apply(Mode mode, string reason)
         {
+            // Saindo do Dia a dia: o perfil passa a ser o mouse como está agora no Windows,
+            // inclusive o que a pessoa mudou fora do app. É isso que volta depois.
+            if (mode == Mode.Performance && Current == Mode.DiaADia) SyncDailyFromWindows();
+
             MouseProfile profile;
             string gameProfile = null;
             if (mode == Mode.Performance)
@@ -54,6 +82,8 @@ namespace MouseModes
             Current = mode;
             CurrentProfile = profile;
             CurrentGameProfile = gameProfile;
+            cfg.LastMode = mode;
+            SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
 
             Log.Info("Modo " + (mode == Mode.Performance ? "Performance" : "Dia a dia") +
                      (gameProfile != null ? " (perfil de " + gameProfile + ")" : "") + " — " + reason);
@@ -61,6 +91,33 @@ namespace MouseModes
 
             var handler = ModeChanged;
             if (handler != null) handler(mode, reason, warnings);
+        }
+
+        /// <summary>Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia (energia e USB ficam).</summary>
+        private void SyncDailyFromWindows()
+        {
+            MouseProfile now = MouseSettings.Read();
+            MouseProfile d = cfg.Daily;
+            if (now.PointerSpeed == d.PointerSpeed &&
+                now.EnhancePointerPrecision == d.EnhancePointerPrecision &&
+                now.ScrollLines == d.ScrollLines) return;
+
+            Log.Info("Dia a dia atualizado com o mouse do Windows: velocidade " + d.PointerSpeed + " → " + now.PointerSpeed +
+                     ", aceleração " + OnOff(d.EnhancePointerPrecision) + " → " + OnOff(now.EnhancePointerPrecision) +
+                     ", rolagem " + d.ScrollLines + " → " + now.ScrollLines);
+            d.PointerSpeed = now.PointerSpeed;
+            d.EnhancePointerPrecision = now.EnhancePointerPrecision;
+            d.ScrollLines = now.ScrollLines;
+        }
+
+        private static string OnOff(bool on)
+        {
+            return on ? "ligada" : "desligada";
+        }
+
+        private void SaveQuietly()
+        {
+            try { cfg.Save(); } catch (Exception ex) { Log.Error("Salvar configuração", ex); }
         }
 
         /// <summary>Volta tudo ao padrão de fábrica do Windows e passa a usar isso como Dia a dia.</summary>

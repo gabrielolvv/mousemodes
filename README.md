@@ -34,6 +34,10 @@ clique em **Mais informações → Executar assim mesmo**.
 
 Tudo é editável em **Ajustes**. Fechar a janela no X não encerra o app: ele fica no ícone perto do relógio.
 
+O Dia a dia acompanha o próprio Windows: se você mudar a velocidade ou a aceleração no Painel de Controle,
+é isso que volta depois do Performance. Ao abrir, o app não regrava nada; só desfaz um Performance que ficou
+aplicado porque ele foi fechado à força ou o PC desligou no meio.
+
 ### Turbo (só no modo Performance)
 
 - **Prioridade alta para o jogo**, devolvida ao sair. Alguns anti-cheats bloqueiam; o app então ignora e registra no Diagnóstico.
