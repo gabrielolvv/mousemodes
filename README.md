@@ -19,6 +19,13 @@ Troca pela tela principal, por atalho global ou sozinho quando um jogo abre.
 Na primeira vez o Windows pode mostrar "O Windows protegeu o computador", porque o app não é assinado digitalmente:
 clique em **Mais informações → Executar assim mesmo**.
 
+Para conferir que o instalador baixado é o mesmo que o GitHub gerou, compare o SHA-256 dele com o da página da Release
+(também no arquivo `MouseModes-Setup.exe.sha256`). No PowerShell, na pasta do download:
+
+```powershell
+(Get-FileHash .\MouseModes-Setup.exe -Algorithm SHA256).Hash
+```
+
 - Instala só para o seu usuário, sem pedir administrador, e cria o atalho no menu Iniciar.
 - Para atualizar, baixe e rode o instalador de novo: ele fecha a versão aberta e mantém suas configurações.
   O app avisa perto do relógio quando sai versão nova (nunca durante o jogo). Para isso ele consulta, uma vez por
@@ -126,8 +133,12 @@ criam e o log ficam numa pasta temporária. O plano de energia passa por um apli
 
 1. Atualize o arquivo `VERSION` (ex.: `1.2.0`) e faça commit.
 2. Crie e envie a tag: `git tag v1.2.0 && git push origin v1.2.0`.
-3. O GitHub Actions compila, confere se a tag bate com `VERSION` e anexa o `MouseModes-Setup.exe` à Release.
+3. O GitHub Actions compila, roda os testes, confere se a tag bate com `VERSION` e anexa à Release o
+   `MouseModes-Setup.exe` e o `MouseModes-Setup.exe.sha256` (o SHA-256 também vai no texto da Release).
    O botão de download do README sempre aponta para o instalador da Release mais recente.
+
+As actions do CI são fixadas pelo commit, com a versão num comentário. Para atualizar uma, troque o SHA pelo da versão
+nova (`git ls-remote --tags https://github.com/<dono>/<action>`).
 
 Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópia aberta restaurando tudo) e
 `--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador.

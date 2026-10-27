@@ -1,8 +1,11 @@
 name: Build
 
 # - Todo push/PR: compila o app e o instalador e guarda como artefato do run.
-# - Tag "v*" (ex.: v1.2.0): faz o mesmo e anexa o instalador (MouseModes-Setup.exe) à Release.
+# - Tag "v*" (ex.: v1.2.0): faz o mesmo e anexa à Release o instalador (MouseModes-Setup.exe) e o SHA-256 dele.
 #   A versão da tag precisa bater com o arquivo VERSION.
+#
+# As actions são fixadas pelo commit (com a versão no comentário): uma tag pode ser movida para outro código,
+# um commit não. Para atualizar, troque o SHA pelo da versão nova (git ls-remote --tags <repo>).
 
 on:
   push:
@@ -19,7 +22,7 @@ jobs:
     name: App + instalador (.NET Framework 4.8)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Instalar Mono e NSIS
         run: |
@@ -41,17 +44,24 @@ jobs:
         run: ./build.sh
 
       - name: Guardar artefatos
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: MouseModes-${{ github.sha }}
           path: dist/*.exe
           if-no-files-found: error
 
+      - name: SHA-256 no resumo do run
+        run: |
+          echo '### SHA-256' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          (cd dist && sha256sum *.exe) >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
   windows-check:
     name: Compilador da Microsoft e testes
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: dotnet build (net48)
         run: dotnet build src/MouseModes.csproj -c Release
       # Os testes só leem o Windows: nada aplica mouse, plano de energia ou USB no runner.
@@ -66,13 +76,31 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: MouseModes-${{ github.sha }}
           path: dist
-      # Só o instalador vai para a Release: um arquivo, um clique.
-      - uses: softprops/action-gh-release@v2
+
+      # O app não é assinado: o SHA-256 deixa conferir que o instalador baixado é o que o CI gerou.
+      - name: SHA-256 do instalador
+        id: hash
+        run: |
+          cd dist
+          sha256sum MouseModes-Setup.exe > MouseModes-Setup.exe.sha256
+          echo "sha256=$(cut -d' ' -f1 MouseModes-Setup.exe.sha256)" >> "$GITHUB_OUTPUT"
+          cat MouseModes-Setup.exe.sha256
+
+      # Para a pessoa, um arquivo e um clique: o instalador. O .sha256 vai junto para quem quiser conferir.
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           name: MouseModes ${{ github.ref_name }}
-          files: dist/MouseModes-Setup.exe
+          files: |
+            dist/MouseModes-Setup.exe
+            dist/MouseModes-Setup.exe.sha256
           fail_on_unmatched_files: true
+          body: |
+            Baixe o **MouseModes-Setup.exe** abaixo e rode.
+
+            SHA-256 do instalador: `${{ steps.hash.outputs.sha256 }}`
+
+            Para conferir no PowerShell: `(Get-FileHash .\MouseModes-Setup.exe -Algorithm SHA256).Hash`
