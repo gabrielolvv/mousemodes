@@ -1029,7 +1029,17 @@ namespace MouseModes
         protected override void OnLayout(LayoutEventArgs levent)
         {
             base.OnLayout(levent);
-            inner.Bounds = new Rectangle(12, 10, Math.Max(10, Width - 24), Math.Max(10, Height - 20));
+            var tb = inner as TextBox;
+            if (tb != null && !tb.Multiline)
+            {
+                // Campo de uma linha: centraliza na vertical (a altura dele é fixa).
+                int h = tb.PreferredHeight;
+                inner.Bounds = new Rectangle(10, Math.Max(2, (Height - h) / 2 + 1), Math.Max(10, Width - 20), h);
+            }
+            else
+            {
+                inner.Bounds = new Rectangle(12, 10, Math.Max(10, Width - 24), Math.Max(10, Height - 20));
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)
