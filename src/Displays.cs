@@ -151,7 +151,7 @@ namespace MouseModes
                 DEVMODE dm = NewDevMode();
                 if (!EnumDisplaySettings(monitor.DeviceName, ENUM_CURRENT_SETTINGS, ref dm))
                 {
-                    message = "não foi possível ler a configuração atual";
+                    message = L.T("não foi possível ler a configuração atual", "could not read the current settings");
                     return false;
                 }
                 dm.dmDisplayFrequency = monitor.MaxHz;
@@ -160,19 +160,19 @@ namespace MouseModes
                 int test = ChangeDisplaySettingsEx(monitor.DeviceName, ref dm, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
                 if (test != DISP_CHANGE_SUCCESSFUL)
                 {
-                    message = "o driver recusou " + monitor.MaxHz + " Hz (código " + test + ")";
+                    message = L.T("o driver recusou ", "the driver refused ") + monitor.MaxHz + L.T(" Hz (código ", " Hz (code ") + test + ")";
                     return false;
                 }
 
                 int result = ChangeDisplaySettingsEx(monitor.DeviceName, ref dm, IntPtr.Zero, CDS_UPDATEREGISTRY, IntPtr.Zero);
                 if (result == DISP_CHANGE_RESTART)
                 {
-                    message = "vale depois de reiniciar o PC";
+                    message = L.T("vale depois de reiniciar o PC", "applies after restarting the PC");
                     return true;
                 }
                 if (result != DISP_CHANGE_SUCCESSFUL)
                 {
-                    message = "falhou (código " + result + ")";
+                    message = L.T("falhou (código ", "failed (code ") + result + ")";
                     return false;
                 }
                 return true;

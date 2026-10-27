@@ -60,7 +60,7 @@ namespace MouseModes
                 bool crashed = cfg.LastMode == Mode.Performance;
                 if (crashed) Log.Warn("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia");
                 recovering = crashed; // o Windows ainda está como Performance: o plano anterior também volta
-                try { Apply(Mode.DiaADia, crashed ? "Recuperado ao iniciar" : "Iniciado"); }
+                try { Apply(Mode.DiaADia, crashed ? L.T("Recuperado ao iniciar", "Recovered at startup") : L.T("Iniciado", "Started")); }
                 finally { recovering = false; }
                 return;
             }
@@ -72,7 +72,7 @@ namespace MouseModes
             Log.Info("Modo Dia a dia — Iniciado (configurações do Windows mantidas)");
 
             var handler = ModeChanged;
-            if (handler != null) handler(Mode.DiaADia, "Iniciado", new List<string>());
+            if (handler != null) handler(Mode.DiaADia, L.T("Iniciado", "Started"), new List<string>());
         }
 
         public void Apply(Mode mode, string reason)
@@ -273,7 +273,7 @@ namespace MouseModes
             };
             cfg.Daily = defaults;
             Log.Info("Restaurando padrões do Windows (velocidade 10, aceleração ligada, rolagem 3, Equilibrado, USB padrão)");
-            Apply(Mode.DiaADia, "Padrões do Windows restaurados");
+            Apply(Mode.DiaADia, L.T("Padrões do Windows restaurados", "Windows defaults restored"));
         }
     }
 }

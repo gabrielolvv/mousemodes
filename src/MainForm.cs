@@ -46,7 +46,7 @@ namespace MouseModes
                 Location = new Point(12, 282),
                 Size = new Size(228, 104),
                 Title = "PERFORMANCE",
-                Subtitle = "Jogos, sem aceleração",
+                Subtitle = L.T("Jogos, sem aceleração", "Games, no acceleration"),
                 Glyph = GlyphKind.Bolt,
                 AccentA = Theme.PerfA,
                 AccentB = Theme.PerfB
@@ -55,8 +55,8 @@ namespace MouseModes
             {
                 Location = new Point(240, 282),
                 Size = new Size(228, 104),
-                Title = "DIA A DIA",
-                Subtitle = "Trabalho e navegação",
+                Title = L.T("DIA A DIA", "DAILY"),
+                Subtitle = L.T("Trabalho e navegação", "Work and browsing"),
                 Glyph = GlyphKind.Monitor,
                 AccentA = Theme.DailyA,
                 AccentB = Theme.DailyB
@@ -68,8 +68,8 @@ namespace MouseModes
             {
                 Location = new Point(20, 398),
                 Size = new Size(440, 70),
-                Title = "Troca automática ao abrir um jogo",
-                Subtitle = "Nenhum jogo da lista aberto",
+                Title = L.T("Troca automática ao abrir um jogo", "Switch automatically when a game opens"),
+                Subtitle = L.T("Nenhum jogo da lista aberto", "No game from the list is open"),
                 DotColor = Theme.Faint
             };
             autoRow.Switch.CheckedChanged += () => Raise(AutoToggled);
@@ -78,18 +78,18 @@ namespace MouseModes
             {
                 Location = new Point(20, 478),
                 Size = new Size(440, 60),
-                Title = "Verificando monitores...",
+                Title = L.T("Verificando monitores...", "Checking monitors..."),
                 Subtitle = ""
             };
             monitorRow.ActionClicked += () => Raise(MonitorFixRequested);
 
-            aimButton = new NeonButton { Text = "Testar mira e DPI", Glyph = GlyphKind.Target, Style = ButtonStyle.Primary, Location = new Point(20, 552), Size = new Size(440, 40) };
+            aimButton = new NeonButton { Text = L.T("Testar mira e DPI", "Aim and DPI test"), Glyph = GlyphKind.Target, Style = ButtonStyle.Primary, Location = new Point(20, 552), Size = new Size(440, 40) };
             aimButton.Click += (s, e) => Raise(AimTestRequested);
 
             pollingButton = new NeonButton { Text = "Polling", Glyph = GlyphKind.Gauge, Location = new Point(20, 600), Size = new Size(104, 44) };
-            clickButton = new NeonButton { Text = "Clique", Glyph = GlyphKind.Mouse, Location = new Point(132, 600), Size = new Size(104, 44) };
-            settingsButton = new NeonButton { Text = "Ajustes", Glyph = GlyphKind.Gear, Location = new Point(244, 600), Size = new Size(104, 44) };
-            var quitButton = new NeonButton { Text = "Sair", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(356, 600), Size = new Size(104, 44) };
+            clickButton = new NeonButton { Text = L.T("Clique", "Click"), Glyph = GlyphKind.Mouse, Location = new Point(132, 600), Size = new Size(104, 44) };
+            settingsButton = new NeonButton { Text = L.T("Ajustes", "Settings"), Glyph = GlyphKind.Gear, Location = new Point(244, 600), Size = new Size(104, 44) };
+            var quitButton = new NeonButton { Text = L.T("Sair", "Quit"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(356, 600), Size = new Size(104, 44) };
             pollingButton.Click += (s, e) => Raise(PollingRequested);
             clickButton.Click += (s, e) => Raise(ClickTestRequested);
             settingsButton.Click += (s, e) => Raise(SettingsRequested);
@@ -126,10 +126,10 @@ namespace MouseModes
         {
             mode = newMode;
             bool perf = mode == Mode.Performance;
-            hero.ModeName = perf ? "PERFORMANCE" : "DIA A DIA";
+            hero.ModeName = perf ? "PERFORMANCE" : L.T("DIA A DIA", "DAILY");
             hero.Glyph = perf ? GlyphKind.Bolt : GlyphKind.Monitor;
             hero.Reason = reason ?? "";
-            hero.StatLabels = new[] { "SENS", "ACEL", "ENERGIA", "USB" };
+            hero.StatLabels = new[] { "SENS", L.T("ACEL", "ACCEL"), L.T("ENERGIA", "POWER"), "USB" };
             hero.StatValues = Stats(profile, perf);
             perfTile.Active = perf;
             dailyTile.Active = !perf;
@@ -148,14 +148,14 @@ namespace MouseModes
             if (monitors.Count == 0)
             {
                 monitorRow.Warning = false;
-                monitorRow.Title = "Monitores";
-                monitorRow.Subtitle = "Não foi possível ler a taxa de atualização";
+                monitorRow.Title = L.T("Monitores", "Monitors");
+                monitorRow.Subtitle = L.T("Não foi possível ler a taxa de atualização", "Could not read the refresh rate");
                 monitorRow.SetAction(null);
             }
             else if (low.Count == 0)
             {
                 monitorRow.Warning = false;
-                monitorRow.Title = monitors.Count == 1 ? "Monitor na taxa máxima" : "Monitores na taxa máxima";
+                monitorRow.Title = monitors.Count == 1 ? L.T("Monitor na taxa máxima", "Monitor at its max refresh rate") : L.T("Monitores na taxa máxima", "Monitors at their max refresh rate");
                 monitorRow.Subtitle = string.Join("  ·  ", monitors.ConvertAll(m => m.Label + ": " + m.CurrentHz + " Hz").ToArray());
                 monitorRow.SetAction(null);
             }
@@ -164,12 +164,12 @@ namespace MouseModes
                 MonitorStatus first = low[0];
                 monitorRow.Warning = true;
                 monitorRow.Title = low.Count == 1
-                    ? first.Label + " em " + first.CurrentHz + " Hz"
-                    : low.Count + " monitores abaixo do máximo";
+                    ? first.Label + L.T(" em ", " at ") + first.CurrentHz + " Hz"
+                    : low.Count + L.T(" monitores abaixo do máximo", " monitors below their max");
                 monitorRow.Subtitle = low.Count == 1
-                    ? "Ele aceita " + first.MaxHz + " Hz: mais fluido e menos delay"
+                    ? L.T("Ele aceita ", "It supports ") + first.MaxHz + L.T(" Hz: mais fluido e menos delay", " Hz: smoother, with less delay")
                     : string.Join("  ·  ", low.ConvertAll(m => m.Label + ": " + m.CurrentHz + " → " + m.MaxHz + " Hz").ToArray());
-                monitorRow.SetAction(low.Count == 1 ? first.MaxHz + " Hz" : "Ajustar");
+                monitorRow.SetAction(low.Count == 1 ? first.MaxHz + " Hz" : L.T("Ajustar", "Fix"));
             }
             monitorRow.Invalidate();
         }
@@ -183,8 +183,8 @@ namespace MouseModes
         public void HideMonitors()
         {
             monitorRow.Warning = false;
-            monitorRow.Title = "Aviso de monitor desligado";
-            monitorRow.Subtitle = "Ligue em Ajustes → Turbo";
+            monitorRow.Title = L.T("Aviso de monitor desligado", "Monitor warning is off");
+            monitorRow.Subtitle = L.T("Ligue em Ajustes → Geral", "Turn it on in Settings → General");
             monitorRow.SetAction(null);
             monitorRow.Invalidate();
         }
@@ -193,8 +193,8 @@ namespace MouseModes
         {
             gameOpen = game != null;
             autoRow.Subtitle = gameOpen
-                ? game + " detectado" + (boosted ? "  ·  prioridade alta" : "")
-                : "Nenhum jogo da lista aberto";
+                ? game + L.T(" detectado", " detected") + (boosted ? L.T("  ·  prioridade alta", "  ·  high priority") : "")
+                : L.T("Nenhum jogo da lista aberto", "No game from the list is open");
             autoRow.DotColor = gameOpen ? Color.FromArgb(57, 255, 136) : Theme.Faint;
             autoRow.DotPulse = 0;
             autoRow.Invalidate();
@@ -263,17 +263,17 @@ namespace MouseModes
             string power;
             switch (p.PowerPlan)
             {
-                case PowerPlanOption.AltoDesempenho: power = "ALTO"; break;
-                case PowerPlanOption.DesempenhoMaximo: power = "MÁXIMO"; break;
-                case PowerPlanOption.Equilibrado: power = "EQUIL."; break;
-                default: power = perf ? "PADRÃO" : "ANTERIOR"; break;
+                case PowerPlanOption.AltoDesempenho: power = L.T("ALTO", "HIGH"); break;
+                case PowerPlanOption.DesempenhoMaximo: power = L.T("MÁXIMO", "MAX"); break;
+                case PowerPlanOption.Equilibrado: power = L.T("EQUIL.", "BALANCED"); break;
+                default: power = perf ? L.T("PADRÃO", "DEFAULT") : L.T("ANTERIOR", "PREVIOUS"); break;
             }
             return new[]
             {
                 p.PointerSpeed + "/20" + (p.PointerSpeed == 10 ? " · 1:1" : ""),
                 p.EnhancePointerPrecision ? "ON" : "OFF",
                 power,
-                p.DisableUsbSelectiveSuspend ? "ATIVO" : "ECO"
+                p.DisableUsbSelectiveSuspend ? L.T("ATIVO", "ON") : "ECO"
             };
         }
 

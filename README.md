@@ -1,5 +1,7 @@
 # MouseModes
 
+**Português** · [English](README.en.md)
+
 App para Windows 10/11 que alterna o mouse e o PC entre dois modos: **Performance** (jogos) e **Dia a dia**.
 Troca pela tela principal, por atalho global ou sozinho quando um jogo abre.
 
@@ -86,6 +88,10 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   `.xml`. O que só vale neste PC (modo aplicado, planos de energia daqui, estado das notificações) fica de fora.
   Antes de importar, o app mostra quantos jogos e quais programas para fechar vêm no arquivo.
 
+- **Idioma**: a tela segue o idioma do Windows (português num Windows em português, inglês nos outros). Dá para
+  escolher no ícone da bandeja → Idioma / Language; vale na próxima vez que o app abrir. A tradução está sendo feita
+  por partes: a tela principal e a bandeja já estão em inglês, os Ajustes e as outras janelas vêm depois.
+
 Configuração em `%APPDATA%\MouseModes\config.xml`.
 
 ## O que realmente tira delay (e o que não)
@@ -131,6 +137,8 @@ dotnet test tests/MouseModes.Tests/MouseModes.Tests.csproj -c Release
 Os testes só leem o Windows (mouse, registro): nenhum aplica mouse, plano de energia ou USB. Os arquivos que eles
 criam e o log ficam numa pasta temporária. O plano de energia passa por um aplicador de mentira
 (`ModeManager.PowerApplier`); um teste novo que mexa na fila precisa conferir isso antes de enfileirar pedidos.
+
+Os textos da tela ficam no código com as duas versões lado a lado: `L.T("Ajustes", "Settings")` (ver `src/L.cs`).
 
 **Publicar uma versão**:
 
