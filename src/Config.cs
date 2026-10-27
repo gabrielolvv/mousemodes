@@ -81,6 +81,12 @@ namespace MouseModes
         /// <summary>Avisa quando um monitor está abaixo da taxa máxima.</summary>
         public bool MonitorCheck { get; set; }
 
+        /// <summary>
+        /// No Performance, o mouse do jogo só vale com um jogo da lista em primeiro plano.
+        /// Fora dele (alt-tab, desktop) usa velocidade, aceleração e rolagem do Dia a dia.
+        /// </summary>
+        public bool MouseOnlyWhenGameFocused { get; set; }
+
         // ---- Durante o jogo (só no Performance) ----
 
         public bool BlockWinKey { get; set; }

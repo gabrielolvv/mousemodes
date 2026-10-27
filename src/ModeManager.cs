@@ -18,6 +18,9 @@ namespace MouseModes
         /// <summary>Informa qual jogo da lista está aberto agora (ou null).</summary>
         public Func<string> RunningGame { get; set; }
 
+        /// <summary>Performance aplicado, mas com o mouse do Dia a dia no momento (jogo fora da tela).</summary>
+        public bool DailyMouseInUse { get; private set; }
+
         /// <summary>(modo aplicado, motivo, avisos de coisas que falharam)</summary>
         public event Action<Mode, string, List<string>> ModeChanged;
 
@@ -82,6 +85,7 @@ namespace MouseModes
             Current = mode;
             CurrentProfile = profile;
             CurrentGameProfile = gameProfile;
+            DailyMouseInUse = false; // o perfil acabou de ser aplicado inteiro
             cfg.LastMode = mode;
             SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
 
@@ -91,6 +95,26 @@ namespace MouseModes
 
             var handler = ModeChanged;
             if (handler != null) handler(mode, reason, warnings);
+        }
+
+        /// <summary>
+        /// Opção "mouse do jogo só com o jogo na tela": no Performance, troca só o mouse conforme o jogo
+        /// está ou não em primeiro plano. Energia, USB e Turbo continuam como estão.
+        /// </summary>
+        public void SetGameFocused(bool focused)
+        {
+            bool wantDaily = Current == Mode.Performance && cfg.MouseOnlyWhenGameFocused && !focused;
+            if (wantDaily == DailyMouseInUse) return;
+            try
+            {
+                MouseSettings.Apply(wantDaily ? cfg.Daily : CurrentProfile, false);
+                DailyMouseInUse = wantDaily;
+                Log.Info(wantDaily ? "Jogo fora da tela: mouse do Dia a dia" : "Jogo na tela: mouse do Performance");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Trocar o mouse pela janela em foco", ex);
+            }
         }
 
         /// <summary>Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia (energia e USB ficam).</summary>

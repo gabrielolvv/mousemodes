@@ -51,6 +51,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 ### Mais
 
 - **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração e plano próprios para cada jogo.
+- **Mouse do jogo só com o jogo na tela** (Ajustes → Performance, desligado por padrão): no alt-tab e no desktop,
+  o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
+  Turbo não mudam.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática.
 - **Atalho global**: Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 ou Ctrl+Shift+F12. Se o escolhido já for usado

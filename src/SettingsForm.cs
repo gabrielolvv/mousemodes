@@ -13,6 +13,7 @@ namespace MouseModes
         private readonly ProfilePanel perfPanel;
         private readonly ProfilePanel dailyPanel;
         private readonly GamesPanel gamesPanel;
+        private readonly ToggleRow focusRow;
         private readonly NavItem[] nav;
         private readonly Panel[] pages;
         private readonly NeonButton save;
@@ -51,6 +52,9 @@ namespace MouseModes
                 "Dica: velocidade 10 sem aceleração = movimento 1:1. Ajuste a sensibilidade pelo DPI do mouse e dentro do jogo. " +
                 "Jogos com configurações próprias (aba Jogos) usam as deles.");
             perfPanel.LoadProfile(cfg.Performance);
+            focusRow = MakeRow("Mouse do jogo só com o jogo na tela", "No alt-tab e no desktop, usa o mouse do Dia a dia", pa, pb, 474, 60);
+            focusRow.Switch.SetChecked(cfg.MouseOnlyWhenGameFocused, false);
+            perfPanel.Controls.Add(focusRow);
 
             dailyPanel = new ProfilePanel(a, b,
                 "Este modo foi criado com o que o Windows já usava. Ele volta ao fechar o jogo ou ao sair do app.");
@@ -237,6 +241,7 @@ namespace MouseModes
             dailyPanel.SaveTo(cfg.Daily);
             gamesPanel.SaveTo(cfg);
 
+            cfg.MouseOnlyWhenGameFocused = focusRow.Switch.Checked;
             cfg.AppsToClose = ReadList(appsToClose);
             cfg.BoostGamePriority = boostRow.Switch.Checked;
             cfg.BlockWinKey = winKeyRow.Switch.Checked;

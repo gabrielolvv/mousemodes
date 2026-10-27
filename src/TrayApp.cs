@@ -29,6 +29,7 @@ namespace MouseModes
         private readonly System.Threading.RegisteredWaitHandle quitWait;
         private readonly GameBooster booster = new GameBooster();
         private readonly WinKeyBlocker winKey;
+        private readonly ForegroundWatcher foreground;
 
         private SettingsForm settingsForm;
         private PollingRateForm pollingForm;
@@ -64,6 +65,10 @@ namespace MouseModes
             modes.RunningGame = () => currentGame;
             modes.ModeChanged += OnModeChanged;
             winKey = new WinKeyBlocker(() => cfg.Games);
+
+            // Mouse do jogo só com o jogo na tela (opção): troca a cada mudança de janela em primeiro plano.
+            foreground = new ForegroundWatcher();
+            foreground.Changed += name => modes.SetGameFocused(GameFocused());
 
             // --- Tela principal ---
             mainForm = new MainForm();
@@ -293,6 +298,13 @@ namespace MouseModes
             }
 
             ApplyExtras(perf, entering);
+            modes.SetGameFocused(GameFocused());
+        }
+
+        private bool GameFocused()
+        {
+            string name = foreground.ProcessName;
+            return name != null && GameBooster.Matches(name, cfg.Games);
         }
 
         /// <summary>Tudo que só vale no Performance: prioridade, teclas, notificações, fechar programas, aviso de monitor.</summary>
@@ -529,6 +541,9 @@ namespace MouseModes
                 quiet = true;
                 modes.Apply(Mode.DiaADia, "Saindo");
             }
+            foreground.Dispose();
+            // Se continuar no Performance, sem o app ninguém troca o mouse de volta: deixa o do Performance.
+            modes.SetGameFocused(true);
             // Mesmo se o modo continuar Performance, os extras do jogo não podem ficar ativos sem o app.
             RestoreGameTimeTweaks();
             Log.Info("MouseModes encerrado");

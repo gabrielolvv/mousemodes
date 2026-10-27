@@ -47,7 +47,16 @@ namespace MouseModes
 
         public static void Apply(MouseProfile p)
         {
-            const uint flags = SPIF_UPDATEINIFILE | SPIF_SENDCHANGE;
+            Apply(p, true);
+        }
+
+        /// <param name="persist">
+        /// false = só nesta sessão, sem gravar no registro nem avisar as outras janelas. É a troca rápida
+        /// a cada alt-tab: não engasga o jogo, e o registro continua com o modo aplicado de verdade.
+        /// </param>
+        public static void Apply(MouseProfile p, bool persist)
+        {
+            uint flags = persist ? SPIF_UPDATEINIFILE | SPIF_SENDCHANGE : 0;
 
             int speed = Math.Max(1, Math.Min(20, p.PointerSpeed));
             Check(SpiPtr(SPI_SETMOUSESPEED, 0, new IntPtr(speed), flags), "a velocidade do ponteiro");
