@@ -53,6 +53,13 @@ namespace MouseModes
         public MouseProfile Profile { get; set; }
     }
 
+    /// <summary>Cópia de um plano do Windows criada pelo app (ex.: Desempenho máximo).</summary>
+    public class PlanCopy
+    {
+        public string Template { get; set; }
+        public string Guid { get; set; }
+    }
+
     public class AppConfig
     {
         public MouseProfile Performance { get; set; }
@@ -114,11 +121,41 @@ namespace MouseModes
         /// </summary>
         public string DailyPlanGuid { get; set; }
 
+        /// <summary>
+        /// Cópias de planos que o app criou. Em alguns PCs o "powercfg /list" esconde esses planos; sem guardar
+        /// o GUID, o app criaria uma cópia nova a cada vez. Mexida pela thread do plano de energia: use os métodos.
+        /// </summary>
+        public List<PlanCopy> PlanCopies { get; set; }
+
+        // Protege PlanCopies (thread do plano de energia) enquanto a tela grava o config.
+        private readonly object planCopiesGate = new object();
+
+        /// <summary>GUID guardado da cópia deste modelo, ou null.</summary>
+        public string FindPlanCopy(string template)
+        {
+            lock (planCopiesGate)
+            {
+                PlanCopy copy = PlanCopies.Find(c => c != null && string.Equals(c.Template, template, StringComparison.OrdinalIgnoreCase));
+                Guid parsed;
+                return copy != null && System.Guid.TryParse(copy.Guid, out parsed) ? parsed.ToString() : null;
+            }
+        }
+
+        public void RememberPlanCopy(string template, string guid)
+        {
+            lock (planCopiesGate)
+            {
+                PlanCopies.RemoveAll(c => c == null || string.Equals(c.Template, template, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrEmpty(guid)) PlanCopies.Add(new PlanCopy { Template = template, Guid = guid });
+            }
+        }
+
         public AppConfig()
         {
             Games = new List<string>();
             AppsToClose = new List<string>();
             GameProfiles = new List<GameProfile>();
+            PlanCopies = new List<PlanCopy>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;
@@ -220,6 +257,7 @@ namespace MouseModes
             if (loaded.Games == null) loaded.Games = new List<string>();
             if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
             if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
+            if (loaded.PlanCopies == null) loaded.PlanCopies = new List<PlanCopy>();
             loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
             return loaded;
         }
@@ -285,7 +323,7 @@ namespace MouseModes
             var serializer = new XmlSerializer(typeof(AppConfig));
             using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
-                serializer.Serialize(stream, this);
+                lock (planCopiesGate) serializer.Serialize(stream, this);
                 stream.Flush(true);
             }
 

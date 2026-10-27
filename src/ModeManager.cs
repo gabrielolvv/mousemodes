@@ -45,7 +45,8 @@ namespace MouseModes
             this.cfg = cfg;
             Current = Mode.DiaADia;
             CurrentProfile = cfg.Daily;
-            PowerApplier = (p, warnings, restorePlan) => PowerSettings.Apply(p, warnings, restorePlan);
+            // O config guarda as cópias de planos que o app cria (vão para o disco no próximo Save).
+            PowerApplier = (p, warnings, restorePlan) => PowerSettings.Apply(p, warnings, restorePlan, cfg);
         }
 
         /// <summary>
