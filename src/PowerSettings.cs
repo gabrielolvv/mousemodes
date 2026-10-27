@@ -173,14 +173,24 @@ namespace MouseModes
                 using (var proc = Process.Start(psi))
                 {
                     if (proc == null) return false;
-                    output = proc.StandardOutput.ReadToEnd();
-                    string error = proc.StandardError.ReadToEnd();
+                    // Lê as duas saídas em paralelo: um ReadToEnd síncrono só volta quando o processo termina
+                    // (o timeout abaixo nunca valeria) e pode travar se a outra saída encher o buffer.
+                    var outRead = proc.StandardOutput.ReadToEndAsync();
+                    var errRead = proc.StandardError.ReadToEndAsync();
                     if (!proc.WaitForExit(10000))
                     {
                         try { proc.Kill(); } catch { }
                         Log.Warn("powercfg " + args + " não respondeu em 10 s");
                         return false;
                     }
+                    // Já saiu: as leituras terminam assim que o buffer for esvaziado.
+                    if (!outRead.Wait(2000) || !errRead.Wait(2000))
+                    {
+                        Log.Warn("powercfg " + args + ": saída não terminou de chegar");
+                        return false;
+                    }
+                    output = outRead.Result;
+                    string error = errRead.Result;
                     if (proc.ExitCode != 0)
                     {
                         string detail = (error + " " + output).Trim().Replace("\r", " ").Replace("\n", " ");

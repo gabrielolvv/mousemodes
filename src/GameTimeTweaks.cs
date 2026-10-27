@@ -2,18 +2,43 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace MouseModes
 {
-    /// <summary>Bloqueia a tecla Windows só quando um jogo da lista está em primeiro plano.</summary>
+    /// <summary>
+    /// Bloqueia a tecla Windows só quando um jogo da lista está em primeiro plano.
+    /// O hook roda numa thread só dele: o Windows segura cada tecla do PC inteiro até o hook responder,
+    /// então ele não pode dividir a thread com a tela (powercfg, varredura de processos etc.).
+    /// </summary>
     public sealed class WinKeyBlocker : IDisposable
     {
         private const int WH_KEYBOARD_LL = 13;
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
+        private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+        private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+        private const uint WM_QUIT = 0x0012;
+        private const uint WM_APP_RECHECK = 0x8000 + 1; // WM_APP + 1: a lista de jogos mudou
+        private const uint PM_NOREMOVE = 0x0000;
 
         private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        private delegate void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject,
+            int idChild, uint dwEventThread, uint dwmsEventTime);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MSG
+        {
+            public IntPtr hwnd;
+            public uint message;
+            public IntPtr wParam;
+            public IntPtr lParam;
+            public uint time;
+            public int ptX;
+            public int ptY;
+        }
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -24,6 +49,25 @@ namespace MouseModes
         [DllImport("user32.dll")]
         private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        private static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
+            WinEventProc lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
+
+        [DllImport("user32.dll")]
+        private static extern int GetMessage(out MSG msg, IntPtr hWnd, uint filterMin, uint filterMax);
+
+        [DllImport("user32.dll")]
+        private static extern bool PeekMessage(out MSG msg, IntPtr hWnd, uint filterMin, uint filterMax, uint remove);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool PostThreadMessage(uint threadId, uint msg, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr GetModuleHandle(string name);
 
@@ -33,9 +77,20 @@ namespace MouseModes
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
-        private readonly HookProc proc; // referência guardada para o GC não recolher o delegate
+        // Referências guardadas para o GC não recolher os delegates.
+        private readonly HookProc keyProc;
+        private readonly WinEventProc foregroundProc;
         private readonly Func<IList<string>> games;
+
+        private Thread thread;
+        private uint threadId;
+
+        // Escritos pela tela, lidos pela thread do hook.
+        private volatile string[] gameList = new string[0];
+
+        // Só a thread do hook mexe nestes.
         private IntPtr hook = IntPtr.Zero;
+        private IntPtr foregroundHook = IntPtr.Zero;
         private uint cachedPid;
         private bool cachedIsGame;
         private int blockedCount;
@@ -43,71 +98,156 @@ namespace MouseModes
         public WinKeyBlocker(Func<IList<string>> games)
         {
             this.games = games;
-            proc = Callback;
+            keyProc = KeyCallback;
+            foregroundProc = ForegroundChanged;
         }
 
-        public bool Active { get { return hook != IntPtr.Zero; } }
+        public bool Active { get { return thread != null; } }
 
+        /// <summary>Liga o bloqueio, ou só atualiza a lista de jogos se já estiver ligado.</summary>
         public void Enable()
         {
-            if (hook != IntPtr.Zero) return;
-            try
+            gameList = new List<string>(games()).ToArray();
+
+            if (thread != null)
             {
-                IntPtr module = GetModuleHandle(Process.GetCurrentProcess().MainModule.ModuleName);
-                hook = SetWindowsHookEx(WH_KEYBOARD_LL, proc, module, 0);
-                if (hook == IntPtr.Zero)
-                    Log.Warn("Bloqueio da tecla Windows não ativado (erro " + Marshal.GetLastWin32Error() + ")");
-                else
-                    Log.Info("Tecla Windows bloqueada enquanto um jogo da lista estiver em primeiro plano");
-                cachedPid = 0;
-                blockedCount = 0;
+                PostThreadMessage(threadId, WM_APP_RECHECK, IntPtr.Zero, IntPtr.Zero);
+                return;
             }
-            catch (Exception ex)
+
+            bool installed = false;
+            // Sem using: se a espera estourar, a thread ainda vai sinalizar este evento depois.
+            var ready = new ManualResetEvent(false);
+            var t = new Thread(() => Run(ready, ref installed)) { IsBackground = true, Name = "MouseModes WinKey" };
+            t.Priority = ThreadPriority.Highest; // dorme quase sempre; quando acorda, cada tecla espera por ela
+            t.Start();
+            if (!ready.WaitOne(5000))
             {
-                Log.Error("Bloqueio da tecla Windows", ex);
+                // Fica registrada mesmo assim, para o Disable conseguir encerrá-la se ela terminar de subir.
+                Log.Warn("Bloqueio da tecla Windows não respondeu ao iniciar");
+                thread = t;
+                return;
             }
+            if (installed) thread = t;
+            else t.Join(1000);
         }
 
         public void Disable()
         {
-            if (hook == IntPtr.Zero) return;
-            try { UnhookWindowsHookEx(hook); } catch { }
-            hook = IntPtr.Zero;
+            if (thread == null) return;
+            PostThreadMessage(threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+            if (!thread.Join(2000))
+                Log.Warn("Thread do bloqueio da tecla Windows não encerrou em 2 s");
+            thread = null;
             Log.Info("Tecla Windows liberada" + (blockedCount > 0 ? " (bloqueada " + blockedCount + "x nesta sessão)" : ""));
         }
 
-        private IntPtr Callback(int nCode, IntPtr wParam, IntPtr lParam)
+        private void Run(ManualResetEvent ready, ref bool installed)
+        {
+            MSG msg;
+            try
+            {
+                threadId = GetCurrentThreadId();
+                PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_NOREMOVE); // cria a fila de mensagens antes do PostThreadMessage
+                cachedPid = 0;
+                blockedCount = 0;
+
+                IntPtr module = GetModuleHandle(Process.GetCurrentProcess().MainModule.ModuleName);
+                hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyProc, module, 0);
+                if (hook == IntPtr.Zero)
+                {
+                    Log.Warn("Bloqueio da tecla Windows não ativado (erro " + Marshal.GetLastWin32Error() + ")");
+                    return;
+                }
+
+                // Saber o jogo em foco quando a janela muda, e não a cada tecla.
+                foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
+                    foregroundProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+                if (foregroundHook == IntPtr.Zero)
+                    Log.Warn("Aviso de troca de janela indisponível; o jogo em foco será conferido a cada tecla Windows");
+                Recheck();
+
+                installed = true;
+                Log.Info("Tecla Windows bloqueada enquanto um jogo da lista estiver em primeiro plano");
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Bloqueio da tecla Windows", ex);
+                return;
+            }
+            finally
+            {
+                if (!installed && hook != IntPtr.Zero)
+                {
+                    UnhookWindowsHookEx(hook);
+                    hook = IntPtr.Zero;
+                }
+                ready.Set();
+            }
+
+            // O Windows chama o hook de dentro do GetMessage desta thread.
+            while (GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
+            {
+                if (msg.message == WM_APP_RECHECK) Recheck();
+            }
+
+            if (foregroundHook != IntPtr.Zero) UnhookWinEvent(foregroundHook);
+            UnhookWindowsHookEx(hook);
+            foregroundHook = IntPtr.Zero;
+            hook = IntPtr.Zero;
+        }
+
+        private IntPtr KeyCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0)
             {
                 int vk = Marshal.ReadInt32(lParam);
-                if ((vk == VK_LWIN || vk == VK_RWIN) && GameInForeground())
+                if (vk == VK_LWIN || vk == VK_RWIN)
                 {
-                    blockedCount++;
-                    return (IntPtr)1; // engole a tecla
+                    if (foregroundHook == IntPtr.Zero) UpdateForeground(GetForegroundWindow());
+                    if (cachedIsGame)
+                    {
+                        blockedCount++;
+                        return (IntPtr)1; // engole a tecla
+                    }
                 }
             }
             return CallNextHookEx(hook, nCode, wParam, lParam);
         }
 
-        private bool GameInForeground()
+        private void ForegroundChanged(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject,
+            int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            UpdateForeground(hwnd);
+        }
+
+        /// <summary>A lista de jogos mudou: reavalia a janela em foco do zero.</summary>
+        private void Recheck()
+        {
+            cachedPid = 0;
+            UpdateForeground(GetForegroundWindow());
+        }
+
+        private void UpdateForeground(IntPtr hwnd)
         {
             try
             {
                 uint pid;
-                GetWindowThreadProcessId(GetForegroundWindow(), out pid);
-                if (pid == 0) return false;
-                if (pid != cachedPid)
+                GetWindowThreadProcessId(hwnd, out pid);
+                if (pid == 0)
                 {
-                    cachedPid = pid;
-                    using (Process p = Process.GetProcessById((int)pid))
-                        cachedIsGame = GameBooster.Matches(p.ProcessName, games());
+                    cachedPid = 0;
+                    cachedIsGame = false;
+                    return;
                 }
-                return cachedIsGame;
+                if (pid == cachedPid) return;
+                cachedPid = pid;
+                using (Process p = Process.GetProcessById((int)pid))
+                    cachedIsGame = GameBooster.Matches(p.ProcessName, gameList);
             }
             catch
             {
-                return false;
+                cachedIsGame = false;
             }
         }
 
