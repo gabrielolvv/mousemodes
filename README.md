@@ -131,7 +131,8 @@ criam e o log ficam numa pasta temporária. O plano de energia passa por um apli
 
 **Publicar uma versão**:
 
-1. Atualize o arquivo `VERSION` (ex.: `1.2.0`) e faça commit.
+1. Atualize o arquivo `VERSION` (ex.: `1.2.0`) e escreva no `CHANGELOG.md` a seção `## 1.2.0` com o que mudou. Ela vira
+   o texto da Release, e o CI recusa a tag se a seção não existir. Faça commit.
 2. Crie e envie a tag: `git tag v1.2.0 && git push origin v1.2.0`.
 3. O GitHub Actions compila, roda os testes, confere se a tag bate com `VERSION` e anexa à Release o
    `MouseModes-Setup.exe` e o `MouseModes-Setup.exe.sha256` (o SHA-256 também vai no texto da Release).
