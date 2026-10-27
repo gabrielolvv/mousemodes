@@ -2,6 +2,14 @@
 
 Cada versão tem uma seção `## X.Y.Z`. A Release do GitHub usa a seção da própria versão como texto.
 
+## Próxima versão
+
+### Novidades
+
+- **Teste de mira e DPI** (botão na tela inicial e no ícone da bandeja): alvos por 20 s. O app mede se você passa do
+  alvo, se para antes, quantas correções faz e a precisão do clique, e sugere quanto subir ou baixar o DPI no programa
+  do seu mouse. As rodadas ficam lado a lado para comparar DPIs.
+
 ## 1.2.0
 
 ### Novidades

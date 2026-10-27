@@ -109,6 +109,9 @@ namespace MouseModes
         /// </summary>
         public string CustomHotkey { get; set; }
 
+        /// <summary>DPI que a pessoa informou no teste de mira (0 = não informado).</summary>
+        public int AimTestDpi { get; set; }
+
         /// <summary>Uma vez por dia, procura versão nova no GitHub e avisa (fora do modo Performance).</summary>
         public bool CheckForUpdates { get; set; }
 

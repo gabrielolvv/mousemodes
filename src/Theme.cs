@@ -15,6 +15,7 @@ namespace MouseModes
         Gear,
         Power,
         Mouse,
+        Target,
         Close,
         Minimize
     }
@@ -314,6 +315,15 @@ namespace MouseModes
                         using (GraphicsPath body = Rounded(new RectangleF(x + w * 0.22f, y + h * 0.04f, w * 0.56f, h * 0.92f), w * 0.28f))
                             g.DrawPath(pen, body);
                         g.DrawLine(pen, x + w * 0.50f, y + h * 0.18f, x + w * 0.50f, y + h * 0.34f);
+                        break;
+
+                    case GlyphKind.Target:
+                        g.DrawEllipse(pen, x + w * 0.14f, y + h * 0.14f, w * 0.72f, h * 0.72f);
+                        g.FillEllipse(brush, x + w * 0.42f, y + h * 0.42f, w * 0.16f, h * 0.16f);
+                        g.DrawLine(pen, x + w * 0.50f, y, x + w * 0.50f, y + h * 0.24f);
+                        g.DrawLine(pen, x + w * 0.50f, y + h * 0.76f, x + w * 0.50f, y + h);
+                        g.DrawLine(pen, x, y + h * 0.50f, x + w * 0.24f, y + h * 0.50f);
+                        g.DrawLine(pen, x + w * 0.76f, y + h * 0.50f, x + w, y + h * 0.50f);
                         break;
 
                     case GlyphKind.Close:

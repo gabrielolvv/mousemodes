@@ -35,6 +35,7 @@ namespace MouseModes
         private SettingsForm settingsForm;
         private PollingRateForm pollingForm;
         private ClickTestForm clickForm;
+        private AimTestForm aimForm;
         private DiagnosticsForm diagForm;
         private IntPtr iconHandle = IntPtr.Zero;
         private string currentGame;
@@ -87,6 +88,7 @@ namespace MouseModes
             mainForm.SettingsRequested += OpenSettings;
             mainForm.PollingRequested += OpenPolling;
             mainForm.ClickTestRequested += OpenClickTest;
+            mainForm.AimTestRequested += OpenAimTest;
             mainForm.QuitRequested += Quit;
             mainForm.HiddenToTray += OnHiddenToTray;
             mainForm.MonitorFixRequested += FixMonitors;
@@ -115,6 +117,7 @@ namespace MouseModes
             menu.Items.Add(autoItem);
             menu.Items.Add(new ToolStripMenuItem("Medir polling rate...", null, (s, e) => OpenPolling()));
             menu.Items.Add(new ToolStripMenuItem("Teste de clique...", null, (s, e) => OpenClickTest()));
+            menu.Items.Add(new ToolStripMenuItem("Testar mira e DPI...", null, (s, e) => OpenAimTest()));
             menu.Items.Add(new ToolStripMenuItem("Configurações...", null, (s, e) => OpenSettings()));
             menu.Items.Add(new ToolStripMenuItem("Diagnóstico...", null, (s, e) => OpenDiagnostics()));
             menu.Items.Add(new ToolStripMenuItem("Procurar versão nova", null, (s, e) => CheckForUpdate(true)));
@@ -467,6 +470,25 @@ namespace MouseModes
             clickForm.Activate();
         }
 
+        private void OpenAimTest()
+        {
+            if (aimForm != null && !aimForm.IsDisposed) { aimForm.Activate(); return; }
+            var host = new AimTestHost
+            {
+                CurrentProfile = () => modes.CurrentProfile,
+                CurrentDpi = () => cfg.AimTestDpi,
+                SaveDpi = dpi =>
+                {
+                    if (cfg.AimTestDpi == dpi) return;
+                    cfg.AimTestDpi = dpi;
+                    SaveConfig();
+                }
+            };
+            aimForm = new AimTestForm(host);
+            aimForm.Show();
+            aimForm.Activate();
+        }
+
         private void OpenDiagnostics()
         {
             if (diagForm != null && !diagForm.IsDisposed) { diagForm.Activate(); return; }
@@ -669,7 +691,7 @@ namespace MouseModes
 
             SaveConfig();
             hotkey.Dispose();
-            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, diagForm })
+            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, aimForm, diagForm })
             {
                 if (f != null && !f.IsDisposed) f.Close();
             }
