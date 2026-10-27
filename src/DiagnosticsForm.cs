@@ -14,26 +14,26 @@ namespace MouseModes
         private readonly Label systemInfo;
         private readonly Action onLogChanged;
 
-        public DiagnosticsForm() : base("Diagnóstico", true)
+        public DiagnosticsForm() : base(L.T("Diagnóstico", "Diagnostics"), true)
         {
             CloseOnEscape = true;
 
-            Controls.Add(new SectionLabel { Text = "Sistema", Location = new Point(20, 58), Size = new Size(580, 20) });
-            systemInfo = Note("carregando...", 20, 80, 580, 92, Theme.Muted, 8.5f);
+            Controls.Add(new SectionLabel { Text = L.T("Sistema", "System"), Location = new Point(20, 58), Size = new Size(580, 20) });
+            systemInfo = Note(L.T("carregando...", "loading..."), 20, 80, 580, 92, Theme.Muted, 8.5f);
             systemInfo.Font = new Font("Consolas", 8.5f);
             Controls.Add(systemInfo);
 
-            Controls.Add(new SectionLabel { Text = "Windows para jogos", Location = new Point(20, 178), Size = new Size(580, 20) });
+            Controls.Add(new SectionLabel { Text = L.T("Windows para jogos", "Windows for games"), Location = new Point(20, 178), Size = new Size(580, 20) });
             int y = 202;
             foreach (WindowsCheck check in WindowsChecks.Read())
             {
                 AddCheckRow(check, y);
                 y += 46;
             }
-            Controls.Add(Note("O MouseModes só mostra: \"Abrir\" leva à tela do Windows onde você muda.", 20, y, 580, 18, Theme.Faint, 8f));
+            Controls.Add(Note(L.T("O MouseModes só mostra: \"Abrir\" leva à tela do Windows onde você muda.", "MouseModes only shows these: \"Open\" takes you to the Windows page where you change them."), 20, y, 580, 18, Theme.Faint, 8f));
             y += 26; // a seção tem 3 linhas no Windows 10 e 4 no 11: o resto vem logo abaixo dela
 
-            Controls.Add(new SectionLabel { Text = "Registro", Location = new Point(20, y), Size = new Size(580, 20) });
+            Controls.Add(new SectionLabel { Text = L.T("Registro", "Log"), Location = new Point(20, y), Size = new Size(580, 20) });
             text = new TextBox
             {
                 Multiline = true,
@@ -47,9 +47,9 @@ namespace MouseModes
             Controls.Add(new FieldHost(text) { Location = new Point(20, y + 24), Size = new Size(580, 210), Accent = Theme.DailyB });
             int buttonsY = y + 24 + 210 + 14;
 
-            var copy = new NeonButton { Text = "Copiar tudo", Location = new Point(20, buttonsY), Size = new Size(184, 42) };
-            var folder = new NeonButton { Text = "Abrir pasta", Location = new Point(218, buttonsY), Size = new Size(184, 42) };
-            var clear = new NeonButton { Text = "Limpar", Style = ButtonStyle.Danger, Location = new Point(416, buttonsY), Size = new Size(184, 42) };
+            var copy = new NeonButton { Text = L.T("Copiar tudo", "Copy all"), Location = new Point(20, buttonsY), Size = new Size(184, 42) };
+            var folder = new NeonButton { Text = L.T("Abrir pasta", "Open folder"), Location = new Point(218, buttonsY), Size = new Size(184, 42) };
+            var clear = new NeonButton { Text = L.T("Limpar", "Clear"), Style = ButtonStyle.Danger, Location = new Point(416, buttonsY), Size = new Size(184, 42) };
             ClientSize = new Size(620, buttonsY + 42 + 16);
             copy.Click += (s, e) => CopyAll();
             folder.Click += (s, e) => OpenFolder();
@@ -93,13 +93,13 @@ namespace MouseModes
             name.Font = Theme.Ui(9.5f, FontStyle.Bold);
             var state = Note(check.State, 280, y, 220, 20, stateColor, 9.5f);
             state.Font = Theme.Ui(9.5f, FontStyle.Bold);
-            var advice = Note(string.IsNullOrEmpty(check.Advice) ? "Como recomendado." : check.Advice, 20, y + 20, 480, 18, Theme.Faint, 8f);
+            var advice = Note(string.IsNullOrEmpty(check.Advice) ? L.T("Como recomendado.", "As recommended.") : check.Advice, 20, y + 20, 480, 18, Theme.Faint, 8f);
 
-            var open = new NeonButton { Text = "Abrir", Location = new Point(510, y + 4), Size = new Size(90, 32), AccentA = Theme.DailyA, AccentB = Theme.DailyB };
+            var open = new NeonButton { Text = L.T("Abrir", "Open"), Location = new Point(510, y + 4), Size = new Size(90, 32), AccentA = Theme.DailyA, AccentB = Theme.DailyB };
             open.Click += (s, e) =>
             {
                 string error = WindowsChecks.OpenSettings(check);
-                if (error != null) ConfirmDialog.Inform(this, "Não foi possível abrir", error);
+                if (error != null) ConfirmDialog.Inform(this, L.T("Não foi possível abrir", "Could not open"), error);
             };
 
             Controls.Add(name);
@@ -123,21 +123,21 @@ namespace MouseModes
             sb.AppendLine(Safe(() =>
             {
                 MouseProfile now = MouseSettings.Read();
-                return "Mouse agora: velocidade " + now.PointerSpeed + "/20, aceleração " +
-                       (now.EnhancePointerPrecision ? "ligada" : "desligada") + ", rolagem " + now.ScrollLines;
+                return L.T("Mouse agora: velocidade ", "Mouse now: speed ") + now.PointerSpeed + L.T("/20, aceleração ", "/20, acceleration ") +
+                       (now.EnhancePointerPrecision ? L.T("ligada", "on") : L.T("desligada", "off")) + L.T(", rolagem ", ", scroll ") + now.ScrollLines;
             }, "Mouse"));
             sb.AppendLine(Safe(() =>
             {
                 string plan = PowerSettings.ActivePlanDescription();
                 int colon = plan.IndexOf(':');
-                return "Plano: " + (colon >= 0 ? plan.Substring(colon + 1).Trim() : plan);
-            }, "Plano"));
+                return L.T("Plano: ", "Plan: ") + (colon >= 0 ? plan.Substring(colon + 1).Trim() : plan);
+            }, L.T("Plano", "Plan")));
             sb.Append(Safe(() =>
             {
                 var monitors = Displays.Scan();
-                return "Monitores: " + (monitors.Count == 0 ? "não lidos" :
+                return L.T("Monitores: ", "Monitors: ") + (monitors.Count == 0 ? L.T("não lidos", "not read") :
                     string.Join("  ·  ", monitors.ConvertAll(m => m.Label + " " + m.Width + "x" + m.Height + " " + m.CurrentHz + "/" + m.MaxHz + " Hz").ToArray()));
-            }, "Monitores"));
+            }, L.T("Monitores", "Monitors")));
             return sb.ToString();
         }
 
@@ -167,7 +167,7 @@ namespace MouseModes
         private static string Safe(Func<string> read, string label)
         {
             try { return read(); }
-            catch (Exception ex) { return label + ": não foi possível ler (" + ex.GetType().Name + ")"; }
+            catch (Exception ex) { return label + L.T(": não foi possível ler (", ": could not read (") + ex.GetType().Name + ")"; }
         }
 
         private void CopyAll()

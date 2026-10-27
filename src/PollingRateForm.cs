@@ -37,22 +37,22 @@ namespace MouseModes
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
-            var help = Note("Mexa o mouse rápido, em círculos, por uns 3 segundos.", 20, 56, 440, 20, Theme.Muted, 9f);
+            var help = Note(L.T("Mexa o mouse rápido, em círculos, por uns 3 segundos.", "Move the mouse fast, in circles, for about 3 seconds."), 20, 56, 440, 20, Theme.Muted, 9f);
             help.TextAlign = ContentAlignment.MiddleCenter;
 
-            readout = new BigReadout { Location = new Point(12, 80), Size = new Size(456, 160), Caption = "aguardando movimento" };
+            readout = new BigReadout { Location = new Point(12, 80), Size = new Size(456, 160), Caption = L.T("aguardando movimento", "waiting for movement") };
             chips = new ChipRow
             {
                 Location = new Point(20, 250),
                 Size = new Size(440, 48),
-                Labels = new[] { "MEDIDO", "PICO", "INTERVALO", "JITTER" },
+                Labels = new[] { L.T("MEDIDO", "MEASURED"), L.T("PICO", "PEAK"), L.T("INTERVALO", "INTERVAL"), "JITTER" },
                 Values = new[] { "—", "—", "—", "—" }
             };
-            var graphLabel = new SectionLabel { Text = "Intervalo entre leituras (últimas 120)", Location = new Point(20, 314), Size = new Size(440, 20) };
+            var graphLabel = new SectionLabel { Text = L.T("Intervalo entre leituras (últimas 120)", "Interval between reports (last 120)"), Location = new Point(20, 314), Size = new Size(440, 20) };
             graph = new IntervalGraph { Location = new Point(20, 338), Size = new Size(440, 120) };
             status = Note("", 20, 466, 440, 36, Theme.Faint, 8.5f);
 
-            var reset = new NeonButton { Text = "Zerar", Location = new Point(20, 516), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 516), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             reset.Click += (s, e) => Reset();
 
             Controls.Add(help);
@@ -76,7 +76,7 @@ namespace MouseModes
             peakRate = 0;
             lastEventMs = -1;
             readout.Value = "—";
-            readout.Caption = "aguardando movimento";
+            readout.Caption = L.T("aguardando movimento", "waiting for movement");
             chips.Values = new[] { "—", "—", "—", "—" };
             status.Text = "";
             graph.SetSamples(intervals, 120);
@@ -90,7 +90,7 @@ namespace MouseModes
             string error;
             if (!raw.Register(Handle, true, out error))
             {
-                status.Text = "Raw Input indisponível: " + error;
+                status.Text = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
                 Log.Warn("Medidor de polling: Raw Input indisponível (" + error + ")");
             }
         }
@@ -155,7 +155,7 @@ namespace MouseModes
 
             bool moving = clock.Elapsed.TotalMilliseconds - lastMoveMs < 300;
             readout.Value = Nearest(rate).ToString();
-            readout.Caption = moving ? "medindo..." : "mouse parado — mexa de novo para continuar";
+            readout.Caption = moving ? L.T("medindo...", "measuring...") : L.T("mouse parado — mexa de novo para continuar", "mouse stopped — move it again to continue");
             chips.Values = new[]
             {
                 rate + " Hz",
@@ -166,8 +166,8 @@ namespace MouseModes
             chips.Invalidate();
             if (moving) graph.SetSamples(intervals, 120);
             status.Text = rate >= 3000
-                ? "Acima de 2000 Hz o Windows pode juntar leituras; o valor real pode ser maior."
-                : "O número grande é o padrão mais próximo do medido (125, 250, 500, 1000...).";
+                ? L.T("Acima de 2000 Hz o Windows pode juntar leituras; o valor real pode ser maior.", "Above 2000 Hz Windows may merge reports; the real value may be higher.")
+                : L.T("O número grande é o padrão mais próximo do medido (125, 250, 500, 1000...).", "The big number is the standard rate closest to what was measured (125, 250, 500, 1000...).");
         }
 
         private static int Nearest(int rate)
