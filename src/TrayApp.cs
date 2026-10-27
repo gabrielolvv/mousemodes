@@ -130,8 +130,8 @@ namespace MouseModes
             // --- Atalho global ---
             hotkey = new HotkeyWindow();
             hotkey.Pressed += Toggle;
-            int hotkeyActive = hotkey.Register(cfg.Hotkey);
-            mainForm.ShowHotkey(hotkeyActive);
+            bool hotkeyPreferred = hotkey.Register(cfg.Hotkey, cfg.CustomHotkey);
+            mainForm.ShowHotkey(hotkey.ActiveCaps);
 
             // --- Abrir de novo o .exe traz esta janela em vez de abrir outra cópia ---
             if (showSignal != null)
@@ -169,12 +169,7 @@ namespace MouseModes
 
             if (!startHidden) ShowMain();
 
-            if (hotkeyActive != cfg.Hotkey)
-                ShowBalloon(hotkeyActive < 0 ? "Atalho indisponível" : "Atalho alterado",
-                    hotkeyActive < 0
-                        ? "Outros programas usam todas as opções de atalho. Use a janela ou o ícone da bandeja."
-                        : HotkeyWindow.Describe(cfg.Hotkey) + " já é usado por outro programa. Use " + HotkeyWindow.Describe(hotkeyActive) + ".",
-                    ToolTipIcon.Warning);
+            if (!hotkeyPreferred) WarnHotkey("Atalho alterado");
         }
 
         private void ShowMain()
@@ -417,14 +412,9 @@ namespace MouseModes
             {
                 autoItem.Checked = cfg.AutoSwitch;
                 mainForm.ShowAuto(cfg.AutoSwitch);
-                if (hotkey.Active != cfg.Hotkey)
-                {
-                    int active = hotkey.Register(cfg.Hotkey);
-                    mainForm.ShowHotkey(active);
-                    if (active != cfg.Hotkey)
-                        ShowBalloon("Atalho em uso", HotkeyWindow.Describe(cfg.Hotkey) + " já é usado por outro programa. Ativo: " +
-                            HotkeyWindow.Describe(active) + ".", ToolTipIcon.Warning);
-                }
+                // Registra de novo sempre: o atalho pode ter mudado (opção fixa ou livre) ou ter ficado livre agora.
+                if (!hotkey.Register(cfg.Hotkey, cfg.CustomHotkey)) WarnHotkey("Atalho em uso");
+                mainForm.ShowHotkey(hotkey.ActiveCaps);
                 gameWasRunning = false;
                 modes.Apply(modes.Current, "Configurações salvas");
                 RefreshMonitors();
@@ -477,6 +467,18 @@ namespace MouseModes
                 Log.Error("Salvar configuração", ex);
                 ShowBalloon("Erro ao salvar", ex.Message, ToolTipIcon.Error);
             }
+        }
+
+        /// <summary>O atalho escolhido não pôde ser registrado: diz qual ficou no lugar (ou que nenhum ficou).</summary>
+        private void WarnHotkey(string title)
+        {
+            string wanted = HotkeyWindow.DescribePreference(cfg.Hotkey, cfg.CustomHotkey);
+            if (hotkey.ActiveCaps == null)
+                ShowBalloon("Atalho indisponível", wanted + " e as outras opções já são usadas por outros programas. " +
+                    "Use a janela ou o ícone da bandeja.", ToolTipIcon.Warning);
+            else
+                ShowBalloon(title, wanted + " já é usado por outro programa. Ativo: " + string.Join(" + ", hotkey.ActiveCaps) + ".",
+                    ToolTipIcon.Warning);
         }
 
         private void ShowBalloon(string title, string text, ToolTipIcon icon)

@@ -59,8 +59,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Buscar jogos** (Ajustes → Jogos → Buscar): lista os jogos instalados pela Steam e pela Epic, além dos programas
   abertos, para incluir vários de uma vez. O app escolhe como processo o maior `.exe` da pasta do jogo, sem
   desinstaladores, launchers e anti-cheat; se errar, dá para corrigir o nome à mão.
-- **Atalho global**: Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 ou Ctrl+Shift+F12. Se o escolhido já for usado
-  por outro programa, o app usa o próximo livre e mostra qual na tela inicial.
+- **Atalho global** (Ajustes → Geral): clique no campo e aperte a combinação, com Ctrl ou Alt (padrão: Ctrl+Alt+M).
+  Se ela já for usada por outro programa, o app tenta Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 e Ctrl+Shift+F12 e mostra
+  na tela inicial qual ficou.
 - **Taxa do monitor**: avisa se algum monitor está abaixo do máximo (ex.: 60 Hz num de 144 Hz) e ajusta com um clique.
 - **Medidor de polling rate** e **teste de clique duplo** (switch gasto), lendo o mouse via Raw Input.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
