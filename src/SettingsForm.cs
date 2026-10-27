@@ -32,6 +32,7 @@ namespace MouseModes
         private readonly ToggleRow restoreOnExit;
         private readonly ToggleRow notifications;
         private readonly ToggleRow monitorCheckRow;
+        private readonly ToggleRow updateRow;
         private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
@@ -92,16 +93,19 @@ namespace MouseModes
 
             // --- Geral ---
             var generalPanel = new Panel { BackColor = Theme.Bg };
-            startWithWindows = MakeRow("Iniciar com o Windows", "Abre direto na bandeja, sem mostrar a janela", a, b, 8, 54);
+            // Linhas de 50 px a cada 56: com o aviso de versão nova, a página ainda cabe nos 554 px.
+            startWithWindows = MakeRow("Iniciar com o Windows", "Abre direto na bandeja, sem mostrar a janela", a, b, 8, 50);
             try { startWithWindows.Switch.SetChecked(Startup.IsEnabled(), false); } catch { }
-            restoreOnExit = MakeRow("Voltar ao Dia a dia ao sair", "Desfaz o modo Performance quando o app fecha", a, b, 68, 54);
+            restoreOnExit = MakeRow("Voltar ao Dia a dia ao sair", "Desfaz o modo Performance quando o app fecha", a, b, 64, 50);
             restoreOnExit.Switch.SetChecked(cfg.RestoreDailyOnExit, false);
-            notifications = MakeRow("Avisos do MouseModes", "Mostra perto do relógio quando o modo muda", a, b, 128, 54);
+            notifications = MakeRow("Avisos do MouseModes", "Mostra perto do relógio quando o modo muda", a, b, 120, 50);
             notifications.Switch.SetChecked(cfg.ShowNotifications, false);
-            monitorCheckRow = MakeRow("Avisar sobre a taxa do monitor", "Mostra na tela inicial se algum monitor está abaixo do máximo", a, b, 188, 54);
+            monitorCheckRow = MakeRow("Avisar sobre a taxa do monitor", "Mostra na tela inicial se algum monitor está abaixo do máximo", a, b, 176, 50);
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
+            updateRow = MakeRow("Avisar sobre versão nova", "Uma vez por dia consulta o GitHub; nunca durante o jogo", a, b, 232, 50);
+            updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
 
-            var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 256), Size = new Size(440, 20) };
+            var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 296), Size = new Size(440, 20) };
             // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
             hotkeyBox = new HotkeyBox();
             uint savedMods;
@@ -109,8 +113,8 @@ namespace MouseModes
             if (!HotkeyWindow.TryParse(cfg.CustomHotkey, out savedMods, out savedKey))
                 HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
             hotkeyBox.SetValue(savedMods, savedKey);
-            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 280), Size = new Size(300, 40), Accent = b };
-            var hotkeyDefault = new NeonButton { Text = "Padrão", Location = new Point(310, 280), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 320), Size = new Size(300, 40), Accent = b };
+            var hotkeyDefault = new NeonButton { Text = "Padrão", Location = new Point(310, 320), Size = new Size(130, 40), AccentA = a, AccentB = b };
             hotkeyDefault.Click += (s, e) =>
             {
                 uint mods;
@@ -119,20 +123,20 @@ namespace MouseModes
                 hotkeyBox.SetValue(mods, key);
             };
 
-            var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 340), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 372), Size = new Size(440, 20) };
+            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
-            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             export.Click += (s, e) => ExportConfig();
-            var import = new NeonButton { Text = "Importar", Location = new Point(300, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var import = new NeonButton { Text = "Importar", Location = new Point(300, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             import.Click += (s, e) => ImportConfig();
-            var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 418), Size = new Size(440, 42) };
+            var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 450), Size = new Size(440, 42) };
             restore.Click += (s, e) => ConfirmRestore();
             var restoreNote = Note("Restaurar volta o mouse e a energia ao padrão de fábrica: velocidade 10, aceleração ligada, " +
                                    "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
-                                   0, 470, 440, 54, Theme.Faint, 8.5f);
+                                   0, 500, 440, 54, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, updateRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
                 generalPanel.Controls.Add(c);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel };
@@ -354,6 +358,7 @@ namespace MouseModes
             cfg.CloseAppsOnPerformance = closeRow.Switch.Checked;
             cfg.ForceCloseApps = forceRow.Switch.Checked;
             cfg.MonitorCheck = monitorCheckRow.Switch.Checked;
+            cfg.CheckForUpdates = updateRow.Switch.Checked;
             // Uma das opções fixas fica como índice; qualquer outra vira atalho livre (as fixas seguem de reserva).
             int choice = HotkeyWindow.ChoiceIndex(hotkeyBox.Mods, hotkeyBox.Key);
             if (choice >= 0)

@@ -21,6 +21,9 @@ clique em **Mais informações → Executar assim mesmo**.
 
 - Instala só para o seu usuário, sem pedir administrador, e cria o atalho no menu Iniciar.
 - Para atualizar, baixe e rode o instalador de novo: ele fecha a versão aberta e mantém suas configurações.
+  O app avisa perto do relógio quando sai versão nova (nunca durante o jogo). Para isso ele consulta, uma vez por
+  dia, a página de releases do GitHub, sem enviar nada do seu PC. Dá para desligar em Ajustes → Geral ou procurar
+  na hora pelo ícone da bandeja → Procurar versão nova.
 - Para desinstalar: Configurações → Aplicativos instalados → MouseModes. O mouse e a energia voltam ao modo Dia a dia.
 
 ## O que cada modo faz

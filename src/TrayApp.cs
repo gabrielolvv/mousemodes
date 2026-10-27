@@ -24,6 +24,7 @@ namespace MouseModes
         private readonly ToolStripMenuItem dailyItem;
         private readonly ToolStripMenuItem autoItem;
         private readonly Timer gameTimer;
+        private readonly Timer updateTimer;
         private readonly HotkeyWindow hotkey;
         private readonly System.Threading.RegisteredWaitHandle showWait;
         private readonly System.Threading.RegisteredWaitHandle quitWait;
@@ -46,6 +47,9 @@ namespace MouseModes
         private List<MonitorStatus> monitors = new List<MonitorStatus>();
         private bool monitorWarned;
         private bool quitting;
+        private ReleaseInfo pendingRelease; // versão nova esperando o fim do Performance para avisar
+        private string balloonUrl;          // link do aviso que está na tela (só o de versão nova tem)
+        private bool checkingUpdate;
 
         /// <param name="startHidden">true quando inicia com o Windows: fica só na bandeja.</param>
         /// <param name="showSignal">Sinal disparado quando o usuário abre o app de novo.</param>
@@ -113,6 +117,7 @@ namespace MouseModes
             menu.Items.Add(new ToolStripMenuItem("Teste de clique...", null, (s, e) => OpenClickTest()));
             menu.Items.Add(new ToolStripMenuItem("Configurações...", null, (s, e) => OpenSettings()));
             menu.Items.Add(new ToolStripMenuItem("Diagnóstico...", null, (s, e) => OpenDiagnostics()));
+            menu.Items.Add(new ToolStripMenuItem("Procurar versão nova", null, (s, e) => CheckForUpdate(true)));
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(new ToolStripMenuItem("Sair", null, (s, e) => Quit()));
 
@@ -126,6 +131,8 @@ namespace MouseModes
             {
                 if (e.Button == MouseButtons.Left) ShowMain();
             };
+            // O link fica até o próximo aviso: o "fechou" de um aviso substituído pode chegar depois do novo.
+            tray.BalloonTipClicked += (s, e) => OpenBalloonLink();
 
             // --- Atalho global ---
             hotkey = new HotkeyWindow();
@@ -163,6 +170,16 @@ namespace MouseModes
             gameTimer = new Timer { Interval = 3000 };
             gameTimer.Tick += (s, e) => CheckGames();
             gameTimer.Start();
+
+            // Versão nova: confere de hora em hora se já passou um dia da última consulta. A primeira espera 1 min,
+            // para não pesar na abertura junto com o Windows.
+            updateTimer = new Timer { Interval = 60 * 1000 };
+            updateTimer.Tick += (s, e) =>
+            {
+                updateTimer.Interval = 60 * 60 * 1000;
+                CheckForUpdate(false);
+            };
+            updateTimer.Start();
             CheckGames();
 
             quiet = false;
@@ -300,6 +317,7 @@ namespace MouseModes
 
             ApplyExtras(perf, entering);
             modes.SetGameFocused(GameFocused());
+            if (!perf) ShowPendingUpdate(); // saiu do jogo: agora pode avisar da versão nova
         }
 
         private bool GameFocused()
@@ -483,8 +501,98 @@ namespace MouseModes
 
         private void ShowBalloon(string title, string text, ToolTipIcon icon)
         {
+            ShowBalloon(title, text, icon, null);
+        }
+
+        /// <param name="url">Link aberto ao clicar no aviso (só a página de releases do app).</param>
+        private void ShowBalloon(string title, string text, ToolTipIcon icon, string url)
+        {
             if (string.IsNullOrEmpty(text)) text = " ";
-            tray.ShowBalloonTip(2500, title, text, icon);
+            balloonUrl = url;
+            tray.ShowBalloonTip(url != null ? 8000 : 2500, title, text, icon);
+        }
+
+        private void OpenBalloonLink()
+        {
+            string url = balloonUrl;
+            balloonUrl = null;
+            if (!UpdateChecker.IsReleaseLink(url)) return;
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
+            catch (Exception ex) { Log.Error("Abrir " + url, ex); }
+        }
+
+        // ---------------- Versão nova ----------------
+
+        /// <param name="manual">Pedido pelo menu: ignora a espera de um dia e avisa também quando não há nada novo.</param>
+        private void CheckForUpdate(bool manual)
+        {
+            if (checkingUpdate || quitting) return;
+            if (!manual)
+            {
+                if (!cfg.CheckForUpdates) return;
+                if (cfg.LastUpdateCheck.HasValue && DateTime.UtcNow - cfg.LastUpdateCheck.Value < TimeSpan.FromDays(1)) return;
+            }
+            checkingUpdate = true;
+
+            // O pedido pode levar alguns segundos: fora da thread da tela.
+            var worker = new System.Threading.Thread(() =>
+            {
+                ReleaseInfo latest = UpdateChecker.FetchLatest();
+                bool posted = false;
+                try
+                {
+                    if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
+                    {
+                        mainForm.BeginInvoke((Action)(() => UpdateChecked(latest, manual)));
+                        posted = true;
+                    }
+                }
+                catch (InvalidOperationException) { } // app fechando
+                if (!posted) checkingUpdate = false;
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void UpdateChecked(ReleaseInfo latest, bool manual)
+        {
+            checkingUpdate = false;
+            if (quitting) return;
+            if (latest == null)
+            {
+                if (manual) ShowBalloon("Versão nova", "Não foi possível consultar o GitHub agora. Tente mais tarde.", ToolTipIcon.Warning);
+                return;
+            }
+
+            cfg.LastUpdateCheck = DateTime.UtcNow;
+            SaveConfig();
+            bool newer = UpdateChecker.IsNewer(latest.Version, UpdateChecker.Current);
+            Log.Info("Versão mais nova no GitHub: " + latest.Tag + (newer ? " (esta é " + UpdateChecker.Current + ")" : " (já é esta)"));
+
+            if (!newer)
+            {
+                if (manual) ShowBalloon("Versão nova", "Você já tem a mais recente (" + UpdateChecker.Current + ").", ToolTipIcon.Info);
+                return;
+            }
+            if (!manual && latest.Tag == cfg.NotifiedVersion) return; // já avisou desta versão
+            pendingRelease = latest;
+            ShowPendingUpdate(manual);
+        }
+
+        /// <summary>
+        /// Avisa da versão nova guardada. A checagem automática espera o fim do Performance (não atrapalha o jogo);
+        /// a pedida pelo menu avisa na hora.
+        /// </summary>
+        private void ShowPendingUpdate(bool now = false)
+        {
+            if (pendingRelease == null || (!now && modes.Current == Mode.Performance)) return;
+            ReleaseInfo release = pendingRelease;
+            pendingRelease = null;
+            cfg.NotifiedVersion = release.Tag;
+            SaveConfig();
+            ShowBalloon("MouseModes " + release.Tag + " disponível",
+                "Você está na " + UpdateChecker.Current + ". Clique aqui para abrir a página do download.",
+                ToolTipIcon.Info, release.Url);
         }
 
         private void SetTrayIcon(Mode mode)
@@ -539,6 +647,7 @@ namespace MouseModes
             quitting = true;
 
             gameTimer.Stop();
+            updateTimer.Stop();
             if (showWait != null) showWait.Unregister(null);
             if (quitWait != null) quitWait.Unregister(null);
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
