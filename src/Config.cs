@@ -141,6 +141,50 @@ namespace MouseModes
             }
         }
 
+        // ---- Exportar / importar ----
+
+        /// <summary>
+        /// O que só vale neste PC e não vai para outro: o modo aplicado agora, os planos de energia daqui e o
+        /// backup das notificações (importar o de outro PC gravaria os valores dele no registro deste).
+        /// </summary>
+        internal static readonly string[] MachineOnly = { "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup" };
+
+        /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
+        public AppConfig ForExport()
+        {
+            var serializer = new XmlSerializer(typeof(AppConfig));
+            var buffer = new MemoryStream();
+            lock (planCopiesGate) serializer.Serialize(buffer, this);
+            buffer.Position = 0;
+            var copy = (AppConfig)serializer.Deserialize(buffer);
+            copy.LastMode = null;
+            copy.DailyPlanGuid = null;
+            copy.PlanCopies = new List<PlanCopy>();
+            copy.NotificationBackup = null;
+            return copy;
+        }
+
+        /// <summary>Lê um arquivo exportado. Lança exceção se ele não for uma configuração do MouseModes.</summary>
+        public static AppConfig Import(string path)
+        {
+            return Load(path);
+        }
+
+        /// <summary>
+        /// Passa para esta configuração tudo o que veio de outra, menos o que só vale neste PC (MachineOnly).
+        /// Copia propriedade por propriedade: uma configuração nova entra sozinha, sem precisar lembrar daqui.
+        /// </summary>
+        public void CopySettingsFrom(AppConfig other)
+        {
+            var instance = System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
+            foreach (System.Reflection.PropertyInfo prop in typeof(AppConfig).GetProperties(instance))
+            {
+                if (!prop.CanRead || !prop.CanWrite || Array.IndexOf(MachineOnly, prop.Name) >= 0) continue;
+                prop.SetValue(this, prop.GetValue(other, null), null);
+            }
+            if (Hotkey < 0 || Hotkey >= HotkeyWindow.Choices.Length) Hotkey = 0;
+        }
+
         public void RememberPlanCopy(string template, string guid)
         {
             lock (planCopiesGate)
