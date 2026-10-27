@@ -32,7 +32,8 @@ namespace MouseModes
         private readonly ToggleRow restoreOnExit;
         private readonly ToggleRow notifications;
         private readonly ToggleRow monitorCheckRow;
-        private readonly Segmented hotkeyChoice;
+        private readonly ToggleRow updateRow;
+        private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
         public event Action DiagnosticsRequested;
@@ -92,40 +93,50 @@ namespace MouseModes
 
             // --- Geral ---
             var generalPanel = new Panel { BackColor = Theme.Bg };
-            startWithWindows = MakeRow("Iniciar com o Windows", "Abre direto na bandeja, sem mostrar a janela", a, b, 8, 54);
+            // Linhas de 50 px a cada 56: com o aviso de versão nova, a página ainda cabe nos 554 px.
+            startWithWindows = MakeRow("Iniciar com o Windows", "Abre direto na bandeja, sem mostrar a janela", a, b, 8, 50);
             try { startWithWindows.Switch.SetChecked(Startup.IsEnabled(), false); } catch { }
-            restoreOnExit = MakeRow("Voltar ao Dia a dia ao sair", "Desfaz o modo Performance quando o app fecha", a, b, 68, 54);
+            restoreOnExit = MakeRow("Voltar ao Dia a dia ao sair", "Desfaz o modo Performance quando o app fecha", a, b, 64, 50);
             restoreOnExit.Switch.SetChecked(cfg.RestoreDailyOnExit, false);
-            notifications = MakeRow("Avisos do MouseModes", "Mostra perto do relógio quando o modo muda", a, b, 128, 54);
+            notifications = MakeRow("Avisos do MouseModes", "Mostra perto do relógio quando o modo muda", a, b, 120, 50);
             notifications.Switch.SetChecked(cfg.ShowNotifications, false);
-            monitorCheckRow = MakeRow("Avisar sobre a taxa do monitor", "Mostra na tela inicial se algum monitor está abaixo do máximo", a, b, 188, 54);
+            monitorCheckRow = MakeRow("Avisar sobre a taxa do monitor", "Mostra na tela inicial se algum monitor está abaixo do máximo", a, b, 176, 50);
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
+            updateRow = MakeRow("Avisar sobre versão nova", "Uma vez por dia consulta o GitHub; nunca durante o jogo", a, b, 232, 50);
+            updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
 
-            var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 256), Size = new Size(440, 20) };
-            hotkeyChoice = new Segmented
+            var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 296), Size = new Size(440, 20) };
+            // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
+            hotkeyBox = new HotkeyBox();
+            uint savedMods;
+            Keys savedKey;
+            if (!HotkeyWindow.TryParse(cfg.CustomHotkey, out savedMods, out savedKey))
+                HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
+            hotkeyBox.SetValue(savedMods, savedKey);
+            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 320), Size = new Size(300, 40), Accent = b };
+            var hotkeyDefault = new NeonButton { Text = "Padrão", Location = new Point(310, 320), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            hotkeyDefault.Click += (s, e) =>
             {
-                Options = Array.ConvertAll(HotkeyWindow.Choices, k => string.Join("+", k)),
-                Location = new Point(0, 280),
-                Size = new Size(440, 40),
-                AccentA = a,
-                AccentB = b
+                uint mods;
+                Keys key;
+                HotkeyWindow.Choice(0, out mods, out key);
+                hotkeyBox.SetValue(mods, key);
             };
-            hotkeyChoice.SelectedIndex = Math.Max(0, Math.Min(HotkeyWindow.Choices.Length - 1, cfg.Hotkey));
 
-            var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 340), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 372), Size = new Size(440, 20) };
+            var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
-            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var export = new NeonButton { Text = "Exportar", Location = new Point(150, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             export.Click += (s, e) => ExportConfig();
-            var import = new NeonButton { Text = "Importar", Location = new Point(300, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var import = new NeonButton { Text = "Importar", Location = new Point(300, 398), Size = new Size(140, 42), AccentA = a, AccentB = b };
             import.Click += (s, e) => ImportConfig();
-            var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 418), Size = new Size(440, 42) };
+            var restore = new NeonButton { Text = "Restaurar padrões do Windows", Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 450), Size = new Size(440, 42) };
             restore.Click += (s, e) => ConfirmRestore();
             var restoreNote = Note("Restaurar volta o mouse e a energia ao padrão de fábrica: velocidade 10, aceleração ligada, " +
                                    "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
-                                   0, 470, 440, 54, Theme.Faint, 8.5f);
+                                   0, 500, 440, 54, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyChoice, maintenance, diag, export, import, restore, restoreNote })
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, updateRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
                 generalPanel.Controls.Add(c);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel };
@@ -347,7 +358,18 @@ namespace MouseModes
             cfg.CloseAppsOnPerformance = closeRow.Switch.Checked;
             cfg.ForceCloseApps = forceRow.Switch.Checked;
             cfg.MonitorCheck = monitorCheckRow.Switch.Checked;
-            cfg.Hotkey = hotkeyChoice.SelectedIndex;
+            cfg.CheckForUpdates = updateRow.Switch.Checked;
+            // Uma das opções fixas fica como índice; qualquer outra vira atalho livre (as fixas seguem de reserva).
+            int choice = HotkeyWindow.ChoiceIndex(hotkeyBox.Mods, hotkeyBox.Key);
+            if (choice >= 0)
+            {
+                cfg.Hotkey = choice;
+                cfg.CustomHotkey = null;
+            }
+            else
+            {
+                cfg.CustomHotkey = HotkeyWindow.Format(hotkeyBox.Mods, hotkeyBox.Key);
+            }
             cfg.RestoreDailyOnExit = restoreOnExit.Switch.Checked;
             cfg.ShowNotifications = notifications.Switch.Checked;
 
@@ -918,6 +940,74 @@ namespace MouseModes
             Selected = (string)list.SelectedItem;
             DialogResult = DialogResult.OK;
             Close();
+        }
+    }
+
+    /// <summary>Campo que grava um atalho: clique e aperte a combinação. Esc cancela; Ctrl ou Alt é obrigatório.</summary>
+    public class HotkeyBox : TextBox
+    {
+        private const string Waiting = "Aperte o atalho (Esc cancela)";
+
+        public uint Mods { get; private set; }
+        public Keys Key { get; private set; }
+
+        public HotkeyBox()
+        {
+            ReadOnly = true;
+            BorderStyle = BorderStyle.None;
+            Font = Theme.Ui(10f);
+            ShortcutsEnabled = false;
+            Cursor = Cursors.Hand;
+        }
+
+        public void SetValue(uint mods, Keys key)
+        {
+            Mods = mods;
+            Key = key;
+            Text = HotkeyWindow.Describe(mods, key);
+        }
+
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            Text = Waiting;
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            Text = HotkeyWindow.Describe(Mods, Key);
+        }
+
+        // ProcessCmdKey recebe também Alt+tecla, que nunca chega ao KeyDown de uma caixa de texto.
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            uint mods = HotkeyWindow.ModsFrom(keyData & Keys.Modifiers);
+
+            if (key == Keys.Escape && mods == 0)
+            {
+                Text = HotkeyWindow.Describe(Mods, Key);
+                if (Parent != null) Parent.Focus();
+                return true;
+            }
+            if (key == Keys.Tab && mods == 0) return base.ProcessCmdKey(ref msg, keyData); // Tab segue para o próximo campo
+            if (HotkeyWindow.IsModifier(key))
+            {
+                // Ainda segurando Ctrl/Alt/Shift: mostra o começo da combinação ("CTRL + ALT + …").
+                string[] caps = HotkeyWindow.Caps(mods, Keys.None); // a última é a tecla, que ainda não veio
+                Text = caps.Length == 1 ? Waiting : string.Join(" + ", caps, 0, caps.Length - 1) + " + …";
+                return true;
+            }
+
+            string problem = HotkeyWindow.Validate(mods, key);
+            if (problem != null)
+            {
+                Text = problem;
+                return true;
+            }
+            SetValue(mods, key);
+            return true;
         }
     }
 }

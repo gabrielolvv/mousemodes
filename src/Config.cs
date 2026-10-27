@@ -103,6 +103,21 @@ namespace MouseModes
         /// <summary>Atalho global preferido (índice em HotkeyWindow.Choices).</summary>
         public int Hotkey { get; set; }
 
+        /// <summary>
+        /// Atalho escolhido livremente ("Ctrl+Alt+K"), ou null para usar Hotkey. Se outro programa já usa,
+        /// o app cai nas opções fixas a partir de Hotkey.
+        /// </summary>
+        public string CustomHotkey { get; set; }
+
+        /// <summary>Uma vez por dia, procura versão nova no GitHub e avisa (fora do modo Performance).</summary>
+        public bool CheckForUpdates { get; set; }
+
+        /// <summary>Quando procurou versão nova pela última vez (só deste PC).</summary>
+        public DateTime? LastUpdateCheck { get; set; }
+
+        /// <summary>Última versão já avisada, para não repetir o aviso todo dia (só deste PC).</summary>
+        public string NotifiedVersion { get; set; }
+
         /// <summary>Estado original das notificações enquanto estão silenciadas (para desfazer após travamento).</summary>
         public NotificationBackup NotificationBackup { get; set; }
 
@@ -147,7 +162,10 @@ namespace MouseModes
         /// O que só vale neste PC e não vai para outro: o modo aplicado agora, os planos de energia daqui e o
         /// backup das notificações (importar o de outro PC gravaria os valores dele no registro deste).
         /// </summary>
-        internal static readonly string[] MachineOnly = { "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup" };
+        internal static readonly string[] MachineOnly =
+        {
+            "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "LastUpdateCheck", "NotifiedVersion"
+        };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
         public AppConfig ForExport()
@@ -161,6 +179,8 @@ namespace MouseModes
             copy.DailyPlanGuid = null;
             copy.PlanCopies = new List<PlanCopy>();
             copy.NotificationBackup = null;
+            copy.LastUpdateCheck = null;
+            copy.NotifiedVersion = null;
             return copy;
         }
 
@@ -208,6 +228,7 @@ namespace MouseModes
             BlockWinKey = true;
             DisableAccessibilityHotkeys = true;
             SilenceNotifications = true;
+            CheckForUpdates = true;
         }
 
         /// <summary>Perfil a usar no Performance: o do jogo aberto, se ele tiver um próprio.</summary>

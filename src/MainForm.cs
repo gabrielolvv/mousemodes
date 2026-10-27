@@ -168,10 +168,10 @@ namespace MouseModes
             monitorRow.Invalidate();
         }
 
-        /// <summary>Mostra o atalho que conseguiu ser registrado (-1 = nenhum).</summary>
-        public void ShowHotkey(int index)
+        /// <summary>Mostra as teclas do atalho que conseguiu ser registrado (null = nenhum).</summary>
+        public void ShowHotkey(string[] caps)
         {
-            hint.Keys = index >= 0 && index < HotkeyWindow.Choices.Length ? HotkeyWindow.Choices[index] : null;
+            hint.Keys = caps;
         }
 
         public void HideMonitors()
