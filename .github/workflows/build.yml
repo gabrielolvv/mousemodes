@@ -48,12 +48,15 @@ jobs:
           if-no-files-found: error
 
   windows-check:
-    name: Checagem com o compilador da Microsoft
+    name: Compilador da Microsoft e testes
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: dotnet build (net48)
         run: dotnet build src/MouseModes.csproj -c Release
+      # Os testes só leem o Windows: nada aplica mouse, plano de energia ou USB no runner.
+      - name: dotnet test
+        run: dotnet test tests/MouseModes.Tests/MouseModes.Tests.csproj -c Release
 
   release:
     name: Publicar Release

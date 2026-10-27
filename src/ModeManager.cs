@@ -177,7 +177,7 @@ namespace MouseModes
             return done;
         }
 
-        private void QueuePower(MouseProfile profile, string restorePlan)
+        internal void QueuePower(MouseProfile profile, string restorePlan)
         {
             MouseProfile snapshot = profile.Clone(); // os Ajustes podem mudar o perfil enquanto isto roda
             lock (powerGate)
@@ -244,7 +244,7 @@ namespace MouseModes
         }
 
         /// <summary>O config é editável à mão: só passa adiante (para o powercfg) um GUID de verdade.</summary>
-        private static string ValidGuid(string value)
+        internal static string ValidGuid(string value)
         {
             Guid parsed;
             return value != null && Guid.TryParse(value, out parsed) ? parsed.ToString() : null;

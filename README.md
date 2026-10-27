@@ -82,6 +82,7 @@ Configuração em `%APPDATA%\MouseModes\config.xml`.
 
 ```
 src/                 código C# (WinForms, .NET Framework 4.8)
+tests/               testes automáticos (xUnit)
 installer/           script do instalador (NSIS)
 build.sh             gera dist/MouseModes.exe e dist/MouseModes-Setup.exe
 VERSION              versão do app e do instalador
@@ -104,7 +105,12 @@ padrão do Mono pode gerar chamadas que não existem no Windows.
 ```powershell
 dotnet build src/MouseModes.csproj -c Release
 # exe em src\bin\Release\net48\MouseModes.exe
+dotnet test tests/MouseModes.Tests/MouseModes.Tests.csproj -c Release
 ```
+
+Os testes só leem o Windows (mouse, registro): nenhum aplica mouse, plano de energia ou USB. Os arquivos que eles
+criam e o log ficam numa pasta temporária. O plano de energia passa por um aplicador de mentira
+(`ModeManager.PowerApplier`); um teste novo que mexa na fila precisa conferir isso antes de enfileirar pedidos.
 
 **Publicar uma versão**:
 
