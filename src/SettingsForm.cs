@@ -32,7 +32,7 @@ namespace MouseModes
         private readonly ToggleRow restoreOnExit;
         private readonly ToggleRow notifications;
         private readonly ToggleRow monitorCheckRow;
-        private readonly Segmented hotkeyChoice;
+        private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
         public event Action DiagnosticsRequested;
@@ -102,15 +102,22 @@ namespace MouseModes
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
 
             var hotkeyLabel = new SectionLabel { Text = "Atalho para trocar de modo", Location = new Point(0, 256), Size = new Size(440, 20) };
-            hotkeyChoice = new Segmented
+            // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
+            hotkeyBox = new HotkeyBox();
+            uint savedMods;
+            Keys savedKey;
+            if (!HotkeyWindow.TryParse(cfg.CustomHotkey, out savedMods, out savedKey))
+                HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
+            hotkeyBox.SetValue(savedMods, savedKey);
+            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 280), Size = new Size(300, 40), Accent = b };
+            var hotkeyDefault = new NeonButton { Text = "Padrão", Location = new Point(310, 280), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            hotkeyDefault.Click += (s, e) =>
             {
-                Options = Array.ConvertAll(HotkeyWindow.Choices, k => string.Join("+", k)),
-                Location = new Point(0, 280),
-                Size = new Size(440, 40),
-                AccentA = a,
-                AccentB = b
+                uint mods;
+                Keys key;
+                HotkeyWindow.Choice(0, out mods, out key);
+                hotkeyBox.SetValue(mods, key);
             };
-            hotkeyChoice.SelectedIndex = Math.Max(0, Math.Min(HotkeyWindow.Choices.Length - 1, cfg.Hotkey));
 
             var maintenance = new SectionLabel { Text = "Manutenção", Location = new Point(0, 340), Size = new Size(440, 20) };
             var diag = new NeonButton { Text = "Diagnóstico", Location = new Point(0, 366), Size = new Size(140, 42), AccentA = a, AccentB = b };
@@ -125,7 +132,7 @@ namespace MouseModes
                                    "rolagem 3, plano Equilibrado e USB padrão. O modo Dia a dia passa a usar esses valores.",
                                    0, 470, 440, 54, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyChoice, maintenance, diag, export, import, restore, restoreNote })
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
                 generalPanel.Controls.Add(c);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel };
@@ -347,7 +354,17 @@ namespace MouseModes
             cfg.CloseAppsOnPerformance = closeRow.Switch.Checked;
             cfg.ForceCloseApps = forceRow.Switch.Checked;
             cfg.MonitorCheck = monitorCheckRow.Switch.Checked;
-            cfg.Hotkey = hotkeyChoice.SelectedIndex;
+            // Uma das opções fixas fica como índice; qualquer outra vira atalho livre (as fixas seguem de reserva).
+            int choice = HotkeyWindow.ChoiceIndex(hotkeyBox.Mods, hotkeyBox.Key);
+            if (choice >= 0)
+            {
+                cfg.Hotkey = choice;
+                cfg.CustomHotkey = null;
+            }
+            else
+            {
+                cfg.CustomHotkey = HotkeyWindow.Format(hotkeyBox.Mods, hotkeyBox.Key);
+            }
             cfg.RestoreDailyOnExit = restoreOnExit.Switch.Checked;
             cfg.ShowNotifications = notifications.Switch.Checked;
 
@@ -918,6 +935,74 @@ namespace MouseModes
             Selected = (string)list.SelectedItem;
             DialogResult = DialogResult.OK;
             Close();
+        }
+    }
+
+    /// <summary>Campo que grava um atalho: clique e aperte a combinação. Esc cancela; Ctrl ou Alt é obrigatório.</summary>
+    public class HotkeyBox : TextBox
+    {
+        private const string Waiting = "Aperte o atalho (Esc cancela)";
+
+        public uint Mods { get; private set; }
+        public Keys Key { get; private set; }
+
+        public HotkeyBox()
+        {
+            ReadOnly = true;
+            BorderStyle = BorderStyle.None;
+            Font = Theme.Ui(10f);
+            ShortcutsEnabled = false;
+            Cursor = Cursors.Hand;
+        }
+
+        public void SetValue(uint mods, Keys key)
+        {
+            Mods = mods;
+            Key = key;
+            Text = HotkeyWindow.Describe(mods, key);
+        }
+
+        protected override void OnGotFocus(EventArgs e)
+        {
+            base.OnGotFocus(e);
+            Text = Waiting;
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            base.OnLostFocus(e);
+            Text = HotkeyWindow.Describe(Mods, Key);
+        }
+
+        // ProcessCmdKey recebe também Alt+tecla, que nunca chega ao KeyDown de uma caixa de texto.
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            Keys key = keyData & Keys.KeyCode;
+            uint mods = HotkeyWindow.ModsFrom(keyData & Keys.Modifiers);
+
+            if (key == Keys.Escape && mods == 0)
+            {
+                Text = HotkeyWindow.Describe(Mods, Key);
+                if (Parent != null) Parent.Focus();
+                return true;
+            }
+            if (key == Keys.Tab && mods == 0) return base.ProcessCmdKey(ref msg, keyData); // Tab segue para o próximo campo
+            if (HotkeyWindow.IsModifier(key))
+            {
+                // Ainda segurando Ctrl/Alt/Shift: mostra o começo da combinação ("CTRL + ALT + …").
+                string[] caps = HotkeyWindow.Caps(mods, Keys.None); // a última é a tecla, que ainda não veio
+                Text = caps.Length == 1 ? Waiting : string.Join(" + ", caps, 0, caps.Length - 1) + " + …";
+                return true;
+            }
+
+            string problem = HotkeyWindow.Validate(mods, key);
+            if (problem != null)
+            {
+                Text = problem;
+                return true;
+            }
+            SetValue(mods, key);
+            return true;
         }
     }
 }

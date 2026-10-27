@@ -103,6 +103,12 @@ namespace MouseModes
         /// <summary>Atalho global preferido (índice em HotkeyWindow.Choices).</summary>
         public int Hotkey { get; set; }
 
+        /// <summary>
+        /// Atalho escolhido livremente ("Ctrl+Alt+K"), ou null para usar Hotkey. Se outro programa já usa,
+        /// o app cai nas opções fixas a partir de Hotkey.
+        /// </summary>
+        public string CustomHotkey { get; set; }
+
         /// <summary>Estado original das notificações enquanto estão silenciadas (para desfazer após travamento).</summary>
         public NotificationBackup NotificationBackup { get; set; }
 
