@@ -311,7 +311,7 @@ namespace MouseModes
         {
             AccentA = Theme.DailyA;
             AccentB = Theme.DailyB;
-            ModeName = "DIA A DIA";
+            ModeName = L.T("DIA A DIA", "DAILY");
             Reason = "";
             Glyph = GlyphKind.Monitor;
             StatLabels = new string[0];
@@ -355,7 +355,7 @@ namespace MouseModes
             // "MODO ATUAL" com ponto pulsando
             using (var dot = new SolidBrush(Theme.Alpha(AccentB, 140 + (int)(Pulse * 115))))
                 g.FillEllipse(dot, left, card.Y + 23, 7, 7);
-            Theme.DrawSpaced(g, "MODO ATUAL", Theme.Ui(7.5f, FontStyle.Bold), Theme.Muted, left + 14, card.Y + 18, 2f);
+            Theme.DrawSpaced(g, L.T("MODO ATUAL", "CURRENT MODE"), Theme.Ui(7.5f, FontStyle.Bold), Theme.Muted, left + 14, card.Y + 18, 2f);
 
             // Nome do modo em gradiente
             Font big = Theme.Display(27f);
@@ -708,9 +708,9 @@ namespace MouseModes
             float y = 2;
             if (keys == null)
             {
-                Theme.DrawText(g, "Atalho global indisponível: outros programas usam todas as opções.", Theme.Ui(8.5f), Theme.Muted,
+                Theme.DrawText(g, L.T("Atalho global indisponível: outros programas usam todas as opções.", "Global hotkey unavailable: other programs use every option."), Theme.Ui(8.5f), Theme.Muted,
                     new RectangleF(0, y + 3, Width, 20), wrap: false);
-                Theme.DrawText(g, "Fechar a janela mantém o MouseModes rodando perto do relógio.", Theme.Ui(8f), Theme.Faint,
+                Theme.DrawText(g, L.T("Fechar a janela mantém o MouseModes rodando perto do relógio.", "Closing the window keeps MouseModes running next to the clock."), Theme.Ui(8f), Theme.Faint,
                     new RectangleF(0, y + 32, Width, 18), wrap: false);
                 return;
             }
@@ -731,9 +731,9 @@ namespace MouseModes
                     x += 12;
                 }
             }
-            Theme.DrawText(g, "alterna os modos, até dentro do jogo", Theme.Ui(8.5f), Theme.Muted,
+            Theme.DrawText(g, L.T("alterna os modos, até dentro do jogo", "switches modes, even inside a game"), Theme.Ui(8.5f), Theme.Muted,
                 new RectangleF(x + 6, y + 3, Width - x - 6, 20), wrap: false);
-            Theme.DrawText(g, "Fechar a janela mantém o MouseModes rodando perto do relógio.", Theme.Ui(8f), Theme.Faint,
+            Theme.DrawText(g, L.T("Fechar a janela mantém o MouseModes rodando perto do relógio.", "Closing the window keeps MouseModes running next to the clock."), Theme.Ui(8f), Theme.Faint,
                 new RectangleF(0, y + 32, Width, 18), wrap: false);
         }
     }
@@ -1217,7 +1217,7 @@ namespace MouseModes
 
             if (samples.Length < 2)
             {
-                Theme.DrawText(g, "mexa o mouse para ver as leituras", Theme.Ui(8.5f), Theme.Faint, plot, StringAlignment.Center, StringAlignment.Center);
+                Theme.DrawText(g, L.T("mexa o mouse para ver as leituras", "move the mouse to see the readings"), Theme.Ui(8.5f), Theme.Faint, plot, StringAlignment.Center, StringAlignment.Center);
                 return;
             }
 

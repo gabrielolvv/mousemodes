@@ -57,6 +57,7 @@ namespace MouseModes
         public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal)
         {
             cfg = AppConfig.LoadOrCreate();
+            L.Init(cfg.Language); // antes de criar qualquer tela
             Log.Info("MouseModes " + typeof(TrayApp).Assembly.GetName().Version.ToString(3) + " iniciado" + (startHidden ? " (com o Windows)" : "") + " — " + Application.ExecutablePath);
 
             // Se o app caiu com as notificações silenciadas, devolve agora.
@@ -73,7 +74,7 @@ namespace MouseModes
             {
                 if (quitting || !mainForm.IsHandleCreated || mainForm.IsDisposed) return;
                 mainForm.BeginInvoke((Action)(() =>
-                    ShowBalloon("Plano de energia", string.Join("\n", warnings), ToolTipIcon.Warning)));
+                    ShowBalloon(L.T("Plano de energia", "Power plan"), string.Join("\n", warnings), ToolTipIcon.Warning)));
             };
             winKey = new WinKeyBlocker(() => cfg.Games);
 
@@ -101,11 +102,11 @@ namespace MouseModes
             Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding;
 
             // --- Menu da bandeja ---
-            var openItem = new ToolStripMenuItem("Abrir MouseModes", null, (s, e) => ShowMain());
+            var openItem = new ToolStripMenuItem(L.T("Abrir MouseModes", "Open MouseModes"), null, (s, e) => ShowMain());
             openItem.Font = new Font(openItem.Font, FontStyle.Bold);
-            perfItem = new ToolStripMenuItem("Modo Performance", null, (s, e) => SwitchManually(Mode.Performance));
-            dailyItem = new ToolStripMenuItem("Modo Dia a dia", null, (s, e) => SwitchManually(Mode.DiaADia));
-            autoItem = new ToolStripMenuItem("Trocar sozinho quando abrir um jogo", null, (s, e) => ToggleAuto());
+            perfItem = new ToolStripMenuItem(L.T("Modo Performance", "Performance mode"), null, (s, e) => SwitchManually(Mode.Performance));
+            dailyItem = new ToolStripMenuItem(L.T("Modo Dia a dia", "Daily mode"), null, (s, e) => SwitchManually(Mode.DiaADia));
+            autoItem = new ToolStripMenuItem(L.T("Trocar sozinho quando abrir um jogo", "Switch automatically when a game opens"), null, (s, e) => ToggleAuto());
             autoItem.Checked = cfg.AutoSwitch;
 
             var menu = new ContextMenuStrip();
@@ -115,14 +116,15 @@ namespace MouseModes
             menu.Items.Add(dailyItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(autoItem);
-            menu.Items.Add(new ToolStripMenuItem("Medir polling rate...", null, (s, e) => OpenPolling()));
-            menu.Items.Add(new ToolStripMenuItem("Teste de clique...", null, (s, e) => OpenClickTest()));
-            menu.Items.Add(new ToolStripMenuItem("Testar mira e DPI...", null, (s, e) => OpenAimTest()));
-            menu.Items.Add(new ToolStripMenuItem("Configurações...", null, (s, e) => OpenSettings()));
-            menu.Items.Add(new ToolStripMenuItem("Diagnóstico...", null, (s, e) => OpenDiagnostics()));
-            menu.Items.Add(new ToolStripMenuItem("Procurar versão nova", null, (s, e) => CheckForUpdate(true)));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Medir polling rate...", "Measure polling rate..."), null, (s, e) => OpenPolling()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Teste de clique...", "Click test..."), null, (s, e) => OpenClickTest()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Testar mira e DPI...", "Aim and DPI test..."), null, (s, e) => OpenAimTest()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), null, (s, e) => OpenSettings()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Diagnóstico...", "Diagnostics..."), null, (s, e) => OpenDiagnostics()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Procurar versão nova", "Check for a new version"), null, (s, e) => CheckForUpdate(true)));
+            menu.Items.Add(LanguageMenu());
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem("Sair", null, (s, e) => Quit()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Sair", "Quit"), null, (s, e) => Quit()));
 
             tray = new NotifyIcon
             {
@@ -189,7 +191,7 @@ namespace MouseModes
 
             if (!startHidden) ShowMain();
 
-            if (!hotkeyPreferred) WarnHotkey("Atalho alterado");
+            if (!hotkeyPreferred) WarnHotkey(L.T("Atalho alterado", "Hotkey changed"));
         }
 
         private void ShowMain()
@@ -203,8 +205,8 @@ namespace MouseModes
         {
             if (trayHintShown) return;
             trayHintShown = true;
-            ShowBalloon("MouseModes continua rodando",
-                "Ele fica aqui perto do relógio. Clique no ícone para abrir de novo.", ToolTipIcon.Info);
+            ShowBalloon(L.T("MouseModes continua rodando", "MouseModes is still running"),
+                L.T("Ele fica aqui perto do relógio. Clique no ícone para abrir de novo.", "It stays here next to the clock. Click the icon to open it again."), ToolTipIcon.Info);
         }
 
         // ---------------- Modos ----------------
@@ -218,7 +220,7 @@ namespace MouseModes
         {
             // Escolha manual vence a automática: não volta sozinho quando o jogo fechar.
             autoActivated = false;
-            modes.Apply(mode, "Troca manual");
+            modes.Apply(mode, L.T("Troca manual", "Manual switch"));
         }
 
         private void ToggleAuto()
@@ -258,7 +260,7 @@ namespace MouseModes
             {
                 // Trocou de um jogo para outro sem sair do Performance: aplica o perfil do jogo novo.
                 if (gameChanged && modes.Current == Mode.Performance && cfg.PerformanceFor(game) != modes.CurrentProfile)
-                    modes.Apply(Mode.Performance, running ? "Perfil do jogo: " + game : "Perfil Performance");
+                    modes.Apply(Mode.Performance, running ? L.T("Perfil do jogo: ", "Game profile: ") + game : L.T("Perfil Performance", "Performance profile"));
                 return;
             }
             gameWasRunning = running;
@@ -266,28 +268,28 @@ namespace MouseModes
             if (!cfg.AutoSwitch)
             {
                 if (modes.Current == Mode.Performance && cfg.PerformanceFor(game) != modes.CurrentProfile)
-                    modes.Apply(Mode.Performance, running ? "Perfil do jogo: " + game : "Perfil Performance");
+                    modes.Apply(Mode.Performance, running ? L.T("Perfil do jogo: ", "Game profile: ") + game : L.T("Perfil Performance", "Performance profile"));
                 return;
             }
 
             if (running && modes.Current != Mode.Performance)
             {
                 autoActivated = true;
-                modes.Apply(Mode.Performance, "Jogo detectado: " + game);
+                modes.Apply(Mode.Performance, L.T("Jogo detectado: ", "Game detected: ") + game);
             }
             else if (running && cfg.PerformanceFor(game) != modes.CurrentProfile)
             {
-                modes.Apply(Mode.Performance, "Perfil do jogo: " + game);
+                modes.Apply(Mode.Performance, L.T("Perfil do jogo: ", "Game profile: ") + game);
             }
             else if (!running && autoActivated)
             {
                 autoActivated = false;
                 if (modes.Current == Mode.Performance)
-                    modes.Apply(Mode.DiaADia, "Jogo fechado");
+                    modes.Apply(Mode.DiaADia, L.T("Jogo fechado", "Game closed"));
             }
             else if (!running && modes.Current == Mode.Performance && modes.CurrentGameProfile != null)
             {
-                modes.Apply(Mode.Performance, "Perfil Performance");
+                modes.Apply(Mode.Performance, L.T("Perfil Performance", "Performance profile"));
             }
         }
 
@@ -296,12 +298,12 @@ namespace MouseModes
             bool perf = mode == Mode.Performance;
             perfItem.Checked = perf;
             dailyItem.Checked = !perf;
-            tray.Text = perf ? "MouseModes — Performance" : "MouseModes — Dia a dia";
+            tray.Text = perf ? "MouseModes — Performance" : L.T("MouseModes — Dia a dia", "MouseModes — Daily");
             SetTrayIcon(mode);
 
             string shown = reason;
-            if (perf && modes.CurrentGameProfile != null && reason.IndexOf("Perfil", StringComparison.Ordinal) < 0)
-                shown += "  ·  perfil próprio";
+            if (perf && modes.CurrentGameProfile != null && reason.IndexOf(L.T("Perfil", "profile"), StringComparison.OrdinalIgnoreCase) < 0)
+                shown += L.T("  ·  perfil próprio", "  ·  own profile");
             mainForm.ShowMode(mode, shown, modes.CurrentProfile);
 
             bool entering = perf && lastMode != Mode.Performance;
@@ -310,12 +312,12 @@ namespace MouseModes
             // Avisos primeiro: depois disso as notificações podem ficar silenciadas.
             if (warnings.Count > 0)
             {
-                ShowBalloon("Alguns ajustes falharam", string.Join("\n", warnings), ToolTipIcon.Warning);
+                ShowBalloon(L.T("Alguns ajustes falharam", "Some settings failed"), string.Join("\n", warnings), ToolTipIcon.Warning);
             }
             else if (!quiet && cfg.ShowNotifications && !(mainForm.Visible && mainForm.ContainsFocus))
             {
                 // Com a janela em foco o aviso é redundante: a própria tela já mostra o modo.
-                ShowBalloon(perf ? "Modo Performance" : "Modo Dia a dia", shown, ToolTipIcon.Info);
+                ShowBalloon(perf ? L.T("Modo Performance", "Performance mode") : L.T("Modo Dia a dia", "Daily mode"), shown, ToolTipIcon.Info);
             }
 
             ApplyExtras(perf, entering);
@@ -361,9 +363,9 @@ namespace MouseModes
                     mainForm.BeginInvoke((Action)(() =>
                     {
                         var lines = new List<string>();
-                        if (closed.Count > 0) lines.Add("Fechados: " + string.Join(", ", closed.ToArray()));
-                        if (failed.Count > 0) lines.Add("Não fecharam: " + string.Join(", ", failed.ToArray()) + " (ative \"Forçar\" no Turbo)");
-                        ShowBalloon("Programas em segundo plano", string.Join("\n", lines.ToArray()),
+                        if (closed.Count > 0) lines.Add(L.T("Fechados: ", "Closed: ") + string.Join(", ", closed.ToArray()));
+                        if (failed.Count > 0) lines.Add(L.T("Não fecharam: ", "Did not close: ") + string.Join(", ", failed.ToArray()) + L.T(" (ative \"Forçar\" no Turbo)", " (turn on \"Force\" in Turbo)"));
+                        ShowBalloon(L.T("Programas em segundo plano", "Background programs"), string.Join("\n", lines.ToArray()),
                             failed.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
                     }));
                 });
@@ -376,8 +378,8 @@ namespace MouseModes
                 {
                     monitorWarned = true;
                     Log.Warn(low.Label + " em " + low.CurrentHz + " Hz (aceita " + low.MaxHz + " Hz)");
-                    ShowBalloon(low.Label + " em " + low.CurrentHz + " Hz",
-                        "Ele aceita " + low.MaxHz + " Hz. Ajuste na tela do MouseModes para ter menos delay.",
+                    ShowBalloon(low.Label + L.T(" em ", " at ") + low.CurrentHz + " Hz",
+                        L.T("Ele aceita ", "It supports ") + low.MaxHz + L.T(" Hz. Ajuste na tela do MouseModes para ter menos delay.", " Hz. Fix it on the MouseModes screen for less delay."),
                         ToolTipIcon.Warning);
                 }
             }
@@ -408,13 +410,13 @@ namespace MouseModes
                 string msg;
                 bool ok = Displays.SetMaxRefresh(m, out msg);
                 allOk &= ok;
-                string line = m.Label + ": " + (ok ? m.CurrentHz + " → " + m.MaxHz + " Hz" : "não ajustado") + (msg != null ? " (" + msg + ")" : "");
+                string line = m.Label + ": " + (ok ? m.CurrentHz + " → " + m.MaxHz + " Hz" : L.T("não ajustado", "not changed")) + (msg != null ? " (" + msg + ")" : "");
                 results.Add(line);
                 if (ok) Log.Info("Monitor ajustado — " + line); else Log.Warn("Monitor — " + line);
             }
             RefreshMonitors();
             if (results.Count > 0)
-                ShowBalloon(allOk ? "Monitor ajustado" : "Ajuste do monitor", string.Join("\n", results),
+                ShowBalloon(allOk ? L.T("Monitor ajustado", "Monitor adjusted") : L.T("Ajuste do monitor", "Monitor adjustment"), string.Join("\n", results),
                     allOk ? ToolTipIcon.Info : ToolTipIcon.Warning);
         }
 
@@ -434,10 +436,10 @@ namespace MouseModes
                 autoItem.Checked = cfg.AutoSwitch;
                 mainForm.ShowAuto(cfg.AutoSwitch);
                 // Registra de novo sempre: o atalho pode ter mudado (opção fixa ou livre) ou ter ficado livre agora.
-                if (!hotkey.Register(cfg.Hotkey, cfg.CustomHotkey)) WarnHotkey("Atalho em uso");
+                if (!hotkey.Register(cfg.Hotkey, cfg.CustomHotkey)) WarnHotkey(L.T("Atalho em uso", "Hotkey in use"));
                 mainForm.ShowHotkey(hotkey.ActiveCaps);
                 gameWasRunning = false;
-                modes.Apply(modes.Current, "Configurações salvas");
+                modes.Apply(modes.Current, L.T("Configurações salvas", "Settings saved"));
                 RefreshMonitors();
                 CheckGames();
             };
@@ -447,8 +449,8 @@ namespace MouseModes
                 autoActivated = false;
                 modes.RestoreWindowsDefaults();
                 SaveConfig();
-                ShowBalloon("Padrões do Windows restaurados",
-                    "Velocidade 10, aceleração ligada, rolagem 3, plano Equilibrado e USB padrão.", ToolTipIcon.Info);
+                ShowBalloon(L.T("Padrões do Windows restaurados", "Windows defaults restored"),
+                    L.T("Velocidade 10, aceleração ligada, rolagem 3, plano Equilibrado e USB padrão.", "Speed 10, acceleration on, scroll 3, Balanced plan and default USB."), ToolTipIcon.Info);
             };
             settingsForm.Show();
             settingsForm.Activate();
@@ -468,6 +470,44 @@ namespace MouseModes
             clickForm = new ClickTestForm();
             clickForm.Show();
             clickForm.Activate();
+        }
+
+        /// <summary>Idioma: seguir o Windows, português ou inglês. Vale na próxima vez que o app abrir.</summary>
+        private ToolStripMenuItem LanguageMenu()
+        {
+            var menu = new ToolStripMenuItem("Idioma / Language");
+            string[][] options =
+            {
+                new[] { "", L.T("Automático (do Windows)", "Automatic (from Windows)") },
+                new[] { L.Portuguese, "Português" },
+                new[] { L.English, "English" }
+            };
+            foreach (string[] option in options)
+            {
+                string code = option[0];
+                var item = new ToolStripMenuItem(option[1]) { Checked = (cfg.Language ?? "") == code };
+                item.Click += (s, e) =>
+                {
+                    foreach (ToolStripMenuItem other in menu.DropDownItems) other.Checked = other == item;
+                    SetLanguage(code);
+                };
+                menu.DropDownItems.Add(item);
+            }
+            return menu;
+        }
+
+        private void SetLanguage(string code)
+        {
+            string language = code.Length == 0 ? null : code;
+            if (language == cfg.Language) return;
+            cfg.Language = language;
+            SaveConfig();
+            Log.Info("Idioma escolhido: " + (language ?? "automático"));
+            // O aviso já sai no idioma escolhido; as telas mudam quando o app abrir de novo.
+            bool english = L.UseEnglish(language, System.Globalization.CultureInfo.CurrentUICulture);
+            ShowBalloon("MouseModes", english
+                ? "The new language applies the next time MouseModes opens (Quit, then open it again)."
+                : "O idioma novo vale na próxima vez que o MouseModes abrir (Sair e abrir de novo).", ToolTipIcon.Info);
         }
 
         private void OpenAimTest()
@@ -505,7 +545,7 @@ namespace MouseModes
             catch (Exception ex)
             {
                 Log.Error("Salvar configuração", ex);
-                ShowBalloon("Erro ao salvar", ex.Message, ToolTipIcon.Error);
+                ShowBalloon(L.T("Erro ao salvar", "Could not save"), ex.Message, ToolTipIcon.Error);
             }
         }
 
@@ -514,10 +554,11 @@ namespace MouseModes
         {
             string wanted = HotkeyWindow.DescribePreference(cfg.Hotkey, cfg.CustomHotkey);
             if (hotkey.ActiveCaps == null)
-                ShowBalloon("Atalho indisponível", wanted + " e as outras opções já são usadas por outros programas. " +
-                    "Use a janela ou o ícone da bandeja.", ToolTipIcon.Warning);
+                ShowBalloon(L.T("Atalho indisponível", "Hotkey unavailable"), wanted +
+                    L.T(" e as outras opções já são usadas por outros programas. ", " and the other options are already used by other programs. ") +
+                    L.T("Use a janela ou o ícone da bandeja.", "Use the window or the tray icon."), ToolTipIcon.Warning);
             else
-                ShowBalloon(title, wanted + " já é usado por outro programa. Ativo: " + string.Join(" + ", hotkey.ActiveCaps) + ".",
+                ShowBalloon(title, wanted + L.T(" já é usado por outro programa. Ativo: ", " is already used by another program. Active: ") + string.Join(" + ", hotkey.ActiveCaps) + ".",
                     ToolTipIcon.Warning);
         }
 
@@ -582,7 +623,8 @@ namespace MouseModes
             if (quitting) return;
             if (latest == null)
             {
-                if (manual) ShowBalloon("Versão nova", "Não foi possível consultar o GitHub agora. Tente mais tarde.", ToolTipIcon.Warning);
+                if (manual) ShowBalloon(L.T("Versão nova", "New version"),
+                    L.T("Não foi possível consultar o GitHub agora. Tente mais tarde.", "Could not reach GitHub right now. Try again later."), ToolTipIcon.Warning);
                 return;
             }
 
@@ -593,7 +635,8 @@ namespace MouseModes
 
             if (!newer)
             {
-                if (manual) ShowBalloon("Versão nova", "Você já tem a mais recente (" + UpdateChecker.Current + ").", ToolTipIcon.Info);
+                if (manual) ShowBalloon(L.T("Versão nova", "New version"),
+                    L.T("Você já tem a mais recente (", "You already have the latest (") + UpdateChecker.Current + ").", ToolTipIcon.Info);
                 return;
             }
             if (!manual && latest.Tag == cfg.NotifiedVersion) return; // já avisou desta versão
@@ -612,8 +655,8 @@ namespace MouseModes
             pendingRelease = null;
             cfg.NotifiedVersion = release.Tag;
             SaveConfig();
-            ShowBalloon("MouseModes " + release.Tag + " disponível",
-                "Você está na " + UpdateChecker.Current + ". Clique aqui para abrir a página do download.",
+            ShowBalloon("MouseModes " + release.Tag + L.T(" disponível", " available"),
+                L.T("Você está na ", "You have ") + UpdateChecker.Current + L.T(". Clique aqui para abrir a página do download.", ". Click here to open the download page."),
                 ToolTipIcon.Info, release.Url);
         }
 
@@ -678,7 +721,7 @@ namespace MouseModes
             if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
             {
                 quiet = true;
-                modes.Apply(Mode.DiaADia, "Saindo");
+                modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"));
             }
             foreground.Dispose();
             // Se continuar no Performance, sem o app ninguém troca o mouse de volta: deixa o do Performance.

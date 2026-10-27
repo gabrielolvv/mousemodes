@@ -112,6 +112,9 @@ namespace MouseModes
         /// <summary>DPI que a pessoa informou no teste de mira (0 = não informado).</summary>
         public int AimTestDpi { get; set; }
 
+        /// <summary>Idioma da interface: "pt", "en" ou null para seguir o Windows (vale ao abrir o app).</summary>
+        public string Language { get; set; }
+
         /// <summary>Uma vez por dia, procura versão nova no GitHub e avisa (fora do modo Performance).</summary>
         public bool CheckForUpdates { get; set; }
 
