@@ -64,6 +64,12 @@ namespace MouseModes
             modes = new ModeManager(cfg);
             modes.RunningGame = () => currentGame;
             modes.ModeChanged += OnModeChanged;
+            modes.PowerWarnings += warnings =>
+            {
+                if (quitting || !mainForm.IsHandleCreated || mainForm.IsDisposed) return;
+                mainForm.BeginInvoke((Action)(() =>
+                    ShowBalloon("Plano de energia", string.Join("\n", warnings), ToolTipIcon.Warning)));
+            };
             winKey = new WinKeyBlocker(() => cfg.Games);
 
             // Mouse do jogo só com o jogo na tela (opção): troca a cada mudança de janela em primeiro plano.
@@ -544,6 +550,8 @@ namespace MouseModes
             foreground.Dispose();
             // Se continuar no Performance, sem o app ninguém troca o mouse de volta: deixa o do Performance.
             modes.SetGameFocused(true);
+            // O plano de energia roda numa thread de fundo, que morre com o processo. O instalador espera até 20 s.
+            modes.WaitForPower(15000);
             // Mesmo se o modo continuar Performance, os extras do jogo não podem ficar ativos sem o app.
             RestoreGameTimeTweaks();
             Log.Info("MouseModes encerrado");

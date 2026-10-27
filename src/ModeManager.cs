@@ -1,11 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace MouseModes
 {
     public class ModeManager
     {
         private readonly AppConfig cfg;
+
+        // Plano de energia e USB (powercfg, centenas de ms) rodam fora da thread da tela, um de cada vez.
+        // Só o pedido mais recente espera na fila: trocar de modo várias vezes seguidas aplica só o último.
+        private readonly object powerGate = new object();
+        private readonly ManualResetEvent powerIdle = new ManualResetEvent(true);
+        private Action pendingPower;
+        private bool powerRunning;
+
+        /// <summary>Quem aplica plano e USB. Interno e trocável só para testar a fila sem mexer no PC.</summary>
+        internal Action<MouseProfile, List<string>, string> PowerApplier;
 
         public Mode Current { get; private set; }
 
@@ -26,11 +37,15 @@ namespace MouseModes
         /// <summary>(modo aplicado, motivo, avisos de coisas que falharam)</summary>
         public event Action<Mode, string, List<string>> ModeChanged;
 
+        /// <summary>O plano de energia ou o USB falharam. Chega depois do ModeChanged, numa thread de fundo.</summary>
+        public event Action<List<string>> PowerWarnings;
+
         public ModeManager(AppConfig cfg)
         {
             this.cfg = cfg;
             Current = Mode.DiaADia;
             CurrentProfile = cfg.Daily;
+            PowerApplier = (p, warnings, restorePlan) => PowerSettings.Apply(p, warnings, restorePlan);
         }
 
         /// <summary>
@@ -96,8 +111,7 @@ namespace MouseModes
             try { MouseSettings.Apply(profile); }
             catch (Exception ex) { warnings.Add(ex.Message); }
 
-            try { PowerSettings.Apply(profile, warnings, restorePlan); }
-            catch (Exception ex) { warnings.Add(ex.Message); }
+            QueuePower(profile, restorePlan);
 
             Current = mode;
             CurrentProfile = profile;
@@ -151,10 +165,77 @@ namespace MouseModes
             d.ScrollLines = now.ScrollLines;
         }
 
+        /// <summary>
+        /// Espera o plano de energia terminar de ser aplicado. Para quem vai encerrar o processo logo depois
+        /// (sair do app, desinstalar): a thread de fundo morreria no meio do powercfg.
+        /// </summary>
+        public bool WaitForPower(int timeoutMs)
+        {
+            bool done = powerIdle.WaitOne(timeoutMs);
+            if (!done) Log.Warn("Plano de energia ainda sendo aplicado depois de " + timeoutMs / 1000 + " s");
+            return done;
+        }
+
+        private void QueuePower(MouseProfile profile, string restorePlan)
+        {
+            MouseProfile snapshot = profile.Clone(); // os Ajustes podem mudar o perfil enquanto isto roda
+            lock (powerGate)
+            {
+                pendingPower = () => RunPower(snapshot, restorePlan);
+                powerIdle.Reset();
+                if (powerRunning) return; // a thread que já roda pega este pedido em seguida
+                powerRunning = true;
+            }
+            var worker = new Thread(PowerLoop) { IsBackground = true, Name = "MouseModes energia" };
+            worker.Start();
+        }
+
+        private void PowerLoop()
+        {
+            while (true)
+            {
+                Action job;
+                lock (powerGate)
+                {
+                    job = pendingPower;
+                    pendingPower = null;
+                    if (job == null)
+                    {
+                        powerRunning = false;
+                        powerIdle.Set();
+                        return;
+                    }
+                }
+                job();
+            }
+        }
+
+        private void RunPower(MouseProfile profile, string restorePlan)
+        {
+            var warnings = new List<string>();
+            try { PowerApplier(profile, warnings, restorePlan); }
+            catch (Exception ex) { warnings.Add(ex.Message); }
+            if (warnings.Count == 0) return;
+
+            foreach (string w in warnings) Log.Warn(w);
+            var handler = PowerWarnings;
+            if (handler != null)
+            {
+                try { handler(warnings); } catch (Exception ex) { Log.Error("Avisar falha do plano de energia", ex); }
+            }
+        }
+
         /// <summary>Com o Dia a dia em "ANTERIOR", guarda o plano de energia ativo antes de o Performance trocar.</summary>
         private void RememberDailyPlan()
         {
             if (cfg.Daily.PowerPlan != PowerPlanOption.NaoAlterar) return;
+            // Com uma troca de plano em andamento (ex.: voltando ao anterior), o ativo agora não é o "de antes".
+            // Espera ela acabar; só acontece quando os modos trocam em sequência rápida.
+            if (!powerIdle.WaitOne(3000))
+            {
+                Log.Info("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes");
+                return;
+            }
             string guid = PowerSettings.ActivePlanGuid();
             if (guid == null || guid == cfg.DailyPlanGuid) return;
             cfg.DailyPlanGuid = guid;
