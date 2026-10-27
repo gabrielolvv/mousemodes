@@ -2,7 +2,7 @@
 
 Cada versão tem uma seção `## X.Y.Z`. A Release do GitHub usa a seção da própria versão como texto.
 
-## Próxima versão
+## 1.3.0
 
 ### Novidades
 
