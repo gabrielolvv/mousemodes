@@ -54,7 +54,7 @@ namespace MouseModes
 
         public static string Describe(int index)
         {
-            return index >= 0 && index < Choices.Length ? string.Join(" + ", Choices[index]) : "nenhum";
+            return index >= 0 && index < Choices.Length ? string.Join(" + ", Choices[index]) : L.T("nenhum", "none");
         }
 
         /// <summary>O atalho que a pessoa escolheu: o livre (CustomHotkey), se válido, ou uma das opções fixas.</summary>
@@ -137,10 +137,10 @@ namespace MouseModes
         /// <summary>Null se o atalho serve; senão, o motivo (para mostrar na tela).</summary>
         public static string Validate(uint mods, Keys key)
         {
-            if ((mods & (MOD_CONTROL | MOD_ALT)) == 0) return "Use Ctrl ou Alt junto com outra tecla";
-            if (key == Keys.None || IsModifier(key)) return "Falta a tecla além de Ctrl, Alt e Shift";
+            if ((mods & (MOD_CONTROL | MOD_ALT)) == 0) return L.T("Use Ctrl ou Alt junto com outra tecla", "Use Ctrl or Alt together with another key");
+            if (key == Keys.None || IsModifier(key)) return L.T("Falta a tecla além de Ctrl, Alt e Shift", "Missing a key besides Ctrl, Alt and Shift");
             if (key == Keys.Escape || key == Keys.Tab || key == Keys.LWin || key == Keys.RWin || key == Keys.Apps)
-                return "Esta tecla é do Windows; escolha outra";
+                return L.T("Esta tecla é do Windows; escolha outra", "That key belongs to Windows; pick another");
             return null;
         }
 
@@ -208,7 +208,7 @@ namespace MouseModes
             if (key >= Keys.NumPad0 && key <= Keys.NumPad9) return "NUM " + (int)(key - Keys.NumPad0);
             switch (key)
             {
-                case Keys.Space: return "ESPAÇO";
+                case Keys.Space: return L.T("ESPAÇO", "SPACE");
                 case Keys.Return: return "ENTER";
                 case Keys.Back: return "BACKSPACE";
                 case Keys.Delete: return "DEL";

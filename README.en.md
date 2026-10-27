@@ -15,8 +15,8 @@ Switch from the main screen, with a global hotkey, or automatically when a game 
 
 The interface follows the Windows language: Portuguese on a Portuguese Windows, English on any other. You can pick
 another one in the tray icon → Idioma / Language (it applies the next time the app opens). The translation is being
-done in steps: the main screen and the tray are in English, Settings and the other windows will follow. Diagnostics
-messages stay in Portuguese.
+done in steps: the main screen, the tray and Settings are in English; Diagnostics and the polling, click and aim
+windows will follow. Diagnostics log messages stay in Portuguese.
 
 ## Install
 
