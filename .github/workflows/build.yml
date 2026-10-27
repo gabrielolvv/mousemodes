@@ -2,7 +2,8 @@ name: Build
 
 # - Todo push/PR: compila o app e o instalador e guarda como artefato do run.
 # - Tag "v*" (ex.: v1.2.0): faz o mesmo e anexa à Release o instalador (MouseModes-Setup.exe) e o SHA-256 dele.
-#   A versão da tag precisa bater com o arquivo VERSION.
+#   A versão da tag precisa bater com o arquivo VERSION, e o CHANGELOG.md precisa ter a seção dela ("## 1.2.0"):
+#   o texto da Release é essa seção.
 #
 # As actions são fixadas pelo commit (com a versão no comentário): uma tag pode ser movida para outro código,
 # um commit não. Para atualizar, troque o SHA pelo da versão nova (git ls-remote --tags <repo>).
@@ -30,13 +31,17 @@ jobs:
           sudo apt-get install -y -qq mono-devel nsis
           test -f /usr/lib/mono/4.8-api/mscorlib.dll
 
-      - name: Conferir versão da tag
+      - name: Conferir versão da tag e notas
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           FILE="$(tr -d ' \r\n' < VERSION)"
           if [ "$TAG" != "$FILE" ]; then
             echo "::error::A tag ($TAG) não bate com o arquivo VERSION ($FILE)."
+            exit 1
+          fi
+          if ! tr -d '\r' < CHANGELOG.md | grep -qxF "## $FILE"; then
+            echo "::error::O CHANGELOG.md não tem a seção \"## $FILE\", que vira o texto da Release."
             exit 1
           fi
 
@@ -76,6 +81,9 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Só para ler o CHANGELOG.md: o instalador vem do artefato do job de build.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: MouseModes-${{ github.sha }}
@@ -90,6 +98,24 @@ jobs:
           echo "sha256=$(cut -d' ' -f1 MouseModes-Setup.exe.sha256)" >> "$GITHUB_OUTPUT"
           cat MouseModes-Setup.exe.sha256
 
+      # Texto da Release: a seção desta versão no CHANGELOG.md, mais o SHA-256 e como conferir.
+      - name: Notas da Release
+        env:
+          SHA256: ${{ steps.hash.outputs.sha256 }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          tr -d '\r' < CHANGELOG.md | awk -v v="$VERSION" '/^## / { if (on) exit; on = ($2 == v); next } on' > dist/notes.md
+          {
+            cat dist/notes.md
+            echo
+            echo '---'
+            echo
+            echo "SHA-256 do instalador: \`$SHA256\`"
+            echo
+            echo 'Para conferir no PowerShell: `(Get-FileHash .\MouseModes-Setup.exe -Algorithm SHA256).Hash`'
+          } > dist/release-notes.md
+          cat dist/release-notes.md
+
       # Para a pessoa, um arquivo e um clique: o instalador. O .sha256 vai junto para quem quiser conferir.
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
@@ -98,9 +124,4 @@ jobs:
             dist/MouseModes-Setup.exe
             dist/MouseModes-Setup.exe.sha256
           fail_on_unmatched_files: true
-          body: |
-            Baixe o **MouseModes-Setup.exe** abaixo e rode.
-
-            SHA-256 do instalador: `${{ steps.hash.outputs.sha256 }}`
-
-            Para conferir no PowerShell: `(Get-FileHash .\MouseModes-Setup.exe -Algorithm SHA256).Hash`
+          body_path: dist/release-notes.md
