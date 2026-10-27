@@ -65,6 +65,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Medidor de polling rate** e **teste de clique duplo** (switch gasto), lendo o mouse via Raw Input.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
 - **Restaurar padrões do Windows** (Ajustes → Geral).
+- **Exportar e importar** (Ajustes → Geral): leva jogos, perfis, Turbo e ajustes gerais para outro PC num arquivo
+  `.xml`. O que só vale neste PC (modo aplicado, planos de energia daqui, estado das notificações) fica de fora.
+  Antes de importar, o app mostra quantos jogos e quais programas para fechar vêm no arquivo.
 
 Configuração em `%APPDATA%\MouseModes\config.xml`.
 
