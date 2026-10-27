@@ -166,35 +166,62 @@ namespace MouseModes
 
         public static AppConfig LoadOrCreate()
         {
-            if (File.Exists(FilePath))
+            return LoadOrCreate(FilePath);
+        }
+
+        internal static AppConfig LoadOrCreate(string path)
+        {
+            string tmp = path + ".tmp";
+            if (File.Exists(path))
             {
                 try
                 {
-                    var serializer = new XmlSerializer(typeof(AppConfig));
-                    AppConfig loaded;
-                    using (var stream = File.OpenRead(FilePath))
-                    {
-                        loaded = (AppConfig)serializer.Deserialize(stream);
-                    }
-
-                    if (loaded.Performance == null) loaded.Performance = DefaultPerformance(MouseSettings.Read());
-                    if (loaded.Daily == null) loaded.Daily = DefaultDaily(MouseSettings.Read());
-                    if (loaded.Games == null) loaded.Games = new List<string>();
-                    if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
-                    if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
-                    loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
-                    return loaded;
+                    return Load(path);
                 }
-                catch
+                catch (Exception ex)
                 {
                     // Arquivo corrompido: guarda uma cópia e recomeça do padrão.
-                    try { File.Copy(FilePath, FilePath + ".bak", true); } catch { }
+                    Log.Error("Configuração ilegível; cópia guardada em " + Path.GetFileName(path) + ".bak e padrão recriado", ex);
+                    try { File.Copy(path, path + ".bak", true); } catch { }
+                }
+            }
+            else if (File.Exists(tmp))
+            {
+                // Versões antigas apagavam o config antes de mover o .tmp: se caíram no meio, o .tmp é o config.
+                try
+                {
+                    AppConfig recovered = Load(tmp);
+                    recovered.SaveTo(path);
+                    Log.Warn("Configuração recuperada de " + Path.GetFileName(tmp));
+                    return recovered;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error("Recuperar " + Path.GetFileName(tmp), ex);
                 }
             }
 
             var created = CreateDefault();
-            created.Save();
+            created.SaveTo(path);
             return created;
+        }
+
+        private static AppConfig Load(string path)
+        {
+            var serializer = new XmlSerializer(typeof(AppConfig));
+            AppConfig loaded;
+            using (var stream = File.OpenRead(path))
+            {
+                loaded = (AppConfig)serializer.Deserialize(stream);
+            }
+
+            if (loaded.Performance == null) loaded.Performance = DefaultPerformance(MouseSettings.Read());
+            if (loaded.Daily == null) loaded.Daily = DefaultDaily(MouseSettings.Read());
+            if (loaded.Games == null) loaded.Games = new List<string>();
+            if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
+            if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
+            loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
+            return loaded;
         }
 
         public static AppConfig CreateDefault()
@@ -244,15 +271,39 @@ namespace MouseModes
 
         public void Save()
         {
-            Directory.CreateDirectory(Folder);
-            string tmp = FilePath + ".tmp";
+            SaveTo(FilePath);
+        }
+
+        /// <summary>
+        /// Grava num .tmp (já no disco) e troca pelo arquivo de uma vez: se o PC desligar no meio,
+        /// fica o config antigo ou o novo, nunca nenhum.
+        /// </summary>
+        internal void SaveTo(string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            string tmp = path + ".tmp";
             var serializer = new XmlSerializer(typeof(AppConfig));
-            using (var stream = File.Create(tmp))
+            using (var stream = new FileStream(tmp, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
             {
                 serializer.Serialize(stream, this);
+                stream.Flush(true);
             }
-            if (File.Exists(FilePath)) File.Delete(FilePath);
-            File.Move(tmp, FilePath);
+
+            if (!File.Exists(path))
+            {
+                File.Move(tmp, path);
+                return;
+            }
+            try
+            {
+                File.Replace(tmp, path, null);
+            }
+            catch (PlatformNotSupportedException)
+            {
+                // Sistema de arquivos sem troca atômica (ex.: alguns drives de rede): do jeito antigo.
+                File.Delete(path);
+                File.Move(tmp, path);
+            }
         }
     }
 }
