@@ -17,14 +17,23 @@ namespace MouseModes
         public DiagnosticsForm() : base("Diagnóstico", true)
         {
             CloseOnEscape = true;
-            ClientSize = new Size(620, 600);
 
             Controls.Add(new SectionLabel { Text = "Sistema", Location = new Point(20, 58), Size = new Size(580, 20) });
             systemInfo = Note("carregando...", 20, 80, 580, 92, Theme.Muted, 8.5f);
             systemInfo.Font = new Font("Consolas", 8.5f);
             Controls.Add(systemInfo);
 
-            Controls.Add(new SectionLabel { Text = "Registro", Location = new Point(20, 178), Size = new Size(580, 20) });
+            Controls.Add(new SectionLabel { Text = "Windows para jogos", Location = new Point(20, 178), Size = new Size(580, 20) });
+            int y = 202;
+            foreach (WindowsCheck check in WindowsChecks.Read())
+            {
+                AddCheckRow(check, y);
+                y += 46;
+            }
+            Controls.Add(Note("O MouseModes só mostra: \"Abrir\" leva à tela do Windows onde você muda.", 20, y, 580, 18, Theme.Faint, 8f));
+            y += 26; // a seção tem 3 linhas no Windows 10 e 4 no 11: o resto vem logo abaixo dela
+
+            Controls.Add(new SectionLabel { Text = "Registro", Location = new Point(20, y), Size = new Size(580, 20) });
             text = new TextBox
             {
                 Multiline = true,
@@ -34,11 +43,14 @@ namespace MouseModes
                 WordWrap = false,
                 Font = new Font("Consolas", 8.5f)
             };
-            Controls.Add(new FieldHost(text) { Location = new Point(20, 202), Size = new Size(580, 326), Accent = Theme.DailyB });
+            // Registro mais baixo que antes: com a seção nova, a janela ainda cabe numa tela de 768 px com a barra de tarefas.
+            Controls.Add(new FieldHost(text) { Location = new Point(20, y + 24), Size = new Size(580, 210), Accent = Theme.DailyB });
+            int buttonsY = y + 24 + 210 + 14;
 
-            var copy = new NeonButton { Text = "Copiar tudo", Location = new Point(20, 542), Size = new Size(184, 42) };
-            var folder = new NeonButton { Text = "Abrir pasta", Location = new Point(218, 542), Size = new Size(184, 42) };
-            var clear = new NeonButton { Text = "Limpar", Style = ButtonStyle.Danger, Location = new Point(416, 542), Size = new Size(184, 42) };
+            var copy = new NeonButton { Text = "Copiar tudo", Location = new Point(20, buttonsY), Size = new Size(184, 42) };
+            var folder = new NeonButton { Text = "Abrir pasta", Location = new Point(218, buttonsY), Size = new Size(184, 42) };
+            var clear = new NeonButton { Text = "Limpar", Style = ButtonStyle.Danger, Location = new Point(416, buttonsY), Size = new Size(184, 42) };
+            ClientSize = new Size(620, buttonsY + 42 + 16);
             copy.Click += (s, e) => CopyAll();
             folder.Click += (s, e) => OpenFolder();
             clear.Click += (s, e) => { Log.Clear(); Reload(); };
@@ -70,6 +82,30 @@ namespace MouseModes
         {
             Log.Changed -= onLogChanged;
             base.OnFormClosed(e);
+        }
+
+        /// <summary>Uma linha: nome, estado (ciano = bom, laranja = vale mudar, cinza = depende) e o botão Abrir.</summary>
+        private void AddCheckRow(WindowsCheck check, int y)
+        {
+            Color stateColor = check.Ok == true ? Theme.DailyB : check.Ok == false ? Theme.PerfB : Theme.Muted;
+
+            var name = Note(check.Name, 20, y, 250, 20, Theme.Text, 9.5f);
+            name.Font = Theme.Ui(9.5f, FontStyle.Bold);
+            var state = Note(check.State, 280, y, 220, 20, stateColor, 9.5f);
+            state.Font = Theme.Ui(9.5f, FontStyle.Bold);
+            var advice = Note(string.IsNullOrEmpty(check.Advice) ? "Como recomendado." : check.Advice, 20, y + 20, 480, 18, Theme.Faint, 8f);
+
+            var open = new NeonButton { Text = "Abrir", Location = new Point(510, y + 4), Size = new Size(90, 32), AccentA = Theme.DailyA, AccentB = Theme.DailyB };
+            open.Click += (s, e) =>
+            {
+                string error = WindowsChecks.OpenSettings(check);
+                if (error != null) ConfirmDialog.Inform(this, "Não foi possível abrir", error);
+            };
+
+            Controls.Add(name);
+            Controls.Add(state);
+            Controls.Add(advice);
+            Controls.Add(open);
         }
 
         private void Reload()

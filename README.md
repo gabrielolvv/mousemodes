@@ -64,6 +64,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Taxa do monitor**: avisa se algum monitor está abaixo do máximo (ex.: 60 Hz num de 144 Hz) e ajusta com um clique.
 - **Medidor de polling rate** e **teste de clique duplo** (switch gasto), lendo o mouse via Raw Input.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
+- **Windows para jogos** (no Diagnóstico): mostra Modo de Jogo, gravação em segundo plano, agendamento de GPU acelerado
+  e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão
+  "Abrir" leva à tela do Windows onde você decide.
 - **Restaurar padrões do Windows** (Ajustes → Geral).
 
 Configuração em `%APPDATA%\MouseModes\config.xml`.
