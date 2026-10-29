@@ -13,6 +13,7 @@ namespace MouseModes
 
         private readonly AppConfig cfg;
         private readonly Action save;
+        private readonly Action measureDpi;
         private readonly Segmented game;
         private readonly TextBox sensBox;
         private readonly TextBox dpiBox;
@@ -23,12 +24,14 @@ namespace MouseModes
         private readonly Label hint;
 
         /// <param name="save">Grava o config (a tela lembra o jogo, a sensibilidade e o DPI da última vez).</param>
-        public SensitivityForm(AppConfig cfg, Action save) : base(L.T("Conversor de sensibilidade", "Sensitivity converter"), true)
+        /// <param name="measureDpi">Abre a medição do DPI real.</param>
+        public SensitivityForm(AppConfig cfg, Action save, Action measureDpi) : base(L.T("Conversor de sensibilidade", "Sensitivity converter"), true)
         {
             this.cfg = cfg;
             this.save = save;
+            this.measureDpi = measureDpi;
             CloseOnEscape = true;
-            ClientSize = new Size(480, 580);
+            ClientSize = new Size(480, 630);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
@@ -70,6 +73,12 @@ namespace MouseModes
 
             hint = Note("", 20, 512, 440, 54, Theme.Faint, 8.5f);
             Controls.Add(hint);
+
+            var measure = new NeonButton { Text = L.T("Medir o DPI real", "Measure the real DPI"), Glyph = GlyphKind.Mouse, Location = new Point(20, 570), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            measure.Click += (s, e) => { if (this.measureDpi != null) this.measureDpi(); };
+            Controls.Add(measure);
+            // Volta da medição do DPI real: a volta passa a usar o valor medido.
+            Activated += (s, e) => Recalculate();
 
             // Última conversa: jogo, sensibilidade e yaw daqui; o DPI é o mesmo do teste de mira.
             game.SelectedIndex = cfg.ConverterGame >= 0 && cfg.ConverterGame <= OtherIndex ? cfg.ConverterGame : 0;
@@ -143,9 +152,21 @@ namespace MouseModes
 
             // Distância na língua da tela (43,3 cm / 43.3 cm); a sensibilidade sempre com ponto, como nos jogos.
             CultureInfo culture = L.IsEnglish ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("pt-BR");
-            readout.Value = cm.ToString(cm < 100 ? "0.0" : "0", culture);
-            readout.Caption = L.T("uma volta completa no jogo · ", "one full turn in the game · ") +
-                              (cm / 2.54).ToString(cm < 254 ? "0.0" : "0", culture) + L.T(" pol", " in");
+            int real = RealDpi(dpi);
+            if (real > 0)
+            {
+                // O sensor entrega outro DPI: a volta de verdade é a do DPI real; a anunciada fica de referência.
+                double realCm = Sensitivity.Cm360(sens, yaw, real);
+                readout.Value = realCm.ToString(realCm < 100 ? "0.0" : "0", culture);
+                readout.Caption = L.T("com o DPI real (", "with the real DPI (") + real + L.T(") · anunciado: ", ") · at the set DPI: ") +
+                                  cm.ToString(cm < 100 ? "0.0" : "0", culture) + " cm";
+            }
+            else
+            {
+                readout.Value = cm.ToString(cm < 100 ? "0.0" : "0", culture);
+                readout.Caption = L.T("uma volta completa no jogo · ", "one full turn in the game · ") +
+                                  (cm / 2.54).ToString(cm < 254 ? "0.0" : "0", culture) + L.T(" pol", " in");
+            }
 
             for (int i = 0; i < rows.Count; i++)
             {
@@ -169,6 +190,12 @@ namespace MouseModes
                 ? L.T(" Com " + newDpi + " DPI, use os valores acima para a mira não mudar.", " At " + newDpi + " DPI, use the values above so your aim does not change.")
                 : "");
             readout.Invalidate();
+        }
+
+        /// <summary>O DPI real medido para este DPI anunciado; 0 se não houver (ou se der o mesmo).</summary>
+        private int RealDpi(int declared)
+        {
+            return cfg.MeasuredDpi > 0 && cfg.MeasuredDpiFor == declared && cfg.MeasuredDpi != declared ? cfg.MeasuredDpi : 0;
         }
 
         private static string Hint()

@@ -115,6 +115,12 @@ namespace MouseModes
         /// <summary>DPI que a pessoa informou no teste de mira (0 = não informado).</summary>
         public int AimTestDpi { get; set; }
 
+        /// <summary>DPI real medido com a régua (0 = nunca medido). Vale enquanto o mouse estiver no MeasuredDpiFor.</summary>
+        public int MeasuredDpi { get; set; }
+
+        /// <summary>O DPI do programa do mouse quando o real foi medido.</summary>
+        public int MeasuredDpiFor { get; set; }
+
         // ---- Conversor de sensibilidade (a última conta feita) ----
 
         public int ConverterGame { get; set; }
