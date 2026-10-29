@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Privacidade** (Ajustes → Privacidade): uma página nova junta tudo o que sai do PC (a consulta de versão nova e o
+  ping do Raio-X da rede) e como desligar. As duas chaves de versão nova saíram da página Geral para lá, e entrou a
+  chave "Medir a rede no Raio-X": desligada, o app não manda nenhum ping. O instalador mostra o mesmo aviso antes de
+  instalar.
+
 ## 1.8.0
 
 ### Novidades

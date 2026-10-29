@@ -79,10 +79,10 @@ namespace MouseModes
 
             if (report.Network != null) y = AddNetwork(report.Network, y);
 
-            Controls.Add(Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1. " +
-                                  "Mostra o que pesou; o FPS não é medido.",
-                                  "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1. " +
-                                  "Shows what weighed; FPS is not measured."),
+            Controls.Add(Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
+                                  "(dá para desligar em Ajustes → Privacidade). O FPS não é medido.",
+                                  "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1 " +
+                                  "(you can turn it off in Settings → Privacy). FPS is not measured."),
                               20, y, 440, 32, Theme.Faint, 8f));
             y += 38;
 

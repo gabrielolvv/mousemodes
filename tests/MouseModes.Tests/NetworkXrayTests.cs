@@ -198,6 +198,18 @@ namespace MouseModes.Tests
             Assert.Empty(stats.Finish("cs2").Culprits);
         }
 
+        [Fact]
+        public void MatchRecorder_SendsNoPingWhenTheNetworkXrayIsOff()
+        {
+            // Ajustes → Privacidade → Medir a rede no Raio-X desligado: a partida é gravada sem nenhum ping.
+            Assert.True(new AppConfig().MeasureNetwork);
+            var recorder = new MatchRecorder { MeasureNetwork = false };
+            recorder.Start("cs2");
+            Assert.True(recorder.Recording);
+            Assert.False(recorder.MeasuringNetwork);
+            Assert.Null(recorder.Stop()); // curta demais para virar relatório
+        }
+
         private static ProcessSample Cpu(int pid, string name, long ticks)
         {
             return new ProcessSample { Pid = pid, Name = name, StartTime = 1, CpuTicks = ticks, IoBytes = 0 };
