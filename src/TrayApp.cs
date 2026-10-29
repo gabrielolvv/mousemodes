@@ -391,12 +391,37 @@ namespace MouseModes
             var lines = report.Culprits.ConvertAll(c => c.Name + " (" + MatchReport.Describe(c) + ")");
             Log.Info(L.T("Raio-X da partida (", "Match X-ray (") + report.Game + ", " + MatchReport.FormatDuration(report.Duration) + "): " +
                      (lines.Count == 0 ? L.T("nada pesou em segundo plano", "nothing weighed in the background") : string.Join("; ", lines.ToArray())));
+            NetworkReport net = report.Network;
+            if (net != null)
+            {
+                var spikes = net.Spikes.ConvertAll(NetworkReport.Describe);
+                Log.Info(L.T("Raio-X da rede: ", "Network X-ray: ") + net.Summary() + " · " + net.VerdictText() +
+                         (spikes.Count == 0 ? "" : " [" + string.Join("; ", spikes.ToArray()) + "]"));
+            }
 
-            if (report.Culprits.Count == 0 || !cfg.ShowNotifications) return;
-            Culprit top = report.Culprits[0];
+            bool badNetwork = net != null && net.Verdict != NetVerdict.Stable;
+            if ((report.Culprits.Count == 0 && !badNetwork) || !cfg.ShowNotifications) return;
+            string text = "";
+            if (report.Culprits.Count > 0)
+            {
+                Culprit top = report.Culprits[0];
+                text = top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n";
+            }
+            if (badNetwork)
+                text += L.T("Rede: ", "Network: ") + net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)") + NetSource(net) + ".\n";
             ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
-                top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n" +
-                L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
+                text + L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
+        }
+
+        /// <summary>", vindos do Wi-Fi" para o aviso (vazio se não deu para saber).</summary>
+        private static string NetSource(NetworkReport net)
+        {
+            switch (net.Verdict)
+            {
+                case NetVerdict.Local: return net.Wifi ? L.T(", vindos do Wi-Fi", ", from the Wi-Fi") : L.T(", vindos da sua rede", ", from your network");
+                case NetVerdict.Internet: return L.T(", vindos da internet", ", from the internet");
+                default: return "";
+            }
         }
 
         private void OpenReport()

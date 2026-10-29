@@ -8,6 +8,13 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 
 ### New
 
+- **Network X-ray** (in the Match X-ray): during the match, one ping per second to the router and to 1.1.1.1
+  (Cloudflare), on its own thread and without administrator rights. At the end, the report shows ping, jitter and
+  loss, the three worst spikes (e.g. at 23 min, 210 ms for 3 s) and where they came from: the Wi-Fi or your network,
+  when the router got worse too, or the internet, when everything was fine up to the router. It also points at who was
+  using a lot of data at the time (e.g. OneDrive with 120 MB). With a VPN on, it measures the router of the real
+  network adapter and warns that the spikes may come from the VPN. If the router does not answer ping, it says the
+  Wi-Fi and the internet cannot be told apart.
 - **Real mouse DPI** (sensitivity converter → Measure the real DPI, or tray icon → Measure the real DPI): with a ruler
   on the desk, you drag the mouse 4 in and the app counts the sensor reports through Raw Input. It shows the true DPI,
   how far it is from the advertised one (e.g. 800 in the mouse software, 763 on the ruler, 4.6% lower) and how much

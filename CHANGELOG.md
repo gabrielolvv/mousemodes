@@ -9,6 +9,12 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ### Novidades
 
+- **Raio-X da rede** (no Raio-X da partida): durante a partida, um ping por segundo ao roteador e ao 1.1.1.1
+  (Cloudflare), numa thread própria e sem administrador. No fim, o relatório mostra ping, jitter e perda, os três
+  piores picos (ex.: aos 23 min, 210 ms por 3 s) e de onde vieram: do Wi-Fi ou da sua rede, quando o roteador também
+  piorou, ou da internet, quando até o roteador estava tudo bem. Aponta também quem usava muitos dados na hora (ex.:
+  OneDrive com 120 MB). Com uma VPN ligada, mede o roteador da placa de verdade e avisa que os picos podem vir dela.
+  Se o roteador não responde a ping, diz que não dá para separar Wi-Fi de internet.
 - **DPI real do mouse** (conversor de sensibilidade → Medir o DPI real, ou ícone da bandeja → Medir o DPI real): com
   uma régua na mesa, você arrasta o mouse 10 cm e o app conta as leituras do sensor pelo Raw Input. Mostra o DPI de
   verdade, a diferença para o anunciado (ex.: 800 no programa do mouse, 763 na régua, 4,6% a menos) e quanto as

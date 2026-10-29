@@ -26,12 +26,16 @@ namespace MouseModes
         public long IoBytes { get; set; }
     }
 
-    /// <summary>Raio-X da partida: quanto durou e quem mais pesou em segundo plano.</summary>
+    /// <summary>Raio-X da partida: quanto durou, quem mais pesou em segundo plano e como estava a rede.</summary>
     public class MatchReport
     {
         public string Game { get; set; }
         public TimeSpan Duration { get; set; }
         public List<Culprit> Culprits { get; set; }
+        /// <summary>A rede durante a partida; null se não deu para medir (ping bloqueado, partida curta).</summary>
+        public NetworkReport Network { get; set; }
+        /// <summary>Quem leu/gravou muitos dados e quando: serve para apontar o culpado de um pico de ping.</summary>
+        internal List<IoBurst> Bursts { get; set; }
 
         /// <summary>"47 min" ou "1 h 05 min".</summary>
         public static string FormatDuration(TimeSpan duration)
@@ -46,7 +50,7 @@ namespace MouseModes
             var parts = new List<string>();
             if (c.AveragePercent >= 0.5) parts.Add(L.T("média ", "average ") + Percent(c.AveragePercent));
             if (c.PeakPercent >= 1) parts.Add(L.T("pico ", "peak ") + Percent(c.PeakPercent));
-            if (c.IoBytes >= 100L * 1024 * 1024) parts.Add(Bytes(c.IoBytes) + L.T(" lidos/gravados", " read/written"));
+            if (c.IoBytes >= 100L * 1024 * 1024) parts.Add(FormatBytes(c.IoBytes) + L.T(" lidos/gravados", " read/written"));
             return string.Join(" · ", parts.ToArray());
         }
 
@@ -55,7 +59,8 @@ namespace MouseModes
             return (value < 10 ? value.ToString("0.#", Culture()) : value.ToString("0", Culture())) + "%";
         }
 
-        private static string Bytes(long bytes)
+        /// <summary>"120 MB" ou "2,1 GB".</summary>
+        internal static string FormatBytes(long bytes)
         {
             double mb = bytes / (1024.0 * 1024.0);
             return mb < 1024 ? mb.ToString("0", Culture()) + " MB" : (mb / 1024).ToString("0.0", Culture()) + " GB";
@@ -78,6 +83,8 @@ namespace MouseModes
         internal const double MinPeakPercent = 25.0;
         internal const long MinIoBytes = 500L * 1024 * 1024;
         internal const int MaxCulprits = 5;
+        /// <summary>Dados num intervalo de leitura (3 s) que contam como "estava usando muito" na hora de um pico.</summary>
+        internal const long BurstBytes = 10L * 1024 * 1024;
 
         private class Total
         {
@@ -91,6 +98,7 @@ namespace MouseModes
         private DateTime last;
         private Dictionary<int, ProcessSample> previous = new Dictionary<int, ProcessSample>();
         private readonly Dictionary<string, Total> totals = new Dictionary<string, Total>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<IoBurst> bursts = new List<IoBurst>();
 
         public MatchStats(DateTime started, int processors)
         {
@@ -104,6 +112,7 @@ namespace MouseModes
             double interval = (at - last).Ticks;
             var current = new Dictionary<int, ProcessSample>();
             var intervalCpu = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            var intervalIo = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
 
             foreach (ProcessSample s in samples)
             {
@@ -121,7 +130,16 @@ namespace MouseModes
                 long sum;
                 intervalCpu.TryGetValue(s.Name, out sum);
                 intervalCpu[s.Name] = sum + cpu;
+                intervalIo.TryGetValue(s.Name, out sum);
+                intervalIo[s.Name] = sum + io;
             }
+
+            // Quem mais leu/gravou neste intervalo, se foi muito.
+            string busiest = null;
+            long most = 0;
+            foreach (KeyValuePair<string, long> pair in intervalIo)
+                if (pair.Value > most) { busiest = pair.Key; most = pair.Value; }
+            if (busiest != null && most >= BurstBytes) bursts.Add(new IoBurst((at - started).TotalSeconds, busiest, most));
 
             if (interval > 0)
             {
@@ -156,7 +174,7 @@ namespace MouseModes
             // Primeiro quem mais pesou no processador; dados contam como desempate (500 MB valem 1 ponto).
             culprits.Sort((a, b) => Score(b).CompareTo(Score(a)));
             if (culprits.Count > MaxCulprits) culprits.RemoveRange(MaxCulprits, culprits.Count - MaxCulprits);
-            return new MatchReport { Game = game, Duration = duration, Culprits = culprits };
+            return new MatchReport { Game = game, Duration = duration, Culprits = culprits, Bursts = new List<IoBurst>(bursts) };
         }
 
         private static double Score(Culprit c)
@@ -196,15 +214,25 @@ namespace MouseModes
         internal static readonly TimeSpan MinDuration = TimeSpan.FromMinutes(2);
 
         private readonly int self = Process.GetCurrentProcess().Id;
+        private readonly bool measureNetwork;
         private MatchStats stats;
+        private NetworkProbe probe;
         private string game;
+
+        /// <param name="measureNetwork">Mede também a rede (ping a cada segundo, numa thread própria).</param>
+        public MatchRecorder(bool measureNetwork = true)
+        {
+            this.measureNetwork = measureNetwork;
+        }
 
         public bool Recording { get { return stats != null; } }
 
         public void Start(string gameName)
         {
             game = gameName;
-            stats = new MatchStats(DateTime.UtcNow, Environment.ProcessorCount);
+            DateTime now = DateTime.UtcNow;
+            stats = new MatchStats(now, Environment.ProcessorCount);
+            probe = measureNetwork ? new NetworkProbe(now) : null;
         }
 
         public void Sample(IList<string> games)
@@ -219,6 +247,14 @@ namespace MouseModes
             if (stats == null) return null;
             MatchReport report = stats.Finish(game);
             stats = null;
+            if (probe != null)
+            {
+                bool wifi, vpn;
+                List<NetSample> samples = probe.Stop(out wifi, out vpn);
+                probe = null;
+                report.Network = NetworkStats.Analyze(samples, wifi, report.Bursts);
+                if (report.Network != null) report.Network.Vpn = vpn;
+            }
             return report.Duration >= MinDuration ? report : null;
         }
 
