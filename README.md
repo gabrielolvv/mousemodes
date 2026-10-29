@@ -5,6 +5,8 @@
 App para Windows 10/11 que alterna o mouse e o PC entre dois modos: **Performance** (jogos) e **Dia a dia**.
 Troca pela tela principal, por atalho global ou sozinho quando um jogo abre.
 
+**Site:** [gabrielolvv.github.io/mousemodes](https://gabrielolvv.github.io/mousemodes/): o que o app faz, telas e download.
+
 <p align="center">
   <a href="https://github.com/gabrielolvv/mousemodes/releases/latest/download/MouseModes-Setup.exe">
     <img alt="Baixar instalador para Windows" src="https://img.shields.io/badge/Baixar%20instalador-Windows%2010%2F11-E84C28?style=for-the-badge&logo=windows&logoColor=white" height="48">
