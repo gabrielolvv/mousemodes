@@ -105,6 +105,11 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   see the cm/360 (how far the mouse travels for a full turn) and the value that gives the same aim in CS2, Apex, TF2,
   Valorant, Overwatch 2 and Call of Duty. Changed the DPI? Enter the new one and the app recalculates each game's
   sensitivity so your aim does not change. For another game, just enter its yaw.
+- **Real mouse DPI** (sensitivity converter → Measure the real DPI, or the tray icon): the sensor rarely delivers the
+  advertised DPI. With a ruler on the desk, hold the left button on the box, drag the mouse in a straight line over
+  the distance (4 in) and let go; the app counts the sensor reports through Raw Input and shows the true DPI (e.g. 800
+  in the mouse software, 763 on the ruler). After that, the converter shows the turn (cm/360) with the real DPI. The
+  Windows speed does not count.
 - **Match X-ray**: while a game from the list is open in Performance, the app notes every 3 s how much CPU and data
   each background program used. When the game closes, a notice shows what weighed the most (e.g. chrome averaging 18%
   with 61% peaks, OneDrive with 2.1 GB) and, in one click, adds the program to the auto-close list or turns on calm

@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **DPI real do mouse** (conversor de sensibilidade → Medir o DPI real, ou ícone da bandeja → Medir o DPI real): com
+  uma régua na mesa, você arrasta o mouse 10 cm e o app conta as leituras do sensor pelo Raw Input. Mostra o DPI de
+  verdade, a diferença para o anunciado (ex.: 800 no programa do mouse, 763 na régua, 4,6% a menos) e quanto as
+  medições variaram. O conversor passa a mostrar a volta (cm/360) com o DPI real enquanto o mouse estiver naquele DPI.
+
 ## 1.6.0
 
 ### Novidades

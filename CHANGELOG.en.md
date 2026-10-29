@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Real mouse DPI** (sensitivity converter → Measure the real DPI, or tray icon → Measure the real DPI): with a ruler
+  on the desk, you drag the mouse 4 in and the app counts the sensor reports through Raw Input. It shows the true DPI,
+  how far it is from the advertised one (e.g. 800 in the mouse software, 763 on the ruler, 4.6% lower) and how much
+  the runs varied. The converter then shows the turn (cm/360) with the real DPI while the mouse stays at that DPI.
+
 ## 1.6.0
 
 ### New

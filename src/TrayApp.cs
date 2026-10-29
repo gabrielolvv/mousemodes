@@ -40,6 +40,7 @@ namespace MouseModes
         private ClickTestForm clickForm;
         private AimTestForm aimForm;
         private SensitivityForm sensForm;
+        private DpiMeasureForm dpiForm;
         private MatchReportForm reportForm;
         private MatchReport lastReport;     // Raio-X da última partida (só enquanto o app estiver aberto)
         private DiagnosticsForm diagForm;
@@ -141,6 +142,7 @@ namespace MouseModes
             menu.Items.Add(new ToolStripMenuItem(L.T("Teste de clique...", "Click test..."), null, (s, e) => OpenClickTest()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Testar mira e DPI...", "Aim and DPI test..."), null, (s, e) => OpenAimTest()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Conversor de sensibilidade...", "Sensitivity converter..."), null, (s, e) => OpenSensitivity()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Medir o DPI real...", "Measure the real DPI..."), null, (s, e) => OpenDpiMeasure()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), null, (s, e) => OpenSettings()));
             reportItem = new ToolStripMenuItem(L.T("Raio-X da última partida...", "Last match X-ray..."), null, (s, e) => OpenReport()) { Enabled = false };
             menu.Items.Add(reportItem);
@@ -652,9 +654,17 @@ namespace MouseModes
         private void OpenSensitivity()
         {
             if (sensForm != null && !sensForm.IsDisposed) { sensForm.Activate(); return; }
-            sensForm = new SensitivityForm(cfg, SaveConfig);
+            sensForm = new SensitivityForm(cfg, SaveConfig, OpenDpiMeasure);
             sensForm.Show();
             sensForm.Activate();
+        }
+
+        private void OpenDpiMeasure()
+        {
+            if (dpiForm != null && !dpiForm.IsDisposed) { dpiForm.Activate(); return; }
+            dpiForm = new DpiMeasureForm(cfg, SaveConfig);
+            dpiForm.Show();
+            dpiForm.Activate();
         }
 
         private void OpenDiagnostics()

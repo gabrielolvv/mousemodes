@@ -97,6 +97,11 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   do seu jogo e veja o cm/360 (quanto o mouse anda para uma volta completa) e o valor que dá a mesma mira em CS2,
   Apex, TF2, Valorant, Overwatch 2 e Call of Duty. Trocou o DPI? Informe o novo e o app recalcula a sensibilidade de
   cada jogo para a mira não mudar. Para outro jogo, basta informar o yaw dele.
+- **DPI real do mouse** (conversor de sensibilidade → Medir o DPI real, ou ícone da bandeja): o sensor raramente
+  entrega o DPI anunciado. Com uma régua na mesa, segure o botão esquerdo no quadro, arraste o mouse em linha reta
+  pela distância (10 cm) e solte; o app conta as leituras do sensor pelo Raw Input e mostra o DPI de verdade (ex.: 800
+  no programa do mouse, 763 na régua). Depois, o conversor mostra a volta (cm/360) com o DPI real. A velocidade do
+  Windows não entra.
 - **Raio-X da partida**: enquanto um jogo da lista estiver aberto no Performance, o app anota a cada 3 s quanto
   processador e quantos dados cada programa em segundo plano usou. Ao fechar o jogo, um aviso mostra quem mais pesou
   (ex.: chrome com média de 18% e pico de 61%, OneDrive com 2,1 GB) e, com um clique, põe o programa na lista para
