@@ -45,7 +45,7 @@ namespace MouseModes
             proc = OnForeground;
             Update(GetForegroundWindow());
             hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, proc, 0, 0, WINEVENT_OUTOFCONTEXT);
-            if (hook == IntPtr.Zero) Log.Warn("Aviso de troca de janela indisponível");
+            if (hook == IntPtr.Zero) Log.Warn(L.T("Aviso de troca de janela indisponível", "Window change notice unavailable"));
         }
 
         private void OnForeground(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject,

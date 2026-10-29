@@ -45,13 +45,13 @@ namespace MouseModes
                 using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
                 {
                     ReleaseInfo release = Parse(reader.ReadToEnd());
-                    if (release == null) Log.Warn("Resposta do GitHub sem versão reconhecível");
+                    if (release == null) Log.Warn(L.T("Resposta do GitHub sem versão reconhecível", "GitHub response without a recognizable version"));
                     return release;
                 }
             }
             catch (Exception ex)
             {
-                Log.Info("Não foi possível procurar versão nova: " + ex.Message);
+                Log.Info(L.T("Não foi possível procurar versão nova: ", "Could not check for a new version: ") + ex.Message);
                 return null;
             }
         }

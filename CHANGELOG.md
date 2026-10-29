@@ -5,6 +5,13 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Registro do Diagnóstico em inglês:** com o app em inglês, as mensagens do registro também saem em inglês
+  (WARN e ERROR no lugar de AVISO e ERRO). O que já estava gravado no `log.txt` continua como foi escrito.
+
 ## 1.3.0
 
 ### Novidades

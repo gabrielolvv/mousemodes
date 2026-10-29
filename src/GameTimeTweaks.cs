@@ -124,7 +124,7 @@ namespace MouseModes
             if (!ready.WaitOne(5000))
             {
                 // Fica registrada mesmo assim, para o Disable conseguir encerrá-la se ela terminar de subir.
-                Log.Warn("Bloqueio da tecla Windows não respondeu ao iniciar");
+                Log.Warn(L.T("Bloqueio da tecla Windows não respondeu ao iniciar", "Windows key blocking did not respond when starting"));
                 thread = t;
                 return;
             }
@@ -137,9 +137,9 @@ namespace MouseModes
             if (thread == null) return;
             PostThreadMessage(threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
             if (!thread.Join(2000))
-                Log.Warn("Thread do bloqueio da tecla Windows não encerrou em 2 s");
+                Log.Warn(L.T("Thread do bloqueio da tecla Windows não encerrou em 2 s", "Windows key blocking thread did not stop within 2 s"));
             thread = null;
-            Log.Info("Tecla Windows liberada" + (blockedCount > 0 ? " (bloqueada " + blockedCount + "x nesta sessão)" : ""));
+            Log.Info(L.T("Tecla Windows liberada", "Windows key released") + (blockedCount > 0 ? L.T(" (bloqueada ", " (blocked ") + blockedCount + L.T("x nesta sessão)", "x this session)") : ""));
         }
 
         private void Run(ManualResetEvent ready, ref bool installed)
@@ -156,7 +156,7 @@ namespace MouseModes
                 hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyProc, module, 0);
                 if (hook == IntPtr.Zero)
                 {
-                    Log.Warn("Bloqueio da tecla Windows não ativado (erro " + Marshal.GetLastWin32Error() + ")");
+                    Log.Warn(L.T("Bloqueio da tecla Windows não ativado (erro ", "Windows key blocking not turned on (error ") + Marshal.GetLastWin32Error() + ")");
                     return;
                 }
 
@@ -164,15 +164,15 @@ namespace MouseModes
                 foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
                     foregroundProc, 0, 0, WINEVENT_OUTOFCONTEXT);
                 if (foregroundHook == IntPtr.Zero)
-                    Log.Warn("Aviso de troca de janela indisponível; o jogo em foco será conferido a cada tecla Windows");
+                    Log.Warn(L.T("Aviso de troca de janela indisponível; o jogo em foco será conferido a cada tecla Windows", "Window change notice unavailable; the game in focus will be checked on every Windows key press"));
                 Recheck();
 
                 installed = true;
-                Log.Info("Tecla Windows bloqueada enquanto um jogo da lista estiver em primeiro plano");
+                Log.Info(L.T("Tecla Windows bloqueada enquanto um jogo da lista estiver em primeiro plano", "Windows key blocked while a game from the list is in the foreground"));
             }
             catch (Exception ex)
             {
-                Log.Error("Bloqueio da tecla Windows", ex);
+                Log.Error(L.T("Bloqueio da tecla Windows", "Windows key blocking"), ex);
                 return;
             }
             finally
@@ -311,7 +311,7 @@ namespace MouseModes
                     !Spi(SPI_GETTOGGLEKEYS, tk.cbSize, ref tk, 0) ||
                     !Spi(SPI_GETFILTERKEYS, fk.cbSize, ref fk, 0))
                 {
-                    Log.Warn("Não foi possível ler os atalhos de acessibilidade");
+                    Log.Warn(L.T("Não foi possível ler os atalhos de acessibilidade", "Could not read the accessibility shortcuts"));
                     return;
                 }
                 stickyFlags = sk.dwFlags;
@@ -323,11 +323,11 @@ namespace MouseModes
                 if ((sk.dwFlags & ON) == 0) { sk.dwFlags &= ~(HOTKEYACTIVE | CONFIRMHOTKEY); Spi(SPI_SETSTICKYKEYS, sk.cbSize, ref sk, 0); }
                 if ((tk.dwFlags & ON) == 0) { tk.dwFlags &= ~(HOTKEYACTIVE | CONFIRMHOTKEY); Spi(SPI_SETTOGGLEKEYS, tk.cbSize, ref tk, 0); }
                 if ((fk.dwFlags & ON) == 0) { fk.dwFlags &= ~(HOTKEYACTIVE | CONFIRMHOTKEY); Spi(SPI_SETFILTERKEYS, fk.cbSize, ref fk, 0); }
-                Log.Info("Atalhos de acessibilidade (Shift 5x etc.) desligados durante o Performance");
+                Log.Info(L.T("Atalhos de acessibilidade (Shift 5x etc.) desligados durante o Performance", "Accessibility shortcuts (Shift 5x etc.) turned off during Performance"));
             }
             catch (Exception ex)
             {
-                Log.Error("Desligar atalhos de acessibilidade", ex);
+                Log.Error(L.T("Desligar atalhos de acessibilidade", "Turn off accessibility shortcuts"), ex);
             }
         }
 
@@ -348,11 +348,11 @@ namespace MouseModes
                 Spi(SPI_SETSTICKYKEYS, sk.cbSize, ref sk, 0);
                 Spi(SPI_SETTOGGLEKEYS, tk.cbSize, ref tk, 0);
                 Spi(SPI_SETFILTERKEYS, fk.cbSize, ref fk, 0);
-                Log.Info("Atalhos de acessibilidade restaurados");
+                Log.Info(L.T("Atalhos de acessibilidade restaurados", "Accessibility shortcuts restored"));
             }
             catch (Exception ex)
             {
-                Log.Error("Restaurar atalhos de acessibilidade", ex);
+                Log.Error(L.T("Restaurar atalhos de acessibilidade", "Restore accessibility shortcuts"), ex);
             }
             saved = false;
         }
@@ -390,11 +390,11 @@ namespace MouseModes
 
                 WriteDword(PushKey, PushValue, 0);
                 WriteDword(SettingsKey, SettingsValue, 0);
-                Log.Info("Notificações do Windows silenciadas durante o Performance");
+                Log.Info(L.T("Notificações do Windows silenciadas durante o Performance", "Windows notifications silenced during Performance"));
             }
             catch (Exception ex)
             {
-                Log.Error("Silenciar notificações", ex);
+                Log.Error(L.T("Silenciar notificações", "Silence notifications"), ex);
             }
         }
 
@@ -406,11 +406,11 @@ namespace MouseModes
             {
                 Put(PushKey, PushValue, b.ToastEnabled);
                 Put(SettingsKey, SettingsValue, b.GlobalToasts);
-                Log.Info("Notificações do Windows restauradas");
+                Log.Info(L.T("Notificações do Windows restauradas", "Windows notifications restored"));
             }
             catch (Exception ex)
             {
-                Log.Error("Restaurar notificações", ex);
+                Log.Error(L.T("Restaurar notificações", "Restore notifications"), ex);
             }
             cfg.NotificationBackup = null;
             SaveQuietly(cfg);
@@ -446,7 +446,7 @@ namespace MouseModes
 
         private static void SaveQuietly(AppConfig cfg)
         {
-            try { cfg.Save(); } catch (Exception ex) { Log.Error("Salvar configuração", ex); }
+            try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); }
         }
     }
 }

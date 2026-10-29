@@ -39,7 +39,7 @@ namespace MouseModes
                 }
                 if (System.IO.File.Exists(registered)) return;
                 key.SetValue(ValueName, Command);
-                Log.Info("Iniciar com o Windows atualizado para " + Application.ExecutablePath);
+                Log.Info(L.T("Iniciar com o Windows atualizado para ", "Start with Windows updated to ") + Application.ExecutablePath);
             }
         }
 

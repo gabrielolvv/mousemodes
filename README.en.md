@@ -14,8 +14,8 @@ Switch from the main screen, with a global hotkey, or automatically when a game 
 ![MouseModes screens](docs/preview.png)
 
 The interface follows the Windows language: Portuguese on a Portuguese Windows, English on any other. You can pick
-another one in the tray icon → Idioma / Language (it applies the next time the app opens). Every screen is
-translated; only the messages in the Diagnostics log stay in Portuguese.
+another one in the tray icon → Idioma / Language (it applies the next time the app opens). Every screen and the
+Diagnostics log are translated.
 
 ## Install
 

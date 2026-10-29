@@ -118,7 +118,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Abrir " + check.SettingsUri, ex);
+                Log.Error(L.T("Abrir ", "Open ") + check.SettingsUri, ex);
                 return ex.Message;
             }
         }
@@ -141,7 +141,7 @@ namespace MouseModes
             try { return read(); }
             catch (Exception ex)
             {
-                Log.Error("Ler " + name, ex);
+                Log.Error(L.T("Ler ", "Read ") + name, ex);
                 return new WindowsCheck { Name = name, State = L.T("Não foi possível ler", "Could not read"), Advice = "", SettingsUri = GraphicsUri };
             }
         }

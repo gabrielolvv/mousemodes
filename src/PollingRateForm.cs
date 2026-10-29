@@ -91,7 +91,7 @@ namespace MouseModes
             if (!raw.Register(Handle, true, out error))
             {
                 status.Text = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
-                Log.Warn("Medidor de polling: Raw Input indisponível (" + error + ")");
+                Log.Warn(L.T("Medidor de polling: Raw Input indisponível (", "Polling meter: Raw Input unavailable (") + error + ")");
             }
         }
 

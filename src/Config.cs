@@ -289,7 +289,7 @@ namespace MouseModes
                 catch (Exception ex)
                 {
                     // Arquivo corrompido: guarda uma cópia e recomeça do padrão.
-                    Log.Error("Configuração ilegível; cópia guardada em " + Path.GetFileName(path) + ".bak e padrão recriado", ex);
+                    Log.Error(L.T("Configuração ilegível; cópia guardada em ", "Unreadable settings; copy saved as ") + Path.GetFileName(path) + L.T(".bak e padrão recriado", ".bak and defaults recreated"), ex);
                     try { File.Copy(path, path + ".bak", true); } catch { }
                 }
             }
@@ -300,12 +300,12 @@ namespace MouseModes
                 {
                     AppConfig recovered = Load(tmp);
                     recovered.SaveTo(path);
-                    Log.Warn("Configuração recuperada de " + Path.GetFileName(tmp));
+                    Log.Warn(L.T("Configuração recuperada de ", "Settings recovered from ") + Path.GetFileName(tmp));
                     return recovered;
                 }
                 catch (Exception ex)
                 {
-                    Log.Error("Recuperar " + Path.GetFileName(tmp), ex);
+                    Log.Error(L.T("Recuperar ", "Recover ") + Path.GetFileName(tmp), ex);
                 }
             }
 

@@ -34,7 +34,7 @@ namespace MouseModes
                         proc.PriorityClass = ProcessPriorityClass.High;
                         boosted[proc.Id] = original;
                         count++;
-                        Log.Info("Prioridade Alta: " + name + " (PID " + proc.Id + ", antes " + original + ")");
+                        Log.Info(L.T("Prioridade Alta: ", "High priority: ") + name + " (PID " + proc.Id + L.T(", antes ", ", was ") + original + ")");
                     }
                 }
                 catch (Exception ex)
@@ -43,7 +43,7 @@ namespace MouseModes
                     if (name != null)
                     {
                         denied.Add(proc.Id);
-                        Log.Warn("Prioridade não alterada em " + name + ": " + ex.Message + " (anti-cheat ou processo protegido)");
+                        Log.Warn(L.T("Prioridade não alterada em ", "Priority not changed on ") + name + ": " + ex.Message + L.T(" (anti-cheat ou processo protegido)", " (anti-cheat or protected process)"));
                     }
                 }
                 finally
@@ -81,7 +81,7 @@ namespace MouseModes
                 }
                 catch { }
             }
-            if (boosted.Count > 0) Log.Info("Prioridade original devolvida a " + boosted.Count + " processo(s)");
+            if (boosted.Count > 0) Log.Info(L.T("Prioridade original devolvida a ", "Original priority restored on ") + boosted.Count + L.T(" processo(s)", " process(es)"));
             boosted.Clear();
             denied.Clear();
         }
@@ -202,8 +202,8 @@ namespace MouseModes
             }
             failed.RemoveAll(x => closed.Contains(x));
             if (targets.Count > 0)
-                Log.Info("Fechar programas: fechados [" + string.Join(", ", closed.ToArray()) + "], não fecharam [" +
-                         string.Join(", ", failed.ToArray()) + "]" + (force ? " (forçar ligado)" : ""));
+                Log.Info(L.T("Fechar programas: fechados [", "Close programs: closed [") + string.Join(", ", closed.ToArray()) + L.T("], não fecharam [", "], did not close [") +
+                         string.Join(", ", failed.ToArray()) + "]" + (force ? L.T(" (forçar ligado)", " (force on)") : ""));
         }
 
         private static void AddOnce(List<string> list, string name)

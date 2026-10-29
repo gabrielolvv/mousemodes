@@ -42,7 +42,7 @@ namespace MouseModes
                 string steam = SteamPath();
                 if (steam != null) all.AddRange(FromSteam(steam));
             }
-            catch (Exception ex) { Log.Error("Procurar jogos da Steam", ex); }
+            catch (Exception ex) { Log.Error(L.T("Procurar jogos da Steam", "Find Steam games"), ex); }
 
             try
             {
@@ -50,7 +50,7 @@ namespace MouseModes
                     @"Epic\EpicGamesLauncher\Data\Manifests");
                 all.AddRange(FromEpic(epic));
             }
-            catch (Exception ex) { Log.Error("Procurar jogos da Epic", ex); }
+            catch (Exception ex) { Log.Error(L.T("Procurar jogos da Epic", "Find Epic games"), ex); }
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             all.RemoveAll(g => !seen.Add(g.Process));

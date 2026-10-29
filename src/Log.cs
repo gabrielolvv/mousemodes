@@ -27,12 +27,12 @@ namespace MouseModes
         }
 
         public static void Info(string message) { Write("INFO", message); }
-        public static void Warn(string message) { Write("AVISO", message); }
-        public static void Error(string message) { Write("ERRO", message); }
+        public static void Warn(string message) { Write(L.T("AVISO", "WARN"), message); }
+        public static void Error(string message) { Write(L.T("ERRO", "ERROR"), message); }
 
         public static void Error(string context, Exception ex)
         {
-            Write("ERRO", context + ": " + ex.GetType().Name + " — " + ex.Message);
+            Write(L.T("ERRO", "ERROR"), context + ": " + ex.GetType().Name + " — " + ex.Message);
         }
 
         private static void Write(string level, string message)
@@ -96,7 +96,7 @@ namespace MouseModes
                 Lines.Clear();
                 try { if (File.Exists(FilePath)) File.Delete(FilePath); } catch { }
             }
-            Info("Registro limpo.");
+            Info(L.T("Registro limpo.", "Log cleared."));
         }
     }
 }

@@ -4,6 +4,13 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Diagnostics log in English:** with the app in English, the log messages are in English too (WARN and ERROR
+  instead of AVISO and ERRO). What was already written to `log.txt` stays as it was.
+
 ## 1.3.0
 
 ### New
