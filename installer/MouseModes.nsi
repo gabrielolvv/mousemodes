@@ -38,6 +38,7 @@ VIAddVersionKey /LANG=1046 "LegalCopyright" "${PUBLISHER}"
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
+!include "FileFunc.nsh"
 
 !define MUI_ICON "..\src\app.ico"
 !define MUI_UNICON "..\src\app.ico"
@@ -67,7 +68,8 @@ Function CloseRunning
   retry:
   ExecWait '"$PLUGINSDIR\mm-quit.exe" --quit' $0
   ${If} $0 != 0
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Há um ${APPNAME} antigo aberto que não pôde ser fechado automaticamente.$\r$\n$\r$\nClique com o botão direito no ícone dele perto do relógio, escolha Sair e depois clique em Repetir." IDRETRY retry
+    ; Na atualização sozinha (/S) não há ninguém para clicar: desiste, e a versão aberta continua como está.
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Há um ${APPNAME} antigo aberto que não pôde ser fechado automaticamente.$\r$\n$\r$\nClique com o botão direito no ícone dele perto do relógio, escolha Sair e depois clique em Repetir." /SD IDCANCEL IDRETRY retry
     Abort
   ${EndIf}
 FunctionEnd
@@ -119,6 +121,41 @@ SectionEnd
 Function .onInit
   ; Atalho na área de trabalho vem marcado; iniciar com o Windows vem desmarcado.
   SectionSetFlags ${SecStartup} 0
+  ; Atualização sozinha (/S): não recria o atalho da área de trabalho de quem o apagou.
+  ${If} ${Silent}
+  ${AndIfNot} ${FileExists} "$DESKTOP\${APPNAME}.lnk"
+    SectionSetFlags ${SecDesktop} 0
+  ${EndIf}
+FunctionEnd
+
+; Atualização sozinha: o app roda "MouseModes-Setup.exe /S /RELAUNCH" e é fechado pelo instalador; no fim, ele
+; abre a versão nova na bandeja. Se a instalação falhar, abre o exe que estiver lá, para o app não ficar fechado.
+Function Relaunch
+  Exch $R2
+  Push $R0
+  Push $R1
+  ${If} ${Silent}
+    ${GetParameters} $R0
+    ClearErrors
+    ${GetOptions} $R0 "/RELAUNCH" $R1
+    ${IfNot} ${Errors}
+    ${AndIf} ${FileExists} "$INSTDIR\${APPNAME}.exe"
+      Exec '"$INSTDIR\${APPNAME}.exe" --tray $R2'
+    ${EndIf}
+  ${EndIf}
+  Pop $R1
+  Pop $R0
+  Pop $R2
+FunctionEnd
+
+Function .onInstSuccess
+  Push "--updated"
+  Call Relaunch
+FunctionEnd
+
+Function .onInstFailed
+  Push ""
+  Call Relaunch
 FunctionEnd
 
 ; ---------------------------------------------------------------------------

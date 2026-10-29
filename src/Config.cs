@@ -127,6 +127,9 @@ namespace MouseModes
         /// <summary>Uma vez por dia, procura versão nova no GitHub e avisa (fora do modo Performance).</summary>
         public bool CheckForUpdates { get; set; }
 
+        /// <summary>Versão nova: baixa do GitHub, confere e instala sozinho, fora do jogo.</summary>
+        public bool AutoUpdate { get; set; }
+
         /// <summary>Quando procurou versão nova pela última vez (só deste PC).</summary>
         public DateTime? LastUpdateCheck { get; set; }
 
@@ -249,6 +252,7 @@ namespace MouseModes
             DisableAccessibilityHotkeys = true;
             SilenceNotifications = true;
             CheckForUpdates = true;
+            AutoUpdate = true;
         }
 
         /// <summary>Perfil a usar no Performance: o do jogo aberto, se ele tiver um próprio.</summary>

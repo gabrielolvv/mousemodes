@@ -20,6 +20,7 @@ namespace MouseModes
         ///   --uninstall-cleanup  volta o mouse/energia ao modo Dia a dia e tira do "Iniciar com o Windows"
         ///   --performance, --daily, --toggle
         ///                        troca o modo da cópia aberta; sem cópia aberta, abre na bandeja já nesse modo
+        ///   --updated            aberto pelo instalador depois de uma atualização sozinha (avisa e limpa o download)
         /// </summary>
         [STAThread]
         private static int Main(string[] args)
@@ -59,7 +60,7 @@ namespace MouseModes
                 };
 
                 using (var commands = new CommandSignals())
-                    Application.Run(new TrayApp(startHidden, showSignal, quitSignal, commands, command));
+                    Application.Run(new TrayApp(startHidden, showSignal, quitSignal, commands, command, HasArg(args, "--updated")));
                 GC.KeepAlive(mutex);
             }
             return 0;

@@ -29,10 +29,11 @@ Para conferir que o instalador baixado é o mesmo que o GitHub gerou, compare o 
 ```
 
 - Instala só para o seu usuário, sem pedir administrador, e cria o atalho no menu Iniciar.
-- Para atualizar, baixe e rode o instalador de novo: ele fecha a versão aberta e mantém suas configurações.
-  O app avisa perto do relógio quando sai versão nova (nunca durante o jogo). Para isso ele consulta, uma vez por
-  dia, a página de releases do GitHub, sem enviar nada do seu PC. Dá para desligar em Ajustes → Geral ou procurar
-  na hora pelo ícone da bandeja → Procurar versão nova.
+- Atualiza sozinho: uma vez por dia o app consulta a página de releases do GitHub, sem enviar nada do seu PC. Quando
+  sai versão nova, ele baixa o instalador da Release, confere o SHA-256 publicado nela e instala por cima, nunca
+  durante o jogo: o app fecha, instala e abre de novo na bandeja em alguns segundos, com as mesmas configurações. Se
+  algo não bater, ele não instala e só avisa. Dá para desligar em Ajustes → Geral (aí ele só avisa) ou procurar na
+  hora pelo ícone da bandeja → Procurar versão nova. Para atualizar à mão, baixe e rode o instalador de novo.
 - Para desinstalar: Configurações → Aplicativos instalados → MouseModes. O mouse e a energia voltam ao modo Dia a dia.
 
 ## O que cada modo faz
@@ -174,4 +175,5 @@ atualizar à mão, troque o SHA pelo da versão nova (`git ls-remote --tags http
 Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópia aberta restaurando tudo) e
 `--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador; e
 `--performance`, `--daily` e `--toggle` (trocam o modo). Com outra cópia aberta, o comando vai para ela e o exe sai
-com código 0, ou 1 se a cópia aberta for de uma versão sem esses comandos.
+com código 0, ou 1 se a cópia aberta for de uma versão sem esses comandos. Na atualização sozinha, o app roda o
+instalador com `/S /RELAUNCH`, e o instalador abre a versão nova com `--tray --updated`.

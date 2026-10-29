@@ -9,6 +9,11 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ### Novidades
 
+- **Atualiza sozinho** (Ajustes → Geral, ligado por padrão): quando sai versão nova, o app baixa o instalador da
+  Release, confere o SHA-256 publicado nela, que é um executável e que é o MouseModes da versão certa, e instala em
+  silêncio fora do jogo. O app fecha, instala e abre de novo na bandeja com as mesmas configurações. Se algo não
+  bater, ele não instala e mostra o aviso de antes, para baixar à mão. Vale a partir desta versão: quem está na 1.4.0
+  ou antes atualiza à mão uma última vez.
 - **Raio-X da partida**: enquanto um jogo da lista estiver aberto no Performance, o app anota a cada 3 s quanto
   processador e quantos dados cada programa em segundo plano usou. Ao fechar o jogo, um aviso mostra quem mais pesou
   (ex.: chrome com média de 18% e pico de 61%, OneDrive com 2,1 GB) e, com um clique, põe o programa na lista para
