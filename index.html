@@ -236,6 +236,31 @@
         </div>
       </div>
     </section>
+
+    <!-- Política de assinatura de código e privacidade (exigidas pela SignPath Foundation) -->
+    <section class="policy" id="assinatura">
+      <div class="wrap policy-grid">
+        <article class="policy-card">
+          <h2 data-i18n="sign.title">Política de assinatura de código</h2>
+          <p data-i18n="sign.status">O MouseModes pediu a assinatura de código gratuita para projetos open source da SignPath Foundation. Quando o projeto for aprovado, os instaladores das Releases do GitHub passam a ser assinados por ela, direto do build do CI do repositório. Até lá, o instalador não é assinado: confira o SHA-256 de cada Release.</p>
+          <p class="attribution">Free code signing provided by <a href="https://about.signpath.io" target="_blank" rel="noopener">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener">SignPath Foundation</a></p>
+          <ul>
+            <li><span data-i18n="sign.committers">Commits e revisão:</span> <a href="https://github.com/gabrielolvv" target="_blank" rel="noopener">gabrielolvv</a></li>
+            <li><span data-i18n="sign.approvers">Aprovação de cada assinatura:</span> <a href="https://github.com/gabrielolvv" target="_blank" rel="noopener">gabrielolvv</a></li>
+          </ul>
+          <p class="note" data-i18n="sign.scope">Só é assinado o que sai do build automático do repositório, a partir do código público, com aprovação manual a cada versão.</p>
+        </article>
+        <article class="policy-card" id="privacidade">
+          <h2 data-i18n="priv.title">Privacidade</h2>
+          <p data-i18n="priv.lead">Sem conta, sem telemetria, sem anúncios. O app só fala com outros sistemas nestes casos, e dá para desligar cada um em Ajustes → Privacidade:</p>
+          <ul>
+            <li data-i18n-html="priv.1"><strong>Versão nova:</strong> uma vez por dia, uma consulta à página de versões do GitHub; ao atualizar, o instalador é baixado da Release do GitHub. Vão só o endereço IP e o nome do programa, como em qualquer acesso a um site.</li>
+            <li data-i18n-html="priv.2"><strong>Raio-X da rede:</strong> durante a partida, um ping por segundo ao seu roteador e ao 1.1.1.1 (Cloudflare), sem conteúdo.</li>
+          </ul>
+          <p class="note" data-i18n="priv.local">As configurações e o registro ficam no seu PC, em %APPDATA%\MouseModes. O instalador mostra este aviso antes de instalar.</p>
+        </article>
+      </div>
+    </section>
   </main>
 
   <footer class="footer">
@@ -246,6 +271,8 @@
         <a href="https://github.com/gabrielolvv/mousemodes/releases" target="_blank" rel="noopener" data-i18n="foot.releases">Versões</a>
         <a href="https://github.com/gabrielolvv/mousemodes/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-i18n="foot.changelog" data-href-en="https://github.com/gabrielolvv/mousemodes/blob/main/CHANGELOG.en.md">Novidades</a>
         <a href="https://github.com/gabrielolvv/mousemodes/issues" target="_blank" rel="noopener" data-i18n="foot.issues">Problemas e ideias</a>
+        <a href="#assinatura" data-i18n="foot.sign">Assinatura de código</a>
+        <a href="#privacidade" data-i18n="foot.privacy">Privacidade</a>
       </nav>
     </div>
   </footer>

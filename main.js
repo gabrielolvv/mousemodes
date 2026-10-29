@@ -83,7 +83,19 @@
     "star.issues": "Suggest an idea",
     "foot.releases": "Releases",
     "foot.changelog": "What's new",
-    "foot.issues": "Issues and ideas"
+    "foot.issues": "Issues and ideas",
+    "foot.sign": "Code signing policy",
+    "foot.privacy": "Privacy",
+    "sign.title": "Code signing policy",
+    "sign.status": "MouseModes has applied for the SignPath Foundation's free code signing for open source projects. Once the project is approved, the installers on the GitHub Releases are signed by it, straight from the repository's CI build. Until then, the installer is not signed: check the SHA-256 of each Release.",
+    "sign.committers": "Committers and reviewers:",
+    "sign.approvers": "Approvers (each signing request):",
+    "sign.scope": "Only what comes out of the repository's automated build, from the public source code, is signed, with manual approval for every version.",
+    "priv.title": "Privacy",
+    "priv.lead": "No account, no telemetry, no ads. The app only talks to other systems in these cases, and you can turn each of them off in Settings → Privacy:",
+    "priv.1": "<strong>New versions:</strong> once a day, a request to the GitHub releases page; when updating, the installer is downloaded from the GitHub Release. Only your IP address and the program name go along, as in any website visit.",
+    "priv.2": "<strong>Network X-ray:</strong> during a match, one ping per second to your router and to 1.1.1.1 (Cloudflare), with no content.",
+    "priv.local": "Settings and the log stay on your PC, in %APPDATA%\\MouseModes. The installer shows this notice before installing."
   };
 
   var pt = {}; // o texto em português é o que já está no HTML

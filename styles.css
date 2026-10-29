@@ -223,6 +223,16 @@ section { scroll-margin-top: 72px; }
 .star-cta h2 { font: 800 clamp(30px, 4vw, 44px) var(--display); text-transform: uppercase; margin: 12px 0 8px; }
 .star-cta p { color: var(--muted); font-size: 17px; margin: 0; }
 
+.policy { padding: 24px 0 72px; }
+.policy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.policy-card { padding: 26px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--border); scroll-margin-top: 72px; }
+.policy-card h2 { font: 800 26px var(--display); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 12px; }
+.policy-card p, .policy-card li { color: #b9c1d1; font-size: 15px; }
+.policy-card ul { padding-left: 20px; margin: 12px 0; }
+.policy-card a { color: var(--perf-b); }
+.attribution { padding: 10px 14px; border-radius: 10px; background: var(--panel-2); color: var(--text) !important; }
+@media (max-width: 720px) { .policy-grid { grid-template-columns: 1fr; } }
+
 .footer { border-top: 1px solid var(--border); padding: 28px 0; color: var(--faint); font-size: 14px; }
 .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
 .footer nav { display: flex; gap: 20px; flex-wrap: wrap; }
