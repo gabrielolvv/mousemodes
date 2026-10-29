@@ -8,6 +8,10 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 
 ### New
 
+- **Sensitivity converter** (main screen → Sensitivity, or the tray icon): type your game's sensitivity and DPI and
+  see the cm/360 (how far the mouse travels for a full turn) and the value that gives the same aim in CS2, Apex, TF2,
+  Valorant, Overwatch 2 and Call of Duty. Changed the DPI? Enter the new one and the app recalculates each game's
+  sensitivity so your aim does not change. For another game, just enter its yaw.
 - **Calm background** (Settings → Turbo, off by default): instead of closing them, keeps the other open programs at
   below normal priority and, on Windows 11, in efficiency mode. It helps with stutters when the CPU is maxed out
   (browser, Steam downloading, OneDrive syncing). It does not touch the game, the program in the foreground (on
