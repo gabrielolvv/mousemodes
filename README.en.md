@@ -33,10 +33,12 @@ page (also in the `MouseModes-Setup.exe.sha256` file). In PowerShell, in the dow
 ```
 
 - It installs only for your user, without asking for administrator rights, and adds a Start menu shortcut.
-- To update, download and run the installer again: it closes the running copy and keeps your settings.
-  The app shows a notice next to the clock when a new version is out (never during a game). For that it checks the
-  GitHub releases page once a day, sending nothing from your PC. You can turn it off in Settings → General, or check
-  right away from the tray icon → Check for a new version.
+- It updates by itself: once a day the app checks the GitHub releases page, sending nothing from your PC. When a new
+  version is out, it downloads the installer from the Release, checks the SHA-256 published there and installs over
+  the current one, never during a game: the app closes, installs and opens again in the tray within seconds, with the
+  same settings. If anything does not match, it does not install and only shows a notice. You can turn it off in
+  Settings → General (then it only notifies) or check right away from the tray icon → Check for a new version. To
+  update by hand, download and run the installer again.
 - To uninstall: Settings → Apps → Installed apps → MouseModes. Mouse and power go back to Daily mode.
 
 ## What each mode does
@@ -180,4 +182,5 @@ To update by hand, replace the SHA with the new version's (`git ls-remote --tags
 Executable arguments: `--tray` (starts in the tray), `--quit` (closes the running copy, restoring everything) and
 `--uninstall-cleanup` (goes back to Daily and removes "Start with Windows"), used by the installer; and
 `--performance`, `--daily` and `--toggle` (switch the mode). With another copy running, the command goes to it and
-the exe exits with code 0, or 1 if the running copy is from a version without these commands.
+the exe exits with code 0, or 1 if the running copy is from a version without these commands. When updating by
+itself, the app runs the installer with `/S /RELAUNCH`, and the installer opens the new version with `--tray --updated`.
