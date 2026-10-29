@@ -28,6 +28,7 @@ namespace MouseModes
         private readonly CultureInfo culture = L.IsEnglish ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("pt-BR");
         private bool measuring;
         private long sumX, sumY;
+        private string rawError; // Raw Input indisponível: fica na tela, não é apagado por UpdateView
 
         /// <param name="save">Grava o config (o DPI real medido vai para o conversor de sensibilidade).</param>
         public DpiMeasureForm(AppConfig cfg, Action save) : base(L.T("DPI real do mouse", "Real mouse DPI"), true)
@@ -53,7 +54,7 @@ namespace MouseModes
             Controls.Add(Note(L.T("O DPI que está no programa do mouse e o quanto você vai arrastar na régua.",
                                   "The DPI set in your mouse software and how far you will drag along the ruler."),
                               284, 130, 176, 44, Theme.Faint, 8f));
-            dpiBox.TextChanged += (s, e) => UpdateView();
+            dpiBox.TextChanged += (s, e) => Reset();
             distanceBox.TextChanged += (s, e) => Reset();
 
             readout = new BigReadout { Location = new Point(12, 174), Size = new Size(456, 150), Unit = "DPI", AccentA = Theme.PerfA, AccentB = Theme.PerfB };
@@ -66,6 +67,7 @@ namespace MouseModes
             pad = new DragPad { Location = new Point(20, 392), Size = new Size(440, 120) };
             pad.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) Begin(); };
             pad.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) End(); };
+            pad.MouseCaptureChanged += (s, e) => End();
             status = Note("", 20, 520, 440, 40, Theme.Faint, 8.5f);
 
             var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 568), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
@@ -85,20 +87,21 @@ namespace MouseModes
         {
             base.OnHandleCreated(e);
             string error;
-            if (!raw.Register(Handle, true, out error))
+            if (!raw.Register(this, true, OnRawInput, out error))
             {
-                status.Text = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
+                rawError = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
+                status.Text = rawError;
                 Log.Warn(L.T("DPI real: Raw Input indisponível (", "Real DPI: Raw Input unavailable (") + error + ")");
             }
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            raw.Unregister();
             raw.Dispose();
             int declared = Declared();
             if (declared > 0) cfg.AimTestDpi = declared;
-            if (runs.Count > 0 && declared > 0)
+            // Só guarda medição confirmada: duas ou mais, sem variar demais entre si.
+            if (Confirmed() && declared > 0)
             {
                 // O conversor de sensibilidade mostra a volta com o DPI real enquanto o mouse estiver nesse DPI.
                 cfg.MeasuredDpi = (int)Math.Round(DpiMeter.Median(runs));
@@ -110,21 +113,20 @@ namespace MouseModes
             base.OnFormClosed(e);
         }
 
-        protected override void WndProc(ref Message m)
+        private void OnRawInput(int dx, int dy, ushort buttons)
         {
-            if (m.Msg == RawMouse.WM_INPUT && measuring)
-            {
-                int dx, dy;
-                ushort buttons;
-                if (raw.Read(m.LParam, out dx, out dy, out buttons))
-                {
-                    sumX += dx;
-                    sumY += dy;
-                    pad.Live = DpiMeter.Counts(sumX, sumY).ToString("N0", culture) + L.T(" contagens", " counts");
-                    pad.Invalidate();
-                }
-            }
-            base.WndProc(ref m);
+            if (!measuring) return;
+            sumX += dx;
+            sumY += dy;
+            pad.Live = DpiMeter.Counts(sumX, sumY).ToString("N0", culture) + L.T(" contagens", " counts");
+            pad.Invalidate();
+            // O botão solto chega aqui antes do MouseUp da tela: termina já, sem somar o que vier depois.
+            if ((buttons & RawMouse.LeftUp) != 0) End();
+        }
+
+        private bool Confirmed()
+        {
+            return runs.Count >= 2 && DpiMeter.Spread(runs) <= DpiMeter.MaxSpread;
         }
 
         private TextBox AddField(string label, int x, int maxLength)
@@ -214,15 +216,17 @@ namespace MouseModes
                 readout.Caption = declared > 0
                     ? L.T("anunciado ", "set to ") + declared + " · " + Gap(DpiMeter.Deviation(median, declared))
                     : L.T("informe o DPI do programa do mouse para comparar", "enter the DPI from your mouse software to compare");
-                if (runs.Count < 3)
-                    status.Text = L.T("Faça mais uma medição para confirmar.", "Do one more run to confirm.");
+                if (runs.Count < 2)
+                    status.Text = L.T("Faça mais uma medição para confirmar: com uma só, o valor não é guardado.",
+                                      "Do one more run to confirm: with only one, the value is not saved.");
                 else if (spread > DpiMeter.MaxSpread)
-                    status.Text = L.T("As medições variaram muito: confira a distância, arraste em linha reta e não levante o mouse.",
-                                      "The runs varied a lot: check the distance, drag in a straight line and do not lift the mouse.");
+                    status.Text = L.T("As medições variaram muito e não serão guardadas: confira a distância, arraste em linha reta e não levante o mouse.",
+                                      "The runs varied a lot and will not be saved: check the distance, drag in a straight line and do not lift the mouse.");
                 else
                     status.Text = L.T("Pronto. Ao fechar, o conversor de sensibilidade passa a mostrar a volta com o DPI real.",
                                       "Done. When you close this, the sensitivity converter shows the turn with the real DPI.");
             }
+            if (rawError != null) status.Text = rawError;
             readout.Invalidate();
             chips.Invalidate();
         }

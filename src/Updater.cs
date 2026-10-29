@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using Microsoft.Win32;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -42,6 +43,40 @@ namespace MouseModes
             {
                 return FolderOverride ??
                        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MouseModes", "update");
+            }
+        }
+
+        private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\MouseModes";
+
+        /// <summary>
+        /// true se este exe é o instalado (a pasta que o instalador grava). Uma cópia solta (ex.: em Downloads) não se
+        /// atualiza sozinha: o instalador gravaria na pasta instalada, e a cópia solta continuaria velha.
+        /// </summary>
+        public static bool IsInstalledCopy(string exePath)
+        {
+            string installed = null;
+            try
+            {
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(UninstallKey))
+                    if (key != null) installed = key.GetValue("InstallLocation") as string;
+            }
+            catch { }
+            if (string.IsNullOrEmpty(installed))
+                installed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "MouseModes");
+            return SameFolder(Path.GetDirectoryName(exePath), installed);
+        }
+
+        internal static bool SameFolder(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            try
+            {
+                return string.Equals(Path.GetFullPath(a).TrimEnd('\\', '/'), Path.GetFullPath(b).TrimEnd('\\', '/'),
+                                     StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
             }
         }
 

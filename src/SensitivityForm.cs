@@ -22,6 +22,8 @@ namespace MouseModes
         private readonly BigReadout readout;
         private readonly List<Label[]> rows = new List<Label[]>();
         private readonly Label hint;
+        /// <summary>O DPI do config que a caixa está mostrando: outra tela pode mudar o config enquanto esta está aberta.</summary>
+        private int shownDpi;
 
         /// <param name="save">Grava o config (a tela lembra o jogo, a sensibilidade e o DPI da última vez).</param>
         /// <param name="measureDpi">Abre a medição do DPI real.</param>
@@ -78,12 +80,13 @@ namespace MouseModes
             measure.Click += (s, e) => { if (this.measureDpi != null) this.measureDpi(); };
             Controls.Add(measure);
             // Volta da medição do DPI real: a volta passa a usar o valor medido.
-            Activated += (s, e) => Recalculate();
+            Activated += (s, e) => SyncDpi();
 
             // Última conversa: jogo, sensibilidade e yaw daqui; o DPI é o mesmo do teste de mira.
             game.SelectedIndex = cfg.ConverterGame >= 0 && cfg.ConverterGame <= OtherIndex ? cfg.ConverterGame : 0;
             sensBox.Text = cfg.ConverterSensitivity ?? "";
             yawBox.Text = cfg.ConverterYaw ?? "";
+            shownDpi = cfg.AimTestDpi;
             dpiBox.Text = (cfg.AimTestDpi > 0 ? cfg.AimTestDpi : 800).ToString();
             newDpiBox.Text = dpiBox.Text;
 
@@ -109,7 +112,8 @@ namespace MouseModes
             cfg.ConverterSensitivity = sensBox.Text.Trim();
             cfg.ConverterYaw = yawBox.Text.Trim();
             int dpi;
-            if (int.TryParse(dpiBox.Text, out dpi) && dpi > 0) cfg.AimTestDpi = dpi;
+            // Só grava se a pessoa mudou aqui: senão, um DPI informado em outra tela ficaria por cima.
+            if (int.TryParse(dpiBox.Text, out dpi) && dpi > 0 && dpi != shownDpi) cfg.AimTestDpi = dpi;
             if (save != null) save();
             base.OnFormClosed(e);
         }
@@ -190,6 +194,20 @@ namespace MouseModes
                 ? L.T(" Com " + newDpi + " DPI, use os valores acima para a mira não mudar.", " At " + newDpi + " DPI, use the values above so your aim does not change.")
                 : "");
             readout.Invalidate();
+        }
+
+        /// <summary>Volta da medição do DPI real ou do teste de mira: a caixa passa a mostrar o DPI que eles gravaram.</summary>
+        private void SyncDpi()
+        {
+            if (cfg.AimTestDpi > 0 && cfg.AimTestDpi != shownDpi)
+            {
+                shownDpi = cfg.AimTestDpi;
+                dpiBox.Text = cfg.AimTestDpi.ToString(); // TextChanged recalcula
+            }
+            else
+            {
+                Recalculate();
+            }
         }
 
         /// <summary>O DPI real medido para este DPI anunciado; 0 se não houver (ou se der o mesmo).</summary>

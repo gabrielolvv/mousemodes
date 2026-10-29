@@ -9,6 +9,7 @@ namespace MouseModes
     public class GameBooster
     {
         private readonly Dictionary<int, ProcessPriorityClass> boosted = new Dictionary<int, ProcessPriorityClass>();
+        private readonly Dictionary<int, DateTime> boostedStart = new Dictionary<int, DateTime>(); // o Windows reaproveita PIDs
         private readonly HashSet<int> denied = new HashSet<int>(); // não tenta de novo a cada 3 s
 
         public bool AnyBoosted { get { return boosted.Count > 0; } }
@@ -33,6 +34,7 @@ namespace MouseModes
                     {
                         proc.PriorityClass = ProcessPriorityClass.High;
                         boosted[proc.Id] = original;
+                        boostedStart[proc.Id] = proc.StartTime;
                         count++;
                         Log.Info(L.T("Prioridade Alta: ", "High priority: ") + name + " (PID " + proc.Id + L.T(", antes ", ", was ") + original + ")");
                     }
@@ -67,7 +69,11 @@ namespace MouseModes
                 }
                 catch { dead.Add(pid); }
             }
-            foreach (int pid in dead) boosted.Remove(pid);
+            foreach (int pid in dead)
+            {
+                boosted.Remove(pid);
+                boostedStart.Remove(pid);
+            }
         }
 
         public void RestoreAll()
@@ -77,12 +83,18 @@ namespace MouseModes
                 try
                 {
                     using (Process p = Process.GetProcessById(kv.Key))
+                    {
+                        DateTime start;
+                        // Mesmo PID, outro processo (o do jogo fechou): não é nosso.
+                        if (boostedStart.TryGetValue(kv.Key, out start) && p.StartTime != start) continue;
                         if (!p.HasExited) p.PriorityClass = kv.Value;
+                    }
                 }
                 catch { }
             }
             if (boosted.Count > 0) Log.Info(L.T("Prioridade original devolvida a ", "Original priority restored on ") + boosted.Count + L.T(" processo(s)", " process(es)"));
             boosted.Clear();
+            boostedStart.Clear();
             denied.Clear();
         }
 
@@ -132,7 +144,8 @@ namespace MouseModes
 
         private static void Run(List<string> apps, List<string> games, bool force, List<string> closed, List<string> failed)
         {
-            int self = Process.GetCurrentProcess().Id;
+            int self;
+            using (Process me = Process.GetCurrentProcess()) self = me.Id;
             var targets = new List<Process>();
             foreach (Process proc in Process.GetProcesses())
             {

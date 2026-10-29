@@ -5,6 +5,31 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Correções
+
+- Atualização sozinha: quem deixa o Performance ligado sem jogo aberto é avisado de que a versão nova já foi baixada e
+  instala ao sair dele (antes ela esperava em silêncio, para sempre). A checagem automática não baixa nada com jogo
+  aberto. Uma cópia solta do exe (fora da pasta instalada) só avisa, em vez de instalar em outra pasta todo dia. Se a
+  instalação falhar com o app antigo ainda aberto, a janela não abre sozinha.
+- Segundo plano calmo: um jogo aberto por um processo do meio (o bootstrapper do anti-cheat, o launcher da EA ou da
+  Rockstar) a partir da Steam acalmada também volta ao Normal, mesmo que o processo do meio já tenha fechado; antes
+  ele podia ficar abaixo do normal. Um programa acalmado que entra na lista de jogos volta ao normal na hora. A
+  prioridade original não é mais devolvida a outro processo que reaproveitou o PID do jogo.
+- Raio-X da rede: uma queda única e longa (ex.: 30 s sem internet) não sai mais como "rede estável". Perda de pacotes
+  sem pico não aparece mais como "0 picos". O Wi-Fi caindo no meio da partida conta como problema local, e o fim da
+  partida não trava mais a bandeja quando a rede não responde. Quem estava em atividade na hora do pico aparece como
+  "lia/gravava": esses bytes são de disco, e o Windows não os separa da rede por programa.
+- Raio-X da partida: uma checagem fora do ritmo (ao salvar os Ajustes) não infla mais o pico de processador. Um
+  relatório maior que a tela (escala do Windows alta) rola.
+- Medidor de polling, teste de clique e DPI real abertos ao mesmo tempo não roubam mais o mouse um do outro, e fechar
+  um não desliga os outros. Na área de trabalho remota e em máquina virtual, o movimento absoluto não é mais somado
+  como contagem do sensor.
+- DPI real: trocar o DPI do mouse zera as medições; o valor só é guardado com duas ou mais medições que batem entre
+  si; alt-tab no meio do arrasto termina a medição; fechar o app com a tela aberta também guarda. O conversor passa a
+  mostrar o DPI informado na medição, sem sobrescrevê-lo ao fechar.
+
 ## 1.7.0
 
 ### Novidades

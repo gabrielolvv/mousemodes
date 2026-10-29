@@ -12,7 +12,7 @@ namespace MouseModes
         public string Name;
         public long StartTime;   // FILETIME: o Windows reaproveita PIDs
         public long CpuTicks;    // kernel + usuário, em ticks de 100 ns
-        public long IoBytes;     // leitura + gravação (disco, rede e dispositivos)
+        public long IoBytes;     // leitura + gravação: quase só disco (o tráfego de socket quase não entra nesta conta)
     }
 
     /// <summary>Um programa que pesou em segundo plano durante a partida.</summary>
@@ -107,8 +107,13 @@ namespace MouseModes
             last = started;
         }
 
+        /// <summary>Leituras mais próximas que isso da anterior são ignoradas: o tempo de processador anda em fatias de ~16 ms.</summary>
+        internal static readonly TimeSpan MinInterval = TimeSpan.FromSeconds(1);
+
         public void Add(DateTime at, IEnumerable<ProcessSample> samples)
         {
+            // Checagem fora do ritmo (Ajustes salvos, troca automática ligada): um intervalo de poucos ms inflaria o pico.
+            if (previous.Count > 0 && at - last < MinInterval) return;
             double interval = (at - last).Ticks;
             var current = new Dictionary<int, ProcessSample>();
             var intervalCpu = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);

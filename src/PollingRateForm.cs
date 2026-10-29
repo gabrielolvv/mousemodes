@@ -88,7 +88,7 @@ namespace MouseModes
         {
             base.OnHandleCreated(e);
             string error;
-            if (!raw.Register(Handle, true, out error))
+            if (!raw.Register(this, true, OnRawInput, out error))
             {
                 status.Text = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
                 Log.Warn(L.T("Medidor de polling: Raw Input indisponível (", "Polling meter: Raw Input unavailable (") + error + ")");
@@ -98,22 +98,12 @@ namespace MouseModes
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             refresh.Stop();
-            raw.Unregister();
             raw.Dispose();
             base.OnFormClosed(e);
         }
 
-        protected override void WndProc(ref Message m)
+        private void OnRawInput(int dx, int dy, ushort buttons)
         {
-            if (m.Msg == RawMouse.WM_INPUT) HandleRawInput(m.LParam);
-            base.WndProc(ref m);
-        }
-
-        private void HandleRawInput(IntPtr hRawInput)
-        {
-            int dx, dy;
-            ushort buttons;
-            if (!raw.Read(hRawInput, out dx, out dy, out buttons)) return;
             if (dx == 0 && dy == 0) return; // clique ou roda, não é movimento
 
             double now = clock.Elapsed.TotalMilliseconds;

@@ -40,6 +40,8 @@ namespace MouseModes
                 {
                     // Já está rodando: pede para a cópia aberta trocar o modo ou mostrar a janela, e sai.
                     if (command != null) return CommandSignals.Send(command) ? 0 : 1; // 1: versão antiga, sem o comando
+                    // --tray (início com o Windows, instalador): já está na bandeja, não há o que mostrar.
+                    if (startHidden) return 0;
                     showSignal.Set();
                     return 0;
                 }

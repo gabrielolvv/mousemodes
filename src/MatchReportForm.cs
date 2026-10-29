@@ -94,6 +94,17 @@ namespace MouseModes
             FinishLayout();
         }
 
+        /// <summary>Relatório maior que a tela (muitos programas e a rede, com a escala do Windows alta): rola.</summary>
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            Rectangle area = Screen.FromControl(this).WorkingArea;
+            if (Height <= area.Height - 20) return;
+            AutoScroll = true;
+            Height = area.Height - 20;
+            Top = area.Top + 10;
+        }
+
         /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>
         private int AddNetwork(NetworkReport net, int y)
         {

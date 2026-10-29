@@ -59,6 +59,7 @@ namespace MouseModes
         private ReleaseInfo readyRelease;   // versão nova já baixada e conferida, esperando a hora de instalar
         private string readyInstaller;
         private bool downloading;
+        private string deferredNotice; // tag da versão baixada já avisada como "esperando sair do Performance"
         private string balloonUrl;          // link do aviso que está na tela (só o de versão nova tem)
         private Action balloonAction;       // ou o que fazer ao clicar nele (abrir o Raio-X)
         private bool checkingUpdate;
@@ -219,6 +220,7 @@ namespace MouseModes
             {
                 updateTimer.Interval = 60 * 60 * 1000;
                 InstallReadyUpdate(false); // baixada durante um jogo: instala agora, se o jogo já fechou
+                if (!downloading && readyInstaller == null) Updater.Clean(); // sobra de uma atualização
                 CheckForUpdate(false);
             };
             updateTimer.Start();
@@ -408,7 +410,11 @@ namespace MouseModes
                 text = top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n";
             }
             if (badNetwork)
-                text += L.T("Rede: ", "Network: ") + net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)") + NetSource(net) + ".\n";
+                text += L.T("Rede: ", "Network: ") +
+                        (net.SpikeCount > 0
+                            ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
+                            : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
+                        NetSource(net) + ".\n";
             ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
                 text + L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
         }
@@ -478,6 +484,11 @@ namespace MouseModes
         /// <summary>Tudo que só vale no Performance: prioridade, teclas, notificações, fechar programas, aviso de monitor.</summary>
         private void ApplyExtras(bool perf, bool entering)
         {
+            // O calmante vem antes da prioridade alta (como em CheckRunningGame): um jogo que herdou a prioridade baixa
+            // volta ao Normal primeiro, e a prioridade alta guarda o Normal para devolver no fim.
+            if (perf && cfg.CalmBackground) calmer.Calm(cfg.Games, foreground.ProcessName);
+            else calmer.RestoreAll();
+
             if (perf && cfg.BoostGamePriority) booster.Boost(cfg.Games);
             else booster.RestoreAll();
 
@@ -489,9 +500,6 @@ namespace MouseModes
 
             if (perf && cfg.SilenceNotifications) NotificationSilencer.Silence(cfg);
             else NotificationSilencer.Restore(cfg);
-
-            if (perf && cfg.CalmBackground) calmer.Calm(cfg.Games, foreground.ProcessName);
-            else calmer.RestoreAll();
 
             if (currentGame != null || lastBoostShown)
             {
@@ -768,6 +776,7 @@ namespace MouseModes
             if (!manual)
             {
                 if (!cfg.CheckForUpdates) return;
+                if (currentGame != null) return; // nunca durante o jogo: tenta de novo na próxima hora
                 if (cfg.LastUpdateCheck.HasValue && DateTime.UtcNow - cfg.LastUpdateCheck.Value < TimeSpan.FromDays(1)) return;
             }
             checkingUpdate = true;
@@ -815,11 +824,14 @@ namespace MouseModes
                     L.T("Você já tem a mais recente (", "You already have the latest (") + UpdateChecker.Current + ").", ToolTipIcon.Info);
                 return;
             }
-            if (cfg.AutoUpdate)
+            if (cfg.AutoUpdate && Updater.IsInstalledCopy(Application.ExecutablePath))
             {
                 DownloadUpdate(latest, manual);
                 return;
             }
+            if (cfg.AutoUpdate)
+                Log.Info(L.T("Esta cópia não é a instalada (", "This copy is not the installed one (") + Application.ExecutablePath +
+                         L.T("): não se atualiza sozinha, só avisa", "): it does not update by itself, it only notifies"));
             if (!manual && latest.Tag == cfg.NotifiedVersion) return; // já avisou desta versão
             pendingRelease = latest;
             ShowPendingUpdate(manual);
@@ -835,9 +847,12 @@ namespace MouseModes
                 InstallReadyUpdate(manual);
                 return;
             }
+            if (manual) ShowBalloon(L.T("Versão nova", "New version"), L.T("Baixando a ", "Downloading ") + release.Tag + "...", ToolTipIcon.Info);
             if (downloading) return;
             downloading = true;
-            if (manual) ShowBalloon(L.T("Versão nova", "New version"), L.T("Baixando a ", "Downloading ") + release.Tag + "...", ToolTipIcon.Info);
+            // O download novo apaga a pasta: a versão que estava esperando deixa de existir.
+            readyRelease = null;
+            readyInstaller = null;
 
             var worker = new System.Threading.Thread(() =>
             {
@@ -879,8 +894,14 @@ namespace MouseModes
             if (readyInstaller == null || quitting) return;
             if (modes.Current == Mode.Performance || currentGame != null)
             {
-                if (manual) ShowBalloon(L.T("Versão nova", "New version"),
-                    readyRelease.Tag + L.T(" baixada. Instala sozinha quando o jogo fechar.", " downloaded. It installs by itself when the game closes."), ToolTipIcon.Info);
+                // Avisa uma vez, e nunca no meio do jogo: quem deixa o Performance ligado por dias fica sabendo.
+                if (manual || (currentGame == null && deferredNotice != readyRelease.Tag))
+                {
+                    deferredNotice = readyRelease.Tag;
+                    ShowBalloon(L.T("Versão nova", "New version"),
+                        readyRelease.Tag + L.T(" baixada. Instala sozinha quando você sair do Performance.",
+                                               " downloaded. It installs by itself when you leave Performance."), ToolTipIcon.Info);
+                }
                 return;
             }
             string installer = readyInstaller;
@@ -992,7 +1013,7 @@ namespace MouseModes
 
             SaveConfig();
             hotkey.Dispose();
-            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, aimForm, sensForm, reportForm, diagForm })
+            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, aimForm, sensForm, dpiForm, reportForm, diagForm })
             {
                 if (f != null && !f.IsDisposed) f.Close();
             }

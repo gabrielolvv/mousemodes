@@ -53,7 +53,7 @@ namespace MouseModes
         public bool Lost { get; set; }
         /// <summary>O roteador também piorou: o problema começou na rede de casa (Wi-Fi, cabo, roteador).</summary>
         public bool Local { get; set; }
-        /// <summary>Quem mais leu/gravou dados na hora (null se ninguém se destacou).</summary>
+        /// <summary>Quem mais leu/gravou (disco, quase sempre) na hora; null se ninguém se destacou.</summary>
         public string Busy { get; set; }
         public long BusyBytes { get; set; }
     }
@@ -94,19 +94,19 @@ namespace MouseModes
             {
                 case NetVerdict.Local:
                     return Wifi
-                        ? L.T("Os picos começaram no Wi-Fi, antes do roteador. Cabo ou a rede de 5 GHz costumam resolver.",
-                              "The spikes started on the Wi-Fi, before the router. A cable or the 5 GHz network usually fixes it.")
-                        : L.T("Os picos começaram na sua rede, antes do roteador: confira o cabo e o roteador.",
-                              "The spikes started on your network, before the router: check the cable and the router.");
+                        ? L.T("Os problemas começaram no Wi-Fi, antes do roteador. Cabo ou a rede de 5 GHz costumam resolver.",
+                              "The problems started on the Wi-Fi, before the router. A cable or the 5 GHz network usually fixes it.")
+                        : L.T("Os problemas começaram na sua rede, antes do roteador: confira o cabo e o roteador.",
+                              "The problems started on your network, before the router: check the cable and the router.");
                 case NetVerdict.Unknown:
-                    return L.T("Houve picos, mas o seu roteador não responde a ping: não dá para saber se vieram do Wi-Fi ou da internet.",
-                               "There were spikes, but your router does not answer ping: there is no telling whether they came from the Wi-Fi or the internet.");
+                    return L.T("Houve problemas, mas o seu roteador não responde a ping: não dá para saber se vieram do Wi-Fi ou da internet.",
+                               "There were problems, but your router does not answer ping: there is no telling whether they came from the Wi-Fi or the internet.");
                 case NetVerdict.Internet:
                     return Vpn
-                        ? L.T("Até o roteador estava tudo bem: os picos vieram depois dele, da VPN ligada ou do provedor. Vale testar sem a VPN.",
-                              "Everything was fine up to the router: the spikes came after it, from the VPN that is on or from your provider. Try without the VPN.")
-                        : L.T("Até o roteador estava tudo bem: os picos vieram da internet (provedor). Se for sempre, vale falar com ele.",
-                              "Everything was fine up to the router: the spikes came from the internet (your provider). If it keeps happening, talk to them.");
+                        ? L.T("Até o roteador estava tudo bem: os problemas vieram depois dele, da VPN ligada ou do provedor. Vale testar sem a VPN.",
+                              "Everything was fine up to the router: the problems came after it, from the VPN that is on or from your provider. Try without the VPN.")
+                        : L.T("Até o roteador estava tudo bem: os problemas vieram da internet (provedor). Se for sempre, vale falar com ele.",
+                              "Everything was fine up to the router: the problems came from the internet (your provider). If it keeps happening, talk to them.");
                 default:
                     return SpikeCount == 0
                         ? L.T("Rede estável durante a partida.", "Network stable during the match.")
@@ -114,7 +114,10 @@ namespace MouseModes
             }
         }
 
-        /// <summary>"aos 23 min · 140 ms por 6 s · nessa hora o OneDrive usava 120 MB de dados"</summary>
+        /// <summary>
+        /// "aos 23 min · 140 ms por 6 s · nessa hora o OneDrive lia/gravava 120 MB". Os bytes de cada programa são quase
+        /// só de disco (o Windows não conta o tráfego de socket ali), mas download e sincronização passam pelo disco.
+        /// </summary>
         public static string Describe(NetSpike s)
         {
             int minute = (int)(s.At / 60);
@@ -124,8 +127,7 @@ namespace MouseModes
             if (s.Lost && s.PeakMs > 0) text += L.T(" · com perda", " · with loss");
             if (s.Local) text += L.T(" · no roteador também", " · at the router too");
             if (s.Busy != null)
-                text += L.T(" · nessa hora o ", " · meanwhile ") + s.Busy + L.T(" usava ", " used ") + MatchReport.FormatBytes(s.BusyBytes) +
-                        L.T(" de dados", " of data");
+                text += L.T(" · nessa hora o ", " · meanwhile ") + s.Busy + L.T(" lia/gravava ", " read/wrote ") + MatchReport.FormatBytes(s.BusyBytes);
             return text;
         }
 
@@ -145,6 +147,8 @@ namespace MouseModes
         private const double SameSpikeGap = 2.5;
         /// <summary>Quem leu/gravou dados até 3 s antes ou depois do pico (a leitura de processos é a cada 3 s).</summary>
         private const double BusyWindow = 3.0;
+        /// <summary>Um pico sozinho com pelo menos isso (s) já é problema: é uma queda, não um soluço.</summary>
+        internal const double LongSpike = 5.0;
 
         public static NetworkReport Analyze(IList<NetSample> samples, bool wifi, IList<IoBurst> bursts)
         {
@@ -207,8 +211,8 @@ namespace MouseModes
             double lossPercent = lost * 100.0 / samples.Count;
             int localSpikes = spikes.FindAll(sp => sp.Local).Count;
             NetVerdict verdict;
-            if (spikes.Count <= 1 && lossPercent < 1)
-                verdict = NetVerdict.Stable; // um soluço só não é problema
+            if (spikes.Count <= 1 && lossPercent < 1 && (spikes.Count == 0 || spikes[0].Seconds < LongSpike))
+                verdict = NetVerdict.Stable; // um soluço curto só não é problema
             else if (!hasGateway)
                 verdict = NetVerdict.Unknown;
             else
@@ -307,8 +311,9 @@ namespace MouseModes
         /// <param name="viaVpn">A internet sai por outra placa (VPN ou túnel), não pela do roteador.</param>
         public List<NetSample> Stop(out bool onWifi, out bool viaVpn)
         {
+            // Sem Join: a thread é de fundo e termina sozinha depois do ping em andamento (até 2 s). Esperar travaria
+            // a bandeja no fim da partida justo quando a rede não responde.
             running = false;
-            thread.Join(3 * TimeoutMs);
             onWifi = wifi;
             viaVpn = vpn;
             lock (samples) return new List<NetSample>(samples);
@@ -379,9 +384,12 @@ namespace MouseModes
                         chosenIndex = v4.Index;
                     }
                 }
+                // Nenhuma placa com roteador agora (Wi-Fi caiu): fica o que já era conhecido, e os pings perdidos ao
+                // roteador mostram que o problema é local.
+                if (chosen == null) return;
                 gateway = chosenGateway;
-                wifi = chosen != null && chosen.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
-                vpn = chosen != null && known && chosenIndex != best;
+                wifi = chosen.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                vpn = known && chosenIndex != best;
             }
             catch
             {
