@@ -149,8 +149,8 @@ Texts on screen live in the code with both versions side by side: `L.T("Ajustes"
 
 **Publishing a version**:
 
-1. Update the `VERSION` file (e.g. `1.2.0`) and write the `## 1.2.0` section in `CHANGELOG.md` with what changed. It
-   becomes the Release text, and CI refuses the tag if the section does not exist. Commit.
+1. Update the `VERSION` file (e.g. `1.2.0`) and write the `## 1.2.0` section with what changed in `CHANGELOG.md` and,
+   in English, in `CHANGELOG.en.md`. Both become the Release text, and CI refuses the tag if either is missing. Commit.
 2. Create and push the tag: `git tag v1.2.0 && git push origin v1.2.0`.
 3. GitHub Actions builds, runs the tests, checks that the tag matches `VERSION` and attaches `MouseModes-Setup.exe`
    and `MouseModes-Setup.exe.sha256` to the Release (the SHA-256 also goes in the Release text).
