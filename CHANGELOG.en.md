@@ -4,10 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
-## Next version
+## 1.5.0
 
 ### New
 
+- **Updates by itself** (Settings → General, on by default): when a new version is out, the app downloads the
+  installer from the Release, checks the SHA-256 published there, that it is an executable and that it is MouseModes
+  of the right version, and installs it silently outside games. The app closes, installs and opens again in the tray
+  with the same settings. If anything does not match, it does not install and shows the old notice, to download by
+  hand. It works from this version on: anyone on 1.4.0 or earlier updates by hand one last time.
 - **Match X-ray**: while a game from the list is open in Performance, the app notes every 3 s how much CPU and data
   each background program used. When the game closes, a notice shows what weighed the most (e.g. chrome averaging 18%
   with 61% peaks, OneDrive with 2.1 GB) and, in one click, adds the program to the auto-close list or turns on calm

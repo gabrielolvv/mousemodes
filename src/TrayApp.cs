@@ -55,6 +55,9 @@ namespace MouseModes
         private bool monitorWarned;
         private bool quitting;
         private ReleaseInfo pendingRelease; // versão nova esperando o fim do Performance para avisar
+        private ReleaseInfo readyRelease;   // versão nova já baixada e conferida, esperando a hora de instalar
+        private string readyInstaller;
+        private bool downloading;
         private string balloonUrl;          // link do aviso que está na tela (só o de versão nova tem)
         private Action balloonAction;       // ou o que fazer ao clicar nele (abrir o Raio-X)
         private bool checkingUpdate;
@@ -63,8 +66,9 @@ namespace MouseModes
         /// <param name="showSignal">Sinal disparado quando o usuário abre o app de novo.</param>
         /// <param name="commands">Comandos de modo vindos de outra cópia (--performance, --daily, --toggle).</param>
         /// <param name="startCommand">Comando com que esta cópia foi aberta, ou null.</param>
+        /// <param name="updated">Aberta pelo instalador depois de uma atualização sozinha.</param>
         public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal,
-                       CommandSignals commands = null, string startCommand = null)
+                       CommandSignals commands = null, string startCommand = null, bool updated = false)
         {
             cfg = AppConfig.LoadOrCreate();
             L.Init(cfg.Language); // antes de criar qualquer tela
@@ -212,12 +216,24 @@ namespace MouseModes
             updateTimer.Tick += (s, e) =>
             {
                 updateTimer.Interval = 60 * 60 * 1000;
+                InstallReadyUpdate(false); // baixada durante um jogo: instala agora, se o jogo já fechou
                 CheckForUpdate(false);
             };
             updateTimer.Start();
             CheckGames();
 
             quiet = false;
+
+            // O download da atualização só serve até ela ser instalada; sobra dele não fica para trás.
+            Updater.Clean();
+            if (updated)
+            {
+                Log.Info(L.T("Atualizado sozinho para a versão ", "Updated by itself to version ") + UpdateChecker.Current);
+                if (cfg.ShowNotifications)
+                    ShowBalloon(L.T("MouseModes atualizado", "MouseModes updated"),
+                        L.T("Agora na versão ", "Now on version ") + UpdateChecker.Current + L.T(". As configurações continuam as mesmas.", ". Your settings stay the same."),
+                        ToolTipIcon.Info);
+            }
 
             if (startCommand != null) RunCommand(startCommand);
             if (!startHidden) ShowMain();
@@ -417,7 +433,11 @@ namespace MouseModes
 
             ApplyExtras(perf, entering);
             modes.SetGameFocused(GameFocused());
-            if (!perf) ShowPendingUpdate(); // saiu do jogo: agora pode avisar da versão nova
+            if (!perf)
+            {
+                ShowPendingUpdate();       // saiu do jogo: agora pode avisar da versão nova
+                InstallReadyUpdate(false); // ou instalar a que já foi baixada
+            }
         }
 
         private bool GameFocused()
@@ -758,9 +778,90 @@ namespace MouseModes
                     L.T("Você já tem a mais recente (", "You already have the latest (") + UpdateChecker.Current + ").", ToolTipIcon.Info);
                 return;
             }
+            if (cfg.AutoUpdate)
+            {
+                DownloadUpdate(latest, manual);
+                return;
+            }
             if (!manual && latest.Tag == cfg.NotifiedVersion) return; // já avisou desta versão
             pendingRelease = latest;
             ShowPendingUpdate(manual);
+        }
+
+        // ---------------- Atualização sozinha ----------------
+
+        /// <summary>Baixa e confere a versão nova fora da thread da tela; depois instala, se não houver jogo.</summary>
+        private void DownloadUpdate(ReleaseInfo release, bool manual)
+        {
+            if (readyRelease != null && readyRelease.Tag == release.Tag)
+            {
+                InstallReadyUpdate(manual);
+                return;
+            }
+            if (downloading) return;
+            downloading = true;
+            if (manual) ShowBalloon(L.T("Versão nova", "New version"), L.T("Baixando a ", "Downloading ") + release.Tag + "...", ToolTipIcon.Info);
+
+            var worker = new System.Threading.Thread(() =>
+            {
+                string installer = Updater.Download(release);
+                try
+                {
+                    if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
+                        mainForm.BeginInvoke((Action)(() => UpdateDownloaded(release, installer, manual)));
+                }
+                catch (InvalidOperationException) { } // app fechando
+            });
+            worker.IsBackground = true;
+            worker.Start();
+        }
+
+        private void UpdateDownloaded(ReleaseInfo release, string installer, bool manual)
+        {
+            downloading = false;
+            if (quitting) return;
+            if (installer == null)
+            {
+                // Não deu para baixar ou conferir (o motivo está no registro): fica o aviso de sempre, para baixar à mão.
+                if (!manual && release.Tag == cfg.NotifiedVersion) return;
+                pendingRelease = release;
+                ShowPendingUpdate(manual);
+                return;
+            }
+            readyRelease = release;
+            readyInstaller = installer;
+            InstallReadyUpdate(manual);
+        }
+
+        /// <summary>
+        /// Instala a versão já baixada, nunca no meio do jogo: com o Performance ativo ou um jogo da lista aberto, espera
+        /// (tenta de novo ao sair do Performance e de hora em hora).
+        /// </summary>
+        private void InstallReadyUpdate(bool manual)
+        {
+            if (readyInstaller == null || quitting) return;
+            if (modes.Current == Mode.Performance || currentGame != null)
+            {
+                if (manual) ShowBalloon(L.T("Versão nova", "New version"),
+                    readyRelease.Tag + L.T(" baixada. Instala sozinha quando o jogo fechar.", " downloaded. It installs by itself when the game closes."), ToolTipIcon.Info);
+                return;
+            }
+            string installer = readyInstaller;
+            ReleaseInfo release = readyRelease;
+            readyInstaller = null;
+            readyRelease = null;
+            cfg.NotifiedVersion = release.Tag;
+            SaveConfig();
+            Log.Info(L.T("Instalando sozinho a versão ", "Installing by itself version ") + release.Tag);
+            ShowBalloon(L.T("Atualizando o MouseModes", "Updating MouseModes"),
+                L.T("Instalando a ", "Installing ") + release.Tag + L.T(". O app fecha e abre de novo sozinho em alguns segundos.", ". The app closes and opens again by itself in a few seconds."),
+                ToolTipIcon.Info);
+            // O instalador fecha este app pelo --quit (que restaura tudo), instala e abre a versão nova.
+            if (!Updater.Install(installer))
+            {
+                pendingRelease = release;
+                ShowPendingUpdate(true);
+            }
         }
 
         /// <summary>
