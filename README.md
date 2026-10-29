@@ -88,6 +88,10 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Teste de mira e DPI** (tela inicial ou ícone da bandeja): 20 s de alvos. O app mede se você passa do alvo, se
   para antes, quantas correções faz e a precisão do clique, e sugere subir ou baixar o DPI no programa do mouse.
   Trocou o DPI? Faça de novo: as rodadas ficam lado a lado enquanto o app estiver aberto.
+- **Conversor de sensibilidade** (tela inicial → Sensibilidade, ou ícone da bandeja): digite a sensibilidade e o DPI
+  do seu jogo e veja o cm/360 (quanto o mouse anda para uma volta completa) e o valor que dá a mesma mira em CS2,
+  Apex, TF2, Valorant, Overwatch 2 e Call of Duty. Trocou o DPI? Informe o novo e o app recalcula a sensibilidade de
+  cada jogo para a mira não mudar. Para outro jogo, basta informar o yaw dele.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
 - **Windows para jogos** (no Diagnóstico): mostra Modo de Jogo, gravação em segundo plano, agendamento de GPU acelerado
   e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão

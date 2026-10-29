@@ -9,6 +9,10 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ### Novidades
 
+- **Conversor de sensibilidade** (tela inicial → Sensibilidade, ou ícone da bandeja): digite a sensibilidade e o DPI
+  do seu jogo e veja o cm/360 (quanto o mouse anda para uma volta completa) e o valor que dá a mesma mira em CS2,
+  Apex, TF2, Valorant, Overwatch 2 e Call of Duty. Trocou o DPI? Informe o novo e o app recalcula a sensibilidade de
+  cada jogo para a mira não mudar. Para outro jogo, basta informar o yaw dele.
 - **Segundo plano calmo** (Ajustes → Turbo, desligado por padrão): em vez de fechar, deixa os outros programas abertos
   com prioridade abaixo do normal e, no Windows 11, no modo de eficiência. Ajuda nas travadinhas quando o processador
   está no limite (navegador, Steam baixando, OneDrive sincronizando). Não mexe no jogo, no programa em primeiro plano

@@ -13,6 +13,7 @@ namespace MouseModes
         public event Action PollingRequested;
         public event Action ClickTestRequested;
         public event Action AimTestRequested;
+        public event Action SensitivityRequested;
         public event Action QuitRequested;
         public event Action HiddenToTray;
         public event Action MonitorFixRequested;
@@ -27,6 +28,7 @@ namespace MouseModes
         private readonly NeonButton settingsButton;
         private readonly NeonButton clickButton;
         private readonly NeonButton aimButton;
+        private readonly NeonButton sensButton;
         private readonly Timer animTimer;
 
         private Mode mode = Mode.DiaADia;
@@ -83,8 +85,10 @@ namespace MouseModes
             };
             monitorRow.ActionClicked += () => Raise(MonitorFixRequested);
 
-            aimButton = new NeonButton { Text = L.T("Testar mira e DPI", "Aim and DPI test"), Glyph = GlyphKind.Target, Style = ButtonStyle.Primary, Location = new Point(20, 552), Size = new Size(440, 40) };
+            aimButton = new NeonButton { Text = L.T("Testar mira e DPI", "Aim and DPI test"), Glyph = GlyphKind.Target, Style = ButtonStyle.Primary, Location = new Point(20, 552), Size = new Size(290, 40) };
             aimButton.Click += (s, e) => Raise(AimTestRequested);
+            sensButton = new NeonButton { Text = L.T("Sensibilidade", "Sensitivity"), Location = new Point(318, 552), Size = new Size(142, 40) };
+            sensButton.Click += (s, e) => Raise(SensitivityRequested);
 
             pollingButton = new NeonButton { Text = "Polling", Glyph = GlyphKind.Gauge, Location = new Point(20, 600), Size = new Size(104, 44) };
             clickButton = new NeonButton { Text = L.T("Clique", "Click"), Glyph = GlyphKind.Mouse, Location = new Point(132, 600), Size = new Size(104, 44) };
@@ -103,6 +107,7 @@ namespace MouseModes
             Controls.Add(autoRow);
             Controls.Add(monitorRow);
             Controls.Add(aimButton);
+            Controls.Add(sensButton);
             Controls.Add(pollingButton);
             Controls.Add(clickButton);
             Controls.Add(settingsButton);
@@ -252,6 +257,9 @@ namespace MouseModes
             aimButton.AccentA = a;
             aimButton.AccentB = b;
             aimButton.Invalidate();
+            sensButton.AccentA = a;
+            sensButton.AccentB = b;
+            sensButton.Invalidate();
             clickButton.Invalidate();
             TitleBar.Invalidate();
             pollingButton.Invalidate();

@@ -95,6 +95,10 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
 - **Aim and DPI test** (main screen or tray icon): 20 s of targets. The app measures whether you overshoot the target,
   stop short, how many corrections you make and how precise the click is, and suggests raising or lowering the DPI
   in your mouse software. Changed the DPI? Run it again: the rounds stay side by side while the app is open.
+- **Sensitivity converter** (main screen → Sensitivity, or the tray icon): type your game's sensitivity and DPI and
+  see the cm/360 (how far the mouse travels for a full turn) and the value that gives the same aim in CS2, Apex, TF2,
+  Valorant, Overwatch 2 and Call of Duty. Changed the DPI? Enter the new one and the app recalculates each game's
+  sensitivity so your aim does not change. For another game, just enter its yaw.
 - **Diagnostics** (Settings → General): a log of what the app did and what failed. File at
   `%APPDATA%\MouseModes\log.txt`.
 - **Windows for games** (in Diagnostics): shows Game Mode, background recording, hardware-accelerated GPU scheduling
