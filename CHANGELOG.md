@@ -9,6 +9,9 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ### Novidades
 
+- **Troca por comando:** `MouseModes.exe --performance`, `--daily` ou `--toggle` troca o modo do app aberto, como o
+  atalho. Serve para um botão do Stream Deck, um atalho na área de trabalho ou o Agendador de Tarefas. Se o app não
+  estiver aberto, ele abre na bandeja já no modo pedido.
 - **Registro do Diagnóstico em inglês:** com o app em inglês, as mensagens do registro também saem em inglês
   (WARN e ERROR no lugar de AVISO e ERRO). O que já estava gravado no `log.txt` continua como foi escrito.
 

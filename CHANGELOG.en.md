@@ -8,6 +8,9 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 
 ### New
 
+- **Switch by command:** `MouseModes.exe --performance`, `--daily` or `--toggle` switches the mode of the running
+  app, like the hotkey. Use it for a Stream Deck button, a desktop shortcut or Task Scheduler. If the app is not
+  running, it opens in the tray already in that mode.
 - **Diagnostics log in English:** with the app in English, the log messages are in English too (WARN and ERROR
   instead of AVISO and ERRO). What was already written to `log.txt` stays as it was.
 

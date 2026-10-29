@@ -18,6 +18,8 @@ namespace MouseModes
         ///   --tray               inicia só na bandeja (usado ao iniciar com o Windows)
         ///   --quit               encerra a cópia aberta, restaurando tudo (usado pelo instalador)
         ///   --uninstall-cleanup  volta o mouse/energia ao modo Dia a dia e tira do "Iniciar com o Windows"
+        ///   --performance, --daily, --toggle
+        ///                        troca o modo da cópia aberta; sem cópia aberta, abre na bandeja já nesse modo
         /// </summary>
         [STAThread]
         private static int Main(string[] args)
@@ -25,7 +27,8 @@ namespace MouseModes
             if (HasArg(args, "--quit")) return QuitRunningInstance() ? 0 : 1;
             if (HasArg(args, "--uninstall-cleanup")) return UninstallCleanup();
 
-            bool startHidden = HasArg(args, "--tray");
+            string command = CommandSignals.Find(args);
+            bool startHidden = HasArg(args, "--tray") || command != null;
 
             bool createdNew;
             using (var mutex = new Mutex(true, MutexName, out createdNew))
@@ -34,7 +37,8 @@ namespace MouseModes
             {
                 if (!createdNew)
                 {
-                    // Já está rodando: pede para a cópia aberta mostrar a janela e sai.
+                    // Já está rodando: pede para a cópia aberta trocar o modo ou mostrar a janela, e sai.
+                    if (command != null) return CommandSignals.Send(command) ? 0 : 1; // 1: versão antiga, sem o comando
                     showSignal.Set();
                     return 0;
                 }
@@ -54,7 +58,8 @@ namespace MouseModes
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
 
-                Application.Run(new TrayApp(startHidden, showSignal, quitSignal));
+                using (var commands = new CommandSignals())
+                    Application.Run(new TrayApp(startHidden, showSignal, quitSignal, commands, command));
                 GC.KeepAlive(mutex);
             }
             return 0;
