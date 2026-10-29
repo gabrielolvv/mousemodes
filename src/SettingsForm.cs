@@ -82,8 +82,12 @@ namespace MouseModes
             stickyRow.Switch.SetChecked(cfg.DisableAccessibilityHotkeys, false);
             silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb, 168, 50);
             silenceRow.Switch.SetChecked(cfg.SilenceNotifications, false);
+            // Processador híbrido: os outros programas também vão para os núcleos de eficiência.
             calmRow = MakeRow(L.T("Segundo plano calmo", "Calm background"),
-                L.T("Outros programas com prioridade baixa e em modo de eficiência", "Other programs at low priority and in efficiency mode"), pa, pb, 224, 50);
+                CpuSets.Background != null
+                    ? L.T("Outros programas: prioridade baixa, eficiência e núcleos E", "Other programs: low priority, efficiency mode and E-cores")
+                    : L.T("Outros programas com prioridade baixa e em modo de eficiência", "Other programs at low priority and in efficiency mode"),
+                pa, pb, 224, 50);
             calmRow.Switch.SetChecked(cfg.CalmBackground, false);
             closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb, 280, 50);
             closeRow.Switch.SetChecked(cfg.CloseAppsOnPerformance, false);

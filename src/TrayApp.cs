@@ -305,15 +305,17 @@ namespace MouseModes
             if (game != currentGame)
                 Log.Info(running ? L.T("Jogo detectado: ", "Game detected: ") + game : L.T("Jogo fechado: ", "Game closed: ") + currentGame);
 
+            // Segundo plano calmo: pega os programas abertos depois de entrar no Performance. Vem antes da prioridade
+            // alta: um jogo aberto pela Steam acalmada herda a prioridade baixa e precisa voltar ao Normal primeiro,
+            // senão a prioridade alta guardaria o abaixo do normal para devolver no fim.
+            if (modes.Current == Mode.Performance && cfg.CalmBackground)
+                calmer.Calm(cfg.Games, foreground.ProcessName);
+
             // Prioridade alta: aplica a processos novos do jogo (o FiveM, por exemplo, abre o processo do GTA depois).
             if (running && modes.Current == Mode.Performance && cfg.BoostGamePriority)
                 booster.Boost(cfg.Games);
             else if (!running)
                 booster.Prune();
-
-            // Segundo plano calmo: pega os programas abertos depois de entrar no Performance.
-            if (modes.Current == Mode.Performance && cfg.CalmBackground)
-                calmer.Calm(cfg.Games, foreground.ProcessName);
 
             bool gameChanged = game != currentGame;
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
