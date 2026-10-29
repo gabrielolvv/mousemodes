@@ -65,10 +65,12 @@ left applied because the app was killed or the PC shut down in the middle.
 - **No Sticky Keys prompt** (Shift 5x and the like).
 - **Silences Windows notifications.** If the app crashes while they are silenced, it restores them when it opens again.
 - **Calm background** (off by default): instead of closing them, keeps the other open programs at below normal
-  priority and, on Windows 11, in efficiency mode. It helps with stutters when the CPU is maxed out (browser, Steam
-  downloading, OneDrive syncing). It does not touch the game, the program in the foreground (on alt-tab it goes back
-  to normal), Windows processes, or voice, music, streaming, overlay, mouse software and anti-cheat (Discord, Spotify,
-  OBS, NVIDIA, G HUB, Razer etc.). If the app crashes with the background calmed, it undoes it when it opens again.
+  priority and, on Windows 11, in efficiency mode. On hybrid Intel CPUs (12th gen or newer), they also move to the
+  efficiency cores (E), leaving the performance cores (P) for the game. It helps with stutters when the CPU is maxed
+  out (browser, Steam downloading, OneDrive syncing). It does not touch the game, the program in the foreground (on
+  alt-tab it goes back to normal), Windows processes, or voice, music, streaming, overlay, mouse software and
+  anti-cheat (Discord, Spotify, OBS, NVIDIA, G HUB, Razer etc.). A game opened by a calmed Steam goes back to normal
+  right away. If the app crashes with the background calmed, it undoes it when it opens again.
 - **Closes programs from your list** (e.g. OneDrive, launchers). Games from the list and Windows processes are never
   closed.
 

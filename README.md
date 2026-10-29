@@ -58,10 +58,12 @@ aplicado porque ele foi fechado à força ou o PC desligou no meio.
 - **Sem aviso das Teclas de Aderência** (Shift 5x e afins).
 - **Silencia as notificações do Windows.** Se o app travar com elas silenciadas, ele restaura ao abrir de novo.
 - **Segundo plano calmo** (desligado por padrão): em vez de fechar, deixa os outros programas abertos com prioridade
-  abaixo do normal e, no Windows 11, no modo de eficiência. Ajuda nas travadinhas quando o processador está no limite
-  (navegador, Steam baixando, OneDrive sincronizando). Não mexe no jogo, no programa em primeiro plano (no alt-tab ele
-  volta ao normal), nos processos do Windows nem em voz, música, transmissão, overlay, software do mouse e anti-cheat
-  (Discord, Spotify, OBS, NVIDIA, G HUB, Razer etc.). Se o app travar com o segundo plano acalmado, ele desfaz ao
+  abaixo do normal e, no Windows 11, no modo de eficiência. Nos processadores Intel híbridos (12ª geração ou mais
+  nova), eles também vão para os núcleos de eficiência (E), e os de desempenho (P) ficam para o jogo. Ajuda nas
+  travadinhas quando o processador está no limite (navegador, Steam baixando, OneDrive sincronizando). Não mexe no
+  jogo, no programa em primeiro plano (no alt-tab ele volta ao normal), nos processos do Windows nem em voz, música,
+  transmissão, overlay, software do mouse e anti-cheat (Discord, Spotify, OBS, NVIDIA, G HUB, Razer etc.). Um jogo
+  aberto pela Steam acalmada volta ao normal na hora. Se o app travar com o segundo plano acalmado, ele desfaz ao
   abrir de novo.
 - **Fecha programas da sua lista** (ex.: OneDrive, launchers). Jogos da lista e processos do Windows nunca são fechados.
 

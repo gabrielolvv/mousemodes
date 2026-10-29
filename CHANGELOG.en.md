@@ -4,6 +4,22 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Right cores** (Settings → Turbo → Calm background): on hybrid Intel CPUs (12th gen or newer), the calmed programs
+  also move to the efficiency cores (E), leaving the performance cores (P) free for the game, like Process Lasso does.
+  It uses Windows CPU sets, the gentle way (it is not affinity), without administrator rights, and it is undone when
+  leaving Performance, on alt-tab and after a crash. The game is not touched. Nothing changes on other CPUs.
+
+### Fixes
+
+- Calm background: Windows passes below normal priority on to whatever a calmed program opens. A game opened by a
+  calmed Steam started at low priority (and, with high priority on, went back to it when leaving Performance), and new
+  browser tabs stayed below normal afterwards. Now the game goes back to normal right away, and the rest goes back
+  together with the program that opened it.
+
 ## 1.5.0
 
 ### New

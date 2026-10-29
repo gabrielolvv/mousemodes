@@ -5,6 +5,23 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Núcleos certos** (Ajustes → Turbo → Segundo plano calmo): nos processadores Intel híbridos (12ª geração ou mais
+  nova), os programas acalmados também vão para os núcleos de eficiência (E), e os de desempenho (P) ficam livres para
+  o jogo, como no Process Lasso. Usa os CPU sets do Windows, o jeito brando (não é afinidade), sem administrador, e
+  desfaz ao sair do Performance, no alt-tab e depois de um travamento. O jogo não é mexido. Nos outros processadores
+  nada muda.
+
+### Correções
+
+- Segundo plano calmo: o Windows passa a prioridade abaixo do normal para o que um programa acalmado abre. Um jogo
+  aberto pela Steam acalmada nascia com prioridade baixa (e, com a prioridade alta ligada, voltava a ela ao sair do
+  Performance), e abas novas do navegador ficavam abaixo do normal depois. Agora o jogo volta ao normal na hora, e o
+  resto volta junto com o programa que o abriu.
+
 ## 1.5.0
 
 ### Novidades

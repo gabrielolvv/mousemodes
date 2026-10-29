@@ -117,6 +117,120 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Calm_PutsTheProgramOnTheEfficiencyCoresOfAHybridCpu()
+        {
+            using (var temp = new TempFolder())
+            using (Process ping = StartPing())
+            {
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, ping);
+                    bool hybrid = CpuSets.Background != null;
+
+                    calmer.Calm(NoGames, null);
+                    // No CI o processador pode não ser híbrido: aí os núcleos ficam como estão.
+                    Assert.Equal(hybrid, cfg.CalmBackup[0].Cores);
+                    Assert.Equal(hybrid ? CpuSets.Background.Length : 0, CpuSets.CountOf(ping.Handle));
+
+                    calmer.RestoreAll();
+                    Assert.Equal(0, CpuSets.CountOf(ping.Handle));
+                }
+                finally
+                {
+                    Stop(ping);
+                }
+            }
+        }
+
+        [Fact]
+        public void Calm_AdoptsWhatACalmedProgramOpensAndGivesItBackLater()
+        {
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher())
+            {
+                Process child = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    calmer.Calm(NoGames, null);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(launcher));
+
+                    // O Windows passa a prioridade baixa para o que o programa acalmado abrir.
+                    child = WaitForChild(launcher);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(child));
+
+                    int launcherId = launcher.Id, childId = child.Id;
+                    calmer.Scope = id => id == launcherId || id == childId;
+                    calmer.Calm(NoGames, null);
+                    CalmedProcess adopted = cfg.CalmBackup.Find(e => e.Pid == childId);
+                    Assert.NotNull(adopted);
+                    Assert.Equal(ProcessPriorityClass.Normal, adopted.Priority); // é o que ele teria sem o pai acalmado
+
+                    calmer.RestoreAll();
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(launcher));
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(child));
+                }
+                finally
+                {
+                    if (child != null) Stop(child);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
+        public void Calm_GivesAGameOpenedByACalmedLauncherItsNormalPriorityRightAway()
+        {
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher())
+            {
+                Process game = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    var games = new List<string> { "ping" }; // o ping faz o papel do jogo aberto pela Steam
+                    calmer.Calm(games, null);
+
+                    game = WaitForChild(launcher);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(game));
+
+                    int launcherId = launcher.Id, gameId = game.Id;
+                    calmer.Scope = id => id == launcherId || id == gameId;
+                    calmer.Calm(games, null);
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(game));
+                    Assert.Null(cfg.CalmBackup.Find(e => e.Pid == gameId)); // o jogo não é acalmado
+
+                    calmer.RestoreAll();
+                }
+                finally
+                {
+                    if (game != null) Stop(game);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
+        public void ParentIds_KnowsWhoOpenedEachProcess()
+        {
+            using (Process ping = StartPing())
+            {
+                try
+                {
+                    using (Process me = Process.GetCurrentProcess())
+                        Assert.Equal(me.Id, BackgroundCalmer.ParentIds()[ping.Id]);
+                }
+                finally
+                {
+                    Stop(ping);
+                }
+            }
+        }
+
+        [Fact]
         public void Recover_UndoesWhatACrashLeftBehind()
         {
             using (var temp = new TempFolder())
@@ -197,6 +311,47 @@ namespace MouseModes.Tests
             proc.PriorityClass = ProcessPriorityClass.Normal;
             Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(proc));
             return proc;
+        }
+
+        /// <summary>
+        /// Faz o papel de um launcher: um powershell só deste teste que, depois de 3 s (tempo de ser acalmado), abre um
+        /// ping. Fica aberto até o ping terminar.
+        /// </summary>
+        private static Process StartLauncher()
+        {
+            var info = new ProcessStartInfo("powershell", "-NoProfile -Command \"Start-Sleep 3; ping -n 60 127.0.0.1 > $null\"")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            Process proc = Process.Start(info);
+            proc.PriorityClass = ProcessPriorityClass.Normal;
+            return proc;
+        }
+
+        /// <summary>O ping que o launcher abriu (espera até 15 s).</summary>
+        private static Process WaitForChild(Process launcher)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed < TimeSpan.FromSeconds(15))
+            {
+                foreach (KeyValuePair<int, int> pair in BackgroundCalmer.ParentIds())
+                {
+                    if (pair.Value != launcher.Id) continue;
+                    try
+                    {
+                        Process child = Process.GetProcessById(pair.Key);
+                        if (string.Equals(child.ProcessName, "PING", StringComparison.OrdinalIgnoreCase)) return child;
+                        child.Dispose();
+                    }
+                    catch (ArgumentException)
+                    {
+                        // já fechou
+                    }
+                }
+                System.Threading.Thread.Sleep(100);
+            }
+            throw new TimeoutException("o launcher do teste não abriu o ping");
         }
 
         private static ProcessPriorityClass PriorityOf(Process proc)
