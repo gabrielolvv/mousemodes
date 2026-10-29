@@ -58,12 +58,12 @@ namespace MouseModes
         {
             cfg = AppConfig.LoadOrCreate();
             L.Init(cfg.Language); // antes de criar qualquer tela
-            Log.Info("MouseModes " + typeof(TrayApp).Assembly.GetName().Version.ToString(3) + " iniciado" + (startHidden ? " (com o Windows)" : "") + " — " + Application.ExecutablePath);
+            Log.Info("MouseModes " + typeof(TrayApp).Assembly.GetName().Version.ToString(3) + L.T(" iniciado", " started") + (startHidden ? L.T(" (com o Windows)", " (with Windows)") : "") + " — " + Application.ExecutablePath);
 
             // Se o app caiu com as notificações silenciadas, devolve agora.
             if (cfg.NotificationBackup != null && cfg.NotificationBackup.Active)
             {
-                Log.Warn("O app foi fechado sem restaurar as notificações da última vez; restaurando agora");
+                Log.Warn(L.T("O app foi fechado sem restaurar as notificações da última vez; restaurando agora", "The app closed without restoring notifications last time; restoring them now"));
                 NotificationSilencer.Restore(cfg);
             }
 
@@ -161,12 +161,12 @@ namespace MouseModes
                 quitWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(quitSignal, (state, timedOut) =>
                 {
                     if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
-                        mainForm.BeginInvoke((Action)(() => { Log.Info("Saída pedida pelo instalador"); Quit(); }));
+                        mainForm.BeginInvoke((Action)(() => { Log.Info(L.T("Saída pedida pelo instalador", "Quit requested by the installer")); Quit(); }));
                 }, null, -1, true);
             }
 
             // "Iniciar com o Windows" aponta para o exe; se ele mudou de lugar (ex.: instalado), corrige.
-            try { Startup.RefreshPath(); } catch (Exception ex) { Log.Error("Atualizar Iniciar com o Windows", ex); }
+            try { Startup.RefreshPath(); } catch (Exception ex) { Log.Error(L.T("Atualizar Iniciar com o Windows", "Update Start with Windows"), ex); }
 
             // Sempre começa no Dia a dia, sem regravar o Windows (só desfaz um Performance que ficou para trás).
             // Se um jogo já estiver aberto, o detector troca logo em seguida.
@@ -229,7 +229,7 @@ namespace MouseModes
             autoItem.Checked = cfg.AutoSwitch;
             mainForm.ShowAuto(cfg.AutoSwitch);
             gameWasRunning = false; // reavalia na próxima checagem
-            Log.Info("Troca automática " + (cfg.AutoSwitch ? "ligada" : "desligada"));
+            Log.Info(L.T("Troca automática ", "Automatic switch ") + (cfg.AutoSwitch ? L.T("ligada", "on") : L.T("desligada", "off")));
             SaveConfig();
             if (cfg.AutoSwitch) CheckGames();
         }
@@ -240,7 +240,7 @@ namespace MouseModes
             bool running = game != null;
 
             if (game != currentGame)
-                Log.Info(running ? "Jogo detectado: " + game : "Jogo fechado: " + currentGame);
+                Log.Info(running ? L.T("Jogo detectado: ", "Game detected: ") + game : L.T("Jogo fechado: ", "Game closed: ") + currentGame);
 
             // Prioridade alta: aplica a processos novos do jogo (o FiveM, por exemplo, abre o processo do GTA depois).
             if (running && modes.Current == Mode.Performance && cfg.BoostGamePriority)
@@ -377,7 +377,7 @@ namespace MouseModes
                 if (low != null)
                 {
                     monitorWarned = true;
-                    Log.Warn(low.Label + " em " + low.CurrentHz + " Hz (aceita " + low.MaxHz + " Hz)");
+                    Log.Warn(low.Label + L.T(" em ", " at ") + low.CurrentHz + L.T(" Hz (aceita ", " Hz (supports ") + low.MaxHz + " Hz)");
                     ShowBalloon(low.Label + L.T(" em ", " at ") + low.CurrentHz + " Hz",
                         L.T("Ele aceita ", "It supports ") + low.MaxHz + L.T(" Hz. Ajuste na tela do MouseModes para ter menos delay.", " Hz. Fix it on the MouseModes screen for less delay."),
                         ToolTipIcon.Warning);
@@ -412,7 +412,7 @@ namespace MouseModes
                 allOk &= ok;
                 string line = m.Label + ": " + (ok ? m.CurrentHz + " → " + m.MaxHz + " Hz" : L.T("não ajustado", "not changed")) + (msg != null ? " (" + msg + ")" : "");
                 results.Add(line);
-                if (ok) Log.Info("Monitor ajustado — " + line); else Log.Warn("Monitor — " + line);
+                if (ok) Log.Info(L.T("Monitor ajustado — ", "Monitor adjusted — ") + line); else Log.Warn("Monitor — " + line);
             }
             RefreshMonitors();
             if (results.Count > 0)
@@ -502,7 +502,7 @@ namespace MouseModes
             if (language == cfg.Language) return;
             cfg.Language = language;
             SaveConfig();
-            Log.Info("Idioma escolhido: " + (language ?? "automático"));
+            Log.Info(L.T("Idioma escolhido: ", "Language chosen: ") + (language ?? L.T("automático", "automatic")));
             // O aviso já sai no idioma escolhido; as telas mudam quando o app abrir de novo.
             bool english = L.UseEnglish(language, System.Globalization.CultureInfo.CurrentUICulture);
             ShowBalloon("MouseModes", english
@@ -544,7 +544,7 @@ namespace MouseModes
             try { cfg.Save(); }
             catch (Exception ex)
             {
-                Log.Error("Salvar configuração", ex);
+                Log.Error(L.T("Salvar configuração", "Save settings"), ex);
                 ShowBalloon(L.T("Erro ao salvar", "Could not save"), ex.Message, ToolTipIcon.Error);
             }
         }
@@ -581,7 +581,7 @@ namespace MouseModes
             balloonUrl = null;
             if (!UpdateChecker.IsReleaseLink(url)) return;
             try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true }); }
-            catch (Exception ex) { Log.Error("Abrir " + url, ex); }
+            catch (Exception ex) { Log.Error(L.T("Abrir ", "Open ") + url, ex); }
         }
 
         // ---------------- Versão nova ----------------
@@ -631,7 +631,8 @@ namespace MouseModes
             cfg.LastUpdateCheck = DateTime.UtcNow;
             SaveConfig();
             bool newer = UpdateChecker.IsNewer(latest.Version, UpdateChecker.Current);
-            Log.Info("Versão mais nova no GitHub: " + latest.Tag + (newer ? " (esta é " + UpdateChecker.Current + ")" : " (já é esta)"));
+            Log.Info(L.T("Versão mais nova no GitHub: ", "Newest version on GitHub: ") + latest.Tag +
+                (newer ? L.T(" (esta é ", " (this is ") + UpdateChecker.Current + ")" : L.T(" (já é esta)", " (already this one)")));
 
             if (!newer)
             {
@@ -694,7 +695,7 @@ namespace MouseModes
         /// <summary>Windows desligando ou saindo da conta: desfaz o que não pode ficar para trás.</summary>
         private void OnSessionEnding(object sender, Microsoft.Win32.SessionEndingEventArgs e)
         {
-            Log.Info("Windows encerrando a sessão");
+            Log.Info(L.T("Windows encerrando a sessão", "Windows is ending the session"));
             RestoreGameTimeTweaks();
         }
 
@@ -730,7 +731,7 @@ namespace MouseModes
             modes.WaitForPower(15000);
             // Mesmo se o modo continuar Performance, os extras do jogo não podem ficar ativos sem o app.
             RestoreGameTimeTweaks();
-            Log.Info("MouseModes encerrado");
+            Log.Info(L.T("MouseModes encerrado", "MouseModes quit"));
 
             SaveConfig();
             hotkey.Dispose();

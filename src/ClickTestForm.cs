@@ -88,7 +88,7 @@ namespace MouseModes
                 summary.Warning = true;
                 summary.Title = L.T("Raw Input indisponível", "Raw Input unavailable");
                 summary.Subtitle = error;
-                Log.Warn("Teste de clique: Raw Input indisponível (" + error + ")");
+                Log.Warn(L.T("Teste de clique: Raw Input indisponível (", "Click test: Raw Input unavailable (") + error + ")");
             }
         }
 
@@ -127,7 +127,7 @@ namespace MouseModes
                     {
                         tiles[i].Ghosts++;
                         if (gap < minGhost[i]) minGhost[i] = gap;
-                        Log.Warn("Teste de clique: clique fantasma no botão " + Names[i] + " (" + gap.ToString("0") + " ms)");
+                        Log.Warn(L.T("Teste de clique: clique fantasma no botão ", "Click test: ghost click on the ") + Names[i] + L.T(" (", " button (") + gap.ToString("0") + " ms)");
                     }
                     AddEvent(Short[i].PadRight(5) + (ghost ? L.T("  FANTASMA  ", "  GHOST     ") : L.T("  clique    ", "  click     ")) +
                              (gap >= 0 ? gap.ToString("0").PadLeft(6) + L.T(" ms desde o anterior", " ms since the previous") : L.T("      primeiro clique", "      first click")));

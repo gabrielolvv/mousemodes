@@ -243,7 +243,7 @@ namespace MouseModes
                     targetMisses = 0;
                     History.Add(round);
                     if (History.Count > HistoryMax) History.RemoveAt(0);
-                    Log.Info(string.Format("Teste de mira: {0} · {1} acertos, {2} erros, tempo {3:0} ms, parada {4:0.00}, passou {5:0%}",
+                    Log.Info(string.Format(L.T("Teste de mira: {0} · {1} acertos, {2} erros, tempo {3:0} ms, parada {4:0.00}, passou {5:0%}", "Aim test: {0} · {1} hits, {2} misses, time {3:0} ms, stop {4:0.00}, overshot {5:0%}"),
                         round.Label, round.Hits, round.Misses, round.Median(t => t.TimeMs), round.Median(t => t.EndRatio), round.OvershootRate));
                     ShowResults();
                     return;

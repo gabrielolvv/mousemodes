@@ -284,14 +284,14 @@ namespace MouseModes
                 try
                 {
                     cfg.ForExport().SaveTo(dialog.FileName);
-                    Log.Info("Configuração exportada para " + dialog.FileName);
+                    Log.Info(L.T("Configuração exportada para ", "Settings exported to ") + dialog.FileName);
                     ConfirmDialog.Inform(this, L.T("Configuração exportada", "Settings exported"),
                         L.T("Jogos, perfis, Turbo e ajustes gerais foram salvos no arquivo. Use \"Importar\" no outro PC.",
                             "Games, profiles, Turbo and general settings were saved to the file. Use \"Import\" on the other PC."));
                 }
                 catch (Exception ex)
                 {
-                    Log.Error("Exportar configuração", ex);
+                    Log.Error(L.T("Exportar configuração", "Export settings"), ex);
                     ConfirmDialog.Inform(this, L.T("Não foi possível exportar", "Could not export"), ex.Message);
                 }
             }
@@ -318,7 +318,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Importar configuração de " + path, ex);
+                Log.Error(L.T("Importar configuração de ", "Import settings from ") + path, ex);
                 ConfirmDialog.Inform(this, L.T("Arquivo não reconhecido", "File not recognized"), L.T("Este arquivo não é uma configuração do MouseModes.", "This file is not a MouseModes settings file."));
                 return;
             }
@@ -343,11 +343,12 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Salvar configuração importada", ex);
+                Log.Error(L.T("Salvar configuração importada", "Save imported settings"), ex);
                 ConfirmDialog.Inform(this, L.T("Não foi possível salvar", "Could not save"), ex.Message);
                 return;
             }
-            Log.Info("Configuração importada de " + path + ": " + cfg.Games.Count + " jogo(s), " + cfg.AppsToClose.Count + " programa(s) para fechar");
+            Log.Info(L.T("Configuração importada de ", "Settings imported from ") + path + ": " + cfg.Games.Count + L.T(" jogo(s), ", " game(s), ") +
+                cfg.AppsToClose.Count + L.T(" programa(s) para fechar", " program(s) to close"));
 
             var handler = Saved;
             if (handler != null) handler();
@@ -391,11 +392,11 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Salvar configurações", ex);
+                Log.Error(L.T("Salvar configurações", "Save settings"), ex);
                 ConfirmDialog.Inform(this, L.T("Não foi possível salvar", "Could not save"), ex.Message);
                 return;
             }
-            Log.Info("Configurações salvas");
+            Log.Info(L.T("Configurações salvas", "Settings saved"));
 
             var handler = Saved;
             if (handler != null) handler();
@@ -884,7 +885,7 @@ namespace MouseModes
                 ? L.T("Nenhum jogo da Steam ou da Epic encontrado neste PC.", "No Steam or Epic game found on this PC.")
                 : installed + (installed == 1 ? L.T(" jogo instalado", " installed game") : L.T(" jogos instalados", " installed games")) + L.T(" fora da lista", " not in the list") +
                   (listed > 0 ? " (" + listed + (listed == 1 ? L.T(" já está nela)", " already in it)") : L.T(" já estão nela)", " already in it)")) : "") + ".";
-            Log.Info("Busca de jogos: " + games.Count + " instalado(s) na Steam/Epic, " + installed + " fora da lista");
+            Log.Info(L.T("Busca de jogos: ", "Find games: ") + games.Count + L.T(" instalado(s) na Steam/Epic, ", " installed on Steam/Epic, ") + installed + L.T(" fora da lista", " not in the list"));
         }
 
         private void DrawItem(object sender, DrawItemEventArgs e)

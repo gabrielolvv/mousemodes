@@ -98,11 +98,11 @@ namespace MouseModes
                 if (!RegisterHotKey(Handle, HotkeyId, mods[i] | MOD_NOREPEAT, (uint)keys[i])) continue;
                 registered = true;
                 ActiveCaps = Caps(mods[i], keys[i]);
-                if (i == 0) Log.Info("Atalho global: " + wanted);
-                else Log.Warn(wanted + " já é usado por outro programa; usando " + Describe(mods[i], keys[i]));
+                if (i == 0) Log.Info(L.T("Atalho global: ", "Global hotkey: ") + wanted);
+                else Log.Warn(wanted + L.T(" já é usado por outro programa; usando ", " is already used by another program; using ") + Describe(mods[i], keys[i]));
                 return i == 0;
             }
-            Log.Warn("Nenhum atalho global disponível (todos usados por outros programas)");
+            Log.Warn(L.T("Nenhum atalho global disponível (todos usados por outros programas)", "No global hotkey available (all used by other programs)"));
             return false;
         }
 

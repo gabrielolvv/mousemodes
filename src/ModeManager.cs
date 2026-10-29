@@ -58,7 +58,7 @@ namespace MouseModes
             if (cfg.LastMode != Mode.DiaADia)
             {
                 bool crashed = cfg.LastMode == Mode.Performance;
-                if (crashed) Log.Warn("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia");
+                if (crashed) Log.Warn(L.T("O app saiu com o modo Performance aplicado da última vez; voltando ao Dia a dia", "The app quit with Performance mode applied last time; going back to Daily"));
                 recovering = crashed; // o Windows ainda está como Performance: o plano anterior também volta
                 try { Apply(Mode.DiaADia, crashed ? L.T("Recuperado ao iniciar", "Recovered at startup") : L.T("Iniciado", "Started")); }
                 finally { recovering = false; }
@@ -69,7 +69,7 @@ namespace MouseModes
             Current = Mode.DiaADia;
             CurrentProfile = cfg.Daily;
             CurrentGameProfile = null;
-            Log.Info("Modo Dia a dia — Iniciado (configurações do Windows mantidas)");
+            Log.Info(L.T("Modo Dia a dia — Iniciado (configurações do Windows mantidas)", "Daily mode — Started (Windows settings kept)"));
 
             var handler = ModeChanged;
             if (handler != null) handler(Mode.DiaADia, L.T("Iniciado", "Started"), new List<string>());
@@ -91,7 +91,7 @@ namespace MouseModes
             if (leavingPerformance && cfg.Daily.PowerPlan == PowerPlanOption.NaoAlterar)
             {
                 restorePlan = ValidGuid(cfg.DailyPlanGuid);
-                if (restorePlan == null) Log.Info("Plano de energia anterior desconhecido; o atual fica");
+                if (restorePlan == null) Log.Info(L.T("Plano de energia anterior desconhecido; o atual fica", "Previous power plan unknown; keeping the current one"));
             }
 
             MouseProfile profile;
@@ -121,8 +121,8 @@ namespace MouseModes
             cfg.LastMode = mode;
             SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
 
-            Log.Info("Modo " + (mode == Mode.Performance ? "Performance" : "Dia a dia") +
-                     (gameProfile != null ? " (perfil de " + gameProfile + ")" : "") + " — " + reason);
+            Log.Info(L.T("Modo ", "Mode ") + (mode == Mode.Performance ? "Performance" : L.T("Dia a dia", "Daily")) +
+                     (gameProfile != null ? L.T(" (perfil de ", " (profile of ") + gameProfile + ")" : "") + " — " + reason);
             foreach (string w in warnings) Log.Warn(w);
 
             var handler = ModeChanged;
@@ -141,11 +141,11 @@ namespace MouseModes
             {
                 MouseSettings.Apply(wantDaily ? cfg.Daily : CurrentProfile, false);
                 DailyMouseInUse = wantDaily;
-                Log.Info(wantDaily ? "Jogo fora da tela: mouse do Dia a dia" : "Jogo na tela: mouse do Performance");
+                Log.Info(wantDaily ? L.T("Jogo fora da tela: mouse do Dia a dia", "Game off screen: Daily mouse") : L.T("Jogo na tela: mouse do Performance", "Game on screen: Performance mouse"));
             }
             catch (Exception ex)
             {
-                Log.Error("Trocar o mouse pela janela em foco", ex);
+                Log.Error(L.T("Trocar o mouse pela janela em foco", "Switch the mouse by the window in focus"), ex);
             }
         }
 
@@ -158,9 +158,9 @@ namespace MouseModes
                 now.EnhancePointerPrecision == d.EnhancePointerPrecision &&
                 now.ScrollLines == d.ScrollLines) return;
 
-            Log.Info("Dia a dia atualizado com o mouse do Windows: velocidade " + d.PointerSpeed + " → " + now.PointerSpeed +
-                     ", aceleração " + OnOff(d.EnhancePointerPrecision) + " → " + OnOff(now.EnhancePointerPrecision) +
-                     ", rolagem " + d.ScrollLines + " → " + now.ScrollLines);
+            Log.Info(L.T("Dia a dia atualizado com o mouse do Windows: velocidade ", "Daily updated from the Windows mouse: speed ") + d.PointerSpeed + " → " + now.PointerSpeed +
+                     L.T(", aceleração ", ", acceleration ") + OnOff(d.EnhancePointerPrecision) + " → " + OnOff(now.EnhancePointerPrecision) +
+                     L.T(", rolagem ", ", scroll ") + d.ScrollLines + " → " + now.ScrollLines);
             d.PointerSpeed = now.PointerSpeed;
             d.EnhancePointerPrecision = now.EnhancePointerPrecision;
             d.ScrollLines = now.ScrollLines;
@@ -173,7 +173,7 @@ namespace MouseModes
         public bool WaitForPower(int timeoutMs)
         {
             bool done = powerIdle.WaitOne(timeoutMs);
-            if (!done) Log.Warn("Plano de energia ainda sendo aplicado depois de " + timeoutMs / 1000 + " s");
+            if (!done) Log.Warn(L.T("Plano de energia ainda sendo aplicado depois de ", "Power plan still being applied after ") + timeoutMs / 1000 + " s");
             return done;
         }
 
@@ -222,7 +222,7 @@ namespace MouseModes
             var handler = PowerWarnings;
             if (handler != null)
             {
-                try { handler(warnings); } catch (Exception ex) { Log.Error("Avisar falha do plano de energia", ex); }
+                try { handler(warnings); } catch (Exception ex) { Log.Error(L.T("Avisar falha do plano de energia", "Report power plan failure"), ex); }
             }
         }
 
@@ -234,13 +234,13 @@ namespace MouseModes
             // Espera ela acabar; só acontece quando os modos trocam em sequência rápida.
             if (!powerIdle.WaitOne(3000))
             {
-                Log.Info("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes");
+                Log.Info(L.T("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes", "Power plan still changing; keeping the Daily plan saved before"));
                 return;
             }
             string guid = PowerSettings.ActivePlanGuid();
             if (guid == null || guid == cfg.DailyPlanGuid) return;
             cfg.DailyPlanGuid = guid;
-            Log.Info("Plano de energia do Dia a dia guardado: " + guid);
+            Log.Info(L.T("Plano de energia do Dia a dia guardado: ", "Daily power plan saved: ") + guid);
         }
 
         /// <summary>O config é editável à mão: só passa adiante (para o powercfg) um GUID de verdade.</summary>
@@ -252,12 +252,12 @@ namespace MouseModes
 
         private static string OnOff(bool on)
         {
-            return on ? "ligada" : "desligada";
+            return on ? L.T("ligada", "on") : L.T("desligada", "off");
         }
 
         private void SaveQuietly()
         {
-            try { cfg.Save(); } catch (Exception ex) { Log.Error("Salvar configuração", ex); }
+            try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); }
         }
 
         /// <summary>Volta tudo ao padrão de fábrica do Windows e passa a usar isso como Dia a dia.</summary>
@@ -272,7 +272,7 @@ namespace MouseModes
                 DisableUsbSelectiveSuspend = false
             };
             cfg.Daily = defaults;
-            Log.Info("Restaurando padrões do Windows (velocidade 10, aceleração ligada, rolagem 3, Equilibrado, USB padrão)");
+            Log.Info(L.T("Restaurando padrões do Windows (velocidade 10, aceleração ligada, rolagem 3, Equilibrado, USB padrão)", "Restoring Windows defaults (speed 10, acceleration on, scroll 3, Balanced, default USB)"));
             Apply(Mode.DiaADia, L.T("Padrões do Windows restaurados", "Windows defaults restored"));
         }
     }

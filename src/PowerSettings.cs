@@ -37,7 +37,7 @@ namespace MouseModes
                         if (restorePlan == null) break;
                         if (Run("/setactive " + restorePlan))
                         {
-                            Log.Info("Plano de energia anterior reativado (" + restorePlan + ")");
+                            Log.Info(L.T("Plano de energia anterior reativado (", "Previous power plan reactivated (") + restorePlan + ")");
                         }
                         else if (!ActivateBalanced(store))
                         {
@@ -45,7 +45,7 @@ namespace MouseModes
                         }
                         else
                         {
-                            Log.Warn("O plano de energia anterior (" + restorePlan + ") não existe mais; ativado o Equilibrado");
+                            Log.Warn(L.T("O plano de energia anterior (", "The previous power plan (") + restorePlan + L.T(") não existe mais; ativado o Equilibrado", ") no longer exists; Balanced turned on"));
                         }
                         break;
                     case PowerPlanOption.Equilibrado:
@@ -64,7 +64,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Plano de energia", ex);
+                Log.Error(L.T("Plano de energia", "Power plan"), ex);
                 warnings.Add(L.T("Erro ao trocar o plano de energia: ", "Error changing the power plan: ") + ex.Message);
             }
 
@@ -81,7 +81,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Suspensão seletiva de USB", ex);
+                Log.Error(L.T("Suspensão seletiva de USB", "USB selective suspend"), ex);
                 warnings.Add(L.T("Erro ao ajustar o USB: ", "Error setting USB: ") + ex.Message);
             }
         }
@@ -96,7 +96,7 @@ namespace MouseModes
 
             var described = new List<string>();
             foreach (KeyValuePair<string, string> plan in Plans()) described.Add(plan.Value + " (" + plan.Key + ")");
-            Log.Warn("Planos de energia neste PC: " + string.Join(", ", described.ToArray()));
+            Log.Warn(L.T("Planos de energia neste PC: ", "Power plans on this PC: ") + string.Join(", ", described.ToArray()));
             return false;
         }
 
@@ -120,7 +120,7 @@ namespace MouseModes
             if (saved != null)
             {
                 if (Run("/setactive " + saved)) return true;
-                Log.Info("A cópia guardada do plano (" + saved + ") não existe mais");
+                Log.Info(L.T("A cópia guardada do plano (", "The saved plan copy (") + saved + L.T(") não existe mais", ") no longer exists"));
                 store.RememberPlanCopy(templateGuid, null);
             }
 
@@ -133,7 +133,7 @@ namespace MouseModes
                 {
                     if (plan.Value.IndexOf(name, StringComparison.OrdinalIgnoreCase) < 0) continue;
                     if (!Run("/setactive " + plan.Key)) continue;
-                    Log.Info("Plano ativado pelo nome: " + plan.Value + " (" + plan.Key + ")");
+                    Log.Info(L.T("Plano ativado pelo nome: ", "Plan turned on by name: ") + plan.Value + " (" + plan.Key + ")");
                     if (store != null && name == copyName) store.RememberPlanCopy(templateGuid, plan.Key);
                     return true;
                 }
@@ -147,7 +147,7 @@ namespace MouseModes
 
             string guid = created.Value.ToLowerInvariant();
             Run("/changename " + guid + " \"" + copyName + "\"");
-            Log.Info("Plano \"" + copyName + "\" criado (" + guid + ")");
+            Log.Info(L.T("Plano ", "Plan ") + "\"" + copyName + "\"" + L.T(" criado (", " created (") + guid + ")");
             if (store != null) store.RememberPlanCopy(templateGuid, guid);
             return Run("/setactive " + guid);
         }
@@ -184,7 +184,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Ler planos de energia do registro", ex);
+                Log.Error(L.T("Ler planos de energia do registro", "Read power plans from the registry"), ex);
             }
             if (plans.Count > 0) return plans;
 
@@ -258,13 +258,13 @@ namespace MouseModes
                     if (!proc.WaitForExit(10000))
                     {
                         try { proc.Kill(); } catch { }
-                        Log.Warn("powercfg " + args + " não respondeu em 10 s");
+                        Log.Warn("powercfg " + args + L.T(" não respondeu em 10 s", " did not respond within 10 s"));
                         return false;
                     }
                     // Já saiu: as leituras terminam assim que o buffer for esvaziado.
                     if (!outRead.Wait(2000) || !errRead.Wait(2000))
                     {
-                        Log.Warn("powercfg " + args + ": saída não terminou de chegar");
+                        Log.Warn("powercfg " + args + L.T(": saída não terminou de chegar", ": output did not finish arriving"));
                         return false;
                     }
                     output = outRead.Result;
@@ -273,7 +273,7 @@ namespace MouseModes
                     {
                         string detail = (error + " " + output).Trim().Replace("\r", " ").Replace("\n", " ");
                         if (detail.Length > 160) detail = detail.Substring(0, 160) + "…";
-                        Log.Info("powercfg " + args + " → código " + proc.ExitCode + (detail.Length > 0 ? ": " + detail : ""));
+                        Log.Info("powercfg " + args + L.T(" → código ", " → code ") + proc.ExitCode + (detail.Length > 0 ? ": " + detail : ""));
                     }
                     return proc.ExitCode == 0;
                 }

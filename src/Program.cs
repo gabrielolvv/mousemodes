@@ -49,7 +49,7 @@ namespace MouseModes
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.ThreadException += (s, e) =>
                 {
-                    Log.Error("Erro inesperado", e.Exception);
+                    Log.Error(L.T("Erro inesperado", "Unexpected error"), e.Exception);
                     MessageBox.Show("Erro inesperado: " + e.Exception.Message, "MouseModes",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 };
@@ -112,12 +112,12 @@ namespace MouseModes
                 modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
                 NotificationSilencer.Restore(cfg); // só faz algo se ficaram silenciadas
                 Startup.SetEnabled(false);
-                Log.Info("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows");
+                Log.Info(L.T("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows", "Uninstall: Daily mode applied and removed from Start with Windows"));
                 return 0;
             }
             catch (Exception ex)
             {
-                Log.Error("Desinstalação", ex);
+                Log.Error(L.T("Desinstalação", "Uninstall"), ex);
                 return 1;
             }
         }

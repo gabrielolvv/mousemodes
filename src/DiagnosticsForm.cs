@@ -175,11 +175,11 @@ namespace MouseModes
             try
             {
                 Clipboard.SetText(systemInfo.Text + Environment.NewLine + Environment.NewLine + text.Text);
-                Log.Info("Diagnóstico copiado para a área de transferência.");
+                Log.Info(L.T("Diagnóstico copiado para a área de transferência.", "Diagnostics copied to the clipboard."));
             }
             catch (Exception ex)
             {
-                Log.Error("Copiar diagnóstico", ex);
+                Log.Error(L.T("Copiar diagnóstico", "Copy diagnostics"), ex);
             }
         }
 
@@ -193,7 +193,7 @@ namespace MouseModes
             }
             catch (Exception ex)
             {
-                Log.Error("Abrir pasta do registro", ex);
+                Log.Error(L.T("Abrir pasta do registro", "Open log folder"), ex);
             }
         }
     }
