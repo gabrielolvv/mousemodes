@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Privacy** (Settings → Privacy): a new page gathers everything that leaves the PC (the new version check and the
+  network X-ray ping) and how to turn it off. The two new version switches moved there from the General page, and
+  there is a new "Measure the network in the X-ray" switch: off, the app sends no ping. The installer shows the same
+  notice before installing.
+
 ## 1.8.0
 
 ### New

@@ -17,7 +17,8 @@ namespace MouseModes
         Mouse,
         Target,
         Close,
-        Minimize
+        Minimize,
+        Shield
     }
 
     /// <summary>Paleta, fontes e funções de desenho do visual escuro/neon.</summary>
@@ -324,6 +325,19 @@ namespace MouseModes
                         g.DrawLine(pen, x + w * 0.50f, y + h * 0.76f, x + w * 0.50f, y + h);
                         g.DrawLine(pen, x, y + h * 0.50f, x + w * 0.24f, y + h * 0.50f);
                         g.DrawLine(pen, x + w * 0.76f, y + h * 0.50f, x + w, y + h * 0.50f);
+                        break;
+
+                    case GlyphKind.Shield:
+                        using (var shield = new GraphicsPath())
+                        {
+                            shield.AddLine(x + w * 0.50f, y + h * 0.04f, x + w * 0.88f, y + h * 0.18f);
+                            shield.AddBezier(x + w * 0.88f, y + h * 0.18f, x + w * 0.88f, y + h * 0.62f, x + w * 0.70f, y + h * 0.82f, x + w * 0.50f, y + h * 0.96f);
+                            shield.AddBezier(x + w * 0.50f, y + h * 0.96f, x + w * 0.30f, y + h * 0.82f, x + w * 0.12f, y + h * 0.62f, x + w * 0.12f, y + h * 0.18f);
+                            shield.CloseFigure();
+                            g.DrawPath(pen, shield);
+                        }
+                        g.DrawLine(pen, x + w * 0.34f, y + h * 0.50f, x + w * 0.46f, y + h * 0.62f);
+                        g.DrawLine(pen, x + w * 0.46f, y + h * 0.62f, x + w * 0.68f, y + h * 0.38f);
                         break;
 
                     case GlyphKind.Close:

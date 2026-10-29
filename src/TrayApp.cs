@@ -380,7 +380,11 @@ namespace MouseModes
             if (quitting) return;
             if (currentGame != null && modes.Current == Mode.Performance)
             {
-                if (!recorder.Recording) recorder.Start(currentGame);
+                if (!recorder.Recording)
+                {
+                    recorder.MeasureNetwork = cfg.MeasureNetwork; // desligado em Ajustes → Privacidade: nenhum ping
+                    recorder.Start(currentGame);
+                }
                 recorder.Sample(cfg.Games);
             }
             else if (recorder.Recording)

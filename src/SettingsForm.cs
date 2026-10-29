@@ -35,6 +35,7 @@ namespace MouseModes
         private readonly ToggleRow monitorCheckRow;
         private readonly ToggleRow updateRow;
         private readonly ToggleRow autoUpdateRow;
+        private readonly ToggleRow networkRow;
         private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
@@ -106,7 +107,7 @@ namespace MouseModes
 
             // --- Geral ---
             var generalPanel = new Panel { BackColor = Theme.Bg };
-            // Linhas de 50 px a cada 54: com a atualização sozinha, a página ainda cabe nos 554 px.
+            // Linhas de 50 px a cada 54. As de versão nova ficam na página Privacidade, com o resto do que sai do PC.
             startWithWindows = MakeRow(L.T("Iniciar com o Windows", "Start with Windows"), L.T("Abre direto na bandeja, sem mostrar a janela", "Opens straight in the tray, without showing the window"), a, b, 0, 50);
             try { startWithWindows.Switch.SetChecked(Startup.IsEnabled(), false); } catch { }
             restoreOnExit = MakeRow(L.T("Voltar ao Dia a dia ao sair", "Back to Daily on quit"), L.T("Desfaz o modo Performance quando o app fecha", "Undoes Performance mode when the app closes"), a, b, 54, 50);
@@ -115,13 +116,7 @@ namespace MouseModes
             notifications.Switch.SetChecked(cfg.ShowNotifications, false);
             monitorCheckRow = MakeRow(L.T("Avisar sobre a taxa do monitor", "Warn about the monitor refresh rate"), L.T("Mostra na tela inicial se algum monitor está abaixo do máximo", "Shows on the main screen if a monitor is below its max"), a, b, 162, 50);
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
-            updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b, 216, 50);
-            updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
-            autoUpdateRow = MakeRow(L.T("Instalar versão nova sozinho", "Install new versions by itself"),
-                L.T("Baixa do GitHub, confere o SHA-256 e instala fora do jogo", "Downloads, checks the SHA-256 and installs outside games"), a, b, 270, 50);
-            autoUpdateRow.Switch.SetChecked(cfg.AutoUpdate, false);
-
-            var hotkeyLabel = new SectionLabel { Text = L.T("Atalho para trocar de modo", "Hotkey to switch modes"), Location = new Point(0, 330), Size = new Size(440, 20) };
+            var hotkeyLabel = new SectionLabel { Text = L.T("Atalho para trocar de modo", "Hotkey to switch modes"), Location = new Point(0, 222), Size = new Size(440, 20) };
             // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
             hotkeyBox = new HotkeyBox();
             uint savedMods;
@@ -129,8 +124,8 @@ namespace MouseModes
             if (!HotkeyWindow.TryParse(cfg.CustomHotkey, out savedMods, out savedKey))
                 HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
             hotkeyBox.SetValue(savedMods, savedKey);
-            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 352), Size = new Size(300, 40), Accent = b };
-            var hotkeyDefault = new NeonButton { Text = L.T("Padrão", "Default"), Location = new Point(310, 352), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 244), Size = new Size(300, 40), Accent = b };
+            var hotkeyDefault = new NeonButton { Text = L.T("Padrão", "Default"), Location = new Point(310, 244), Size = new Size(130, 40), AccentA = a, AccentB = b };
             hotkeyDefault.Click += (s, e) =>
             {
                 uint mods;
@@ -139,25 +134,55 @@ namespace MouseModes
                 hotkeyBox.SetValue(mods, key);
             };
 
-            var maintenance = new SectionLabel { Text = L.T("Manutenção", "Maintenance"), Location = new Point(0, 402), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = L.T("Diagnóstico", "Diagnostics"), Location = new Point(0, 426), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var maintenance = new SectionLabel { Text = L.T("Manutenção", "Maintenance"), Location = new Point(0, 294), Size = new Size(440, 20) };
+            var diag = new NeonButton { Text = L.T("Diagnóstico", "Diagnostics"), Location = new Point(0, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
             diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
-            var export = new NeonButton { Text = L.T("Exportar", "Export"), Location = new Point(150, 426), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var export = new NeonButton { Text = L.T("Exportar", "Export"), Location = new Point(150, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
             export.Click += (s, e) => ExportConfig();
-            var import = new NeonButton { Text = L.T("Importar", "Import"), Location = new Point(300, 426), Size = new Size(140, 42), AccentA = a, AccentB = b };
+            var import = new NeonButton { Text = L.T("Importar", "Import"), Location = new Point(300, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
             import.Click += (s, e) => ImportConfig();
-            var restore = new NeonButton { Text = L.T("Restaurar padrões do Windows", "Restore Windows defaults"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 476), Size = new Size(440, 42) };
+            var restore = new NeonButton { Text = L.T("Restaurar padrões do Windows", "Restore Windows defaults"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 368), Size = new Size(440, 42) };
             restore.Click += (s, e) => ConfirmRestore();
             var restoreNote = Note(L.T("Velocidade 10, aceleração ligada, rolagem 3, plano Equilibrado e USB padrão. " +
                                        "O Dia a dia passa a usar esses valores.",
                                        "Speed 10, acceleration on, scroll 3, Balanced plan and default USB. " +
                                        "Daily mode starts using these values."),
-                                   0, 522, 440, 32, Theme.Faint, 8.5f);
+                                   0, 414, 440, 40, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, updateRow, autoUpdateRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
                 generalPanel.Controls.Add(c);
 
-            pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel };
+            // --- Privacidade: tudo o que sai do PC, e como desligar ---
+            var privacyPanel = new Panel { BackColor = Theme.Bg };
+            var outLabel = new SectionLabel { Text = L.T("O que sai do seu PC", "What leaves your PC"), Location = new Point(0, 0), Size = new Size(440, 20) };
+            var outNote = Note(L.T("• Uma vez por dia, uma consulta à página de versões do GitHub, para saber se há versão nova; ao atualizar, " +
+                                   "o instalador é baixado da Release do GitHub.\n" +
+                                   "• Durante a partida, com o Raio-X da rede ligado: um ping por segundo ao seu roteador e ao 1.1.1.1 " +
+                                   "(Cloudflare), sem conteúdo.\n" +
+                                   "• Mais nada: sem conta e sem telemetria. As configurações e o registro ficam neste PC, em %APPDATA%\\MouseModes.",
+                                   "• Once a day, a request to the GitHub releases page, to know whether there is a new version; when updating, " +
+                                   "the installer is downloaded from the GitHub Release.\n" +
+                                   "• During a match, with the network X-ray on: one ping per second to your router and to 1.1.1.1 " +
+                                   "(Cloudflare), with no content.\n" +
+                                   "• Nothing else: no account and no telemetry. Settings and the log stay on this PC, in %APPDATA%\\MouseModes."),
+                               0, 24, 440, 150, Theme.Muted, 9f);
+            updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b, 184, 50);
+            updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
+            autoUpdateRow = MakeRow(L.T("Instalar versão nova sozinho", "Install new versions by itself"),
+                L.T("Baixa do GitHub, confere o SHA-256 e instala fora do jogo", "Downloads, checks the SHA-256 and installs outside games"), a, b, 238, 50);
+            autoUpdateRow.Switch.SetChecked(cfg.AutoUpdate, false);
+            networkRow = MakeRow(L.T("Medir a rede no Raio-X", "Measure the network in the X-ray"),
+                L.T("Um ping por segundo ao roteador e ao 1.1.1.1, só na partida", "One ping per second to the router and 1.1.1.1, only in a match"), a, b, 292, 50);
+            networkRow.Switch.SetChecked(cfg.MeasureNetwork, false);
+            var privacyNote = Note(L.T("Desligando as duas primeiras, o app não fala com o GitHub sozinho (Procurar versão nova, no ícone da " +
+                                       "bandeja, continua funcionando). O código está aberto no GitHub para quem quiser conferir.",
+                                       "With the first two off, the app does not talk to GitHub by itself (Check for a new version, in the tray " +
+                                       "icon, still works). The code is open on GitHub for anyone who wants to check."),
+                                   0, 352, 440, 48, Theme.Faint, 8.5f);
+            foreach (Control c in new Control[] { outLabel, outNote, updateRow, autoUpdateRow, networkRow, privacyNote })
+                privacyPanel.Controls.Add(c);
+
+            pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel, privacyPanel };
             foreach (Panel p in pages)
             {
                 p.Location = new Point(PageX, PageY);
@@ -172,7 +197,8 @@ namespace MouseModes
                 new NavItem { Text = L.T("Dia a dia", "Daily"), Glyph = GlyphKind.Monitor, AccentA = a, AccentB = b },
                 new NavItem { Text = L.T("Jogos", "Games"), Glyph = GlyphKind.Mouse, AccentA = pa, AccentB = pb },
                 new NavItem { Text = "Turbo", Glyph = GlyphKind.Gauge, AccentA = pa, AccentB = pb },
-                new NavItem { Text = L.T("Geral", "General"), Glyph = GlyphKind.Gear, AccentA = a, AccentB = b }
+                new NavItem { Text = L.T("Geral", "General"), Glyph = GlyphKind.Gear, AccentA = a, AccentB = b },
+                new NavItem { Text = L.T("Privacidade", "Privacy"), Glyph = GlyphKind.Shield, AccentA = a, AccentB = b }
             };
             for (int i = 0; i < nav.Length; i++)
             {
@@ -385,6 +411,7 @@ namespace MouseModes
             cfg.MonitorCheck = monitorCheckRow.Switch.Checked;
             cfg.CheckForUpdates = updateRow.Switch.Checked;
             cfg.AutoUpdate = autoUpdateRow.Switch.Checked;
+            cfg.MeasureNetwork = networkRow.Switch.Checked;
             // Uma das opções fixas fica como índice; qualquer outra vira atalho livre (as fixas seguem de reserva).
             int choice = HotkeyWindow.ChoiceIndex(hotkeyBox.Mods, hotkeyBox.Key);
             if (choice >= 0)

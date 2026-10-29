@@ -47,6 +47,14 @@ VIAddVersionKey /LANG=1046 "LegalCopyright" "${PUBLISHER}"
 !define MUI_WELCOMEPAGE_TITLE "Instalar o ${APPNAME} ${VERSION}"
 !define MUI_WELCOMEPAGE_TEXT "O ${APPNAME} alterna o mouse e o PC entre o modo Performance (jogos) e o modo Dia a dia.$\r$\n$\r$\nA instalação é só para o seu usuário e não precisa de administrador. Se o ${APPNAME} estiver aberto, ele será fechado e as configurações do Windows voltam ao modo Dia a dia antes de atualizar."
 !insertmacro MUI_PAGE_WELCOME
+; Privacidade (exigida pela assinatura de código da SignPath Foundation): o que sai do PC e onde desligar.
+; No modo silencioso (atualização sozinha, winget) as páginas não aparecem.
+!define MUI_PAGE_HEADER_TEXT "Privacidade"
+!define MUI_PAGE_HEADER_SUBTEXT "O que o ${APPNAME} envia pela internet / What it sends over the internet"
+!define MUI_LICENSEPAGE_TEXT_TOP "Leia antes de instalar. Role para ver tudo."
+!define MUI_LICENSEPAGE_TEXT_BOTTOM "Dá para desligar tudo isso no app, em Ajustes > Privacidade."
+!define MUI_LICENSEPAGE_BUTTON "Próximo >"
+!insertmacro MUI_PAGE_LICENSE "privacidade.txt"
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES

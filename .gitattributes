@@ -1,0 +1,2 @@
+# Texto da página de Privacidade do instalador: a caixa de texto do Windows quer CRLF (o CI compila no Linux).
+installer/privacidade.txt text eol=crlf

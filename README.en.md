@@ -39,7 +39,7 @@ page (also in the `MouseModes-Setup.exe.sha256` file). In PowerShell, in the dow
   version is out, it downloads the installer from the Release, checks the SHA-256 published there and installs over
   the current one, never during a game: the app closes, installs and opens again in the tray within seconds, with the
   same settings. If anything does not match, it does not install and only shows a notice. You can turn it off in
-  Settings → General (then it only notifies) or check right away from the tray icon → Check for a new version. To
+  Settings → Privacy (then it only notifies) or check right away from the tray icon → Check for a new version. To
   update by hand, download and run the installer again.
 - To uninstall: Settings → Apps → Installed apps → MouseModes. Mouse and power go back to Daily mode.
 
@@ -201,6 +201,36 @@ Executable arguments: `--tray` (starts in the tray), `--quit` (closes the runnin
 `--performance`, `--daily` and `--toggle` (switch the mode). With another copy running, the command goes to it and
 the exe exits with code 0, or 1 if the running copy is from a version without these commands. When updating by
 itself, the app runs the installer with `/S /RELAUNCH`, and the installer opens the new version with `--tray --updated`.
+
+## Code signing policy
+
+MouseModes has applied for the SignPath Foundation's free code signing for open source projects. Once the project is
+approved, the installers published on the GitHub Releases are signed by it, straight from this repository's CI
+build, and the "Windows protected your PC" warning tends to go away. Until then, the installer is not signed: check
+the SHA-256 published with each Release.
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+
+Team and roles:
+
+- Committers and reviewers: [gabrielolvv](https://github.com/gabrielolvv)
+- Approvers (each signing request): [gabrielolvv](https://github.com/gabrielolvv)
+
+Only what comes out of this repository's automated build, from the public source code, is signed, with manual
+approval for every version.
+
+## Privacy
+
+MouseModes has no account, no telemetry and no ads. It only talks to other systems in these cases, and you can turn
+each of them off in Settings → Privacy:
+
+- **New versions**: once a day, a request to the GitHub releases page (api.github.com). When updating, the installer
+  is downloaded from the GitHub Release. Only your IP address and the program name go along, as in any website visit.
+- **Network X-ray**: during a match (Performance with a listed game open), one ping per second to your router and to
+  1.1.1.1 (Cloudflare), with no content.
+
+Settings and the log of what the app does stay on this PC, in `%APPDATA%\MouseModes`. The installer shows this
+notice before installing.
 
 ## License
 

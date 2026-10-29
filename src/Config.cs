@@ -151,6 +151,9 @@ namespace MouseModes
         /// <summary>Processos acalmados agora (para desfazer após travamento). Só deste PC.</summary>
         public List<CalmedProcess> CalmBackup { get; set; }
 
+        /// <summary>Raio-X da rede: um ping por segundo ao roteador e ao 1.1.1.1 durante a partida. Desligado, não sai ping.</summary>
+        public bool MeasureNetwork { get; set; }
+
         /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
         public bool ResolutionChanged { get; set; }
 
@@ -267,6 +270,7 @@ namespace MouseModes
             SilenceNotifications = true;
             CheckForUpdates = true;
             AutoUpdate = true;
+            MeasureNetwork = true;
         }
 
         /// <summary>Perfil a usar no Performance: o do jogo aberto, se ele tiver um próprio.</summary>

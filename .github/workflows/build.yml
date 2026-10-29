@@ -7,6 +7,11 @@ name: Build
 #
 # As actions são fixadas pelo commit (com a versão no comentário): uma tag pode ser movida para outro código,
 # um commit não. Para atualizar, troque o SHA pelo da versão nova (git ls-remote --tags <repo>).
+#
+# Assinatura de código (SignPath Foundation, grátis para open source): só roda quando a variável do repositório
+# SIGNPATH_ORGANIZATION_ID existe (Settings → Secrets and variables → Actions → Variables), junto com o segredo
+# SIGNPATH_API_TOKEN. Sem elas, a Release sai como antes, sem assinatura. Com elas, o job de Release manda o
+# instalador para a SignPath, espera a aprovação manual (até 1 h) e publica o instalador assinado.
 
 on:
   push:
@@ -22,6 +27,8 @@ jobs:
   build:
     name: App + instalador (.NET Framework 4.8)
     runs-on: ubuntu-24.04
+    outputs:
+      installer-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -57,6 +64,16 @@ jobs:
           path: dist/*.exe
           if-no-files-found: error
 
+      # Só o instalador, num artefato próprio: é o que vai para a SignPath assinar (nas tags).
+      - name: Guardar o instalador para assinar
+        id: unsigned
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: MouseModes-Setup-unsigned-${{ github.sha }}
+          path: dist/MouseModes-Setup.exe
+          if-no-files-found: error
+
       - name: SHA-256 no resumo do run
         run: |
           echo '### SHA-256' >> "$GITHUB_STEP_SUMMARY"
@@ -82,6 +99,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read # a SignPath baixa o artefato do instalador com este token
     steps:
       # Só para ler os CHANGELOGs: o instalador vem do artefato do job de build.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -91,7 +109,28 @@ jobs:
           name: MouseModes-${{ github.sha }}
           path: dist
 
-      # O app não é assinado: o SHA-256 deixa conferir que o instalador baixado é o que o CI gerou.
+      # Assinatura pela SignPath Foundation, quando o projeto estiver aprovado (ver o comentário no topo). A pessoa que
+      # aprova recebe o pedido no site da SignPath; o job espera até 1 h.
+      - name: Assinar o instalador (SignPath)
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2.3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: mousemodes
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ needs.build.outputs.installer-artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed
+
+      - name: Usar o instalador assinado
+        if: vars.SIGNPATH_ORGANIZATION_ID != ''
+        run: |
+          test -f dist/signed/MouseModes-Setup.exe
+          mv -f dist/signed/MouseModes-Setup.exe dist/MouseModes-Setup.exe
+
+      # O SHA-256 é sempre do instalador publicado (assinado ou não): deixa conferir que é o que o CI gerou.
       - name: SHA-256 do instalador
         id: hash
         run: |
@@ -123,6 +162,8 @@ jobs:
             echo "SHA-256 do instalador / installer SHA-256: \`$SHA256\`"
             echo
             echo 'Para conferir no PowerShell / To check it in PowerShell: `(Get-FileHash .\MouseModes-Setup.exe -Algorithm SHA256).Hash`'
+            echo
+            echo '[Política de assinatura de código](https://github.com/gabrielolvv/mousemodes#pol%C3%ADtica-de-assinatura-de-c%C3%B3digo) · [Code signing policy](https://github.com/gabrielolvv/mousemodes/blob/main/README.en.md#code-signing-policy)'
           } > dist/release-notes.md
           cat dist/release-notes.md
 

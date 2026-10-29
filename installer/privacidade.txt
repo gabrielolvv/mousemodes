@@ -1,0 +1,24 @@
+﻿O QUE O MOUSEMODES ENVIA PELA INTERNET
+
+1. Versão nova: uma vez por dia, o app consulta a página de versões do GitHub (api.github.com) para saber se saiu versão nova. Ao atualizar, ele baixa o instalador da Release do GitHub e confere o SHA-256 antes de instalar. Nenhum dado seu vai junto além do que qualquer acesso a um site envia (o endereço IP e o nome do programa).
+
+2. Raio-X da rede: durante a partida (modo Performance com um jogo da lista aberto), o app manda um ping por segundo ao seu roteador e ao 1.1.1.1 (Cloudflare), sem conteúdo, para medir a latência.
+
+3. Mais nada: sem conta, sem telemetria, sem anúncios. As configurações e o registro do que o app faz ficam neste PC, em %APPDATA%\MouseModes.
+
+Para desligar: abra o MouseModes > Ajustes > Privacidade. Lá dá para desligar a consulta de versão nova, a instalação sozinha e o Raio-X da rede.
+
+O código é aberto (licença MIT): https://github.com/gabrielolvv/mousemodes
+
+
+WHAT MOUSEMODES SENDS OVER THE INTERNET
+
+1. New versions: once a day, the app checks the GitHub releases page (api.github.com) for a new version. When updating, it downloads the installer from the GitHub Release and checks its SHA-256 before installing. No data of yours goes along beyond what any website visit sends (your IP address and the program name).
+
+2. Network X-ray: during a match (Performance mode with a listed game open), the app sends one ping per second to your router and to 1.1.1.1 (Cloudflare), with no content, to measure latency.
+
+3. Nothing else: no account, no telemetry, no ads. Settings and the log of what the app does stay on this PC, in %APPDATA%\MouseModes.
+
+To turn it off: open MouseModes > Settings > Privacy. You can turn off the new version check, self-update and the network X-ray there.
+
+The code is open (MIT license): https://github.com/gabrielolvv/mousemodes

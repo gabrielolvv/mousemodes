@@ -34,7 +34,7 @@ Para conferir que o instalador baixado é o mesmo que o GitHub gerou, compare o 
 - Atualiza sozinho: uma vez por dia o app consulta a página de releases do GitHub, sem enviar nada do seu PC. Quando
   sai versão nova, ele baixa o instalador da Release, confere o SHA-256 publicado nela e instala por cima, nunca
   durante o jogo: o app fecha, instala e abre de novo na bandeja em alguns segundos, com as mesmas configurações. Se
-  algo não bater, ele não instala e só avisa. Dá para desligar em Ajustes → Geral (aí ele só avisa) ou procurar na
+  algo não bater, ele não instala e só avisa. Dá para desligar em Ajustes → Privacidade (aí ele só avisa) ou procurar na
   hora pelo ícone da bandeja → Procurar versão nova. Para atualizar à mão, baixe e rode o instalador de novo.
 - Para desinstalar: Configurações → Aplicativos instalados → MouseModes. O mouse e a energia voltam ao modo Dia a dia.
 
@@ -192,6 +192,37 @@ Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópi
 `--performance`, `--daily` e `--toggle` (trocam o modo). Com outra cópia aberta, o comando vai para ela e o exe sai
 com código 0, ou 1 se a cópia aberta for de uma versão sem esses comandos. Na atualização sozinha, o app roda o
 instalador com `/S /RELAUNCH`, e o instalador abre a versão nova com `--tray --updated`.
+
+## Política de assinatura de código
+
+O MouseModes pediu a assinatura de código gratuita para projetos open source da SignPath Foundation. Quando o
+projeto for aprovado, os instaladores publicados nas Releases do GitHub passam a ser assinados por ela, direto do
+build do CI deste repositório, e o aviso "O Windows protegeu o computador" tende a sumir. Até lá, o instalador não é
+assinado: confira o SHA-256 publicado em cada Release.
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+
+Equipe e papéis:
+
+- Commits e revisão: [gabrielolvv](https://github.com/gabrielolvv)
+- Aprovação de cada assinatura: [gabrielolvv](https://github.com/gabrielolvv)
+
+Só é assinado o que sai do build automático deste repositório, a partir do código público, com aprovação manual a
+cada versão.
+
+## Privacidade
+
+O MouseModes não tem conta, telemetria nem anúncios. Ele só fala com outros sistemas nestes casos, e todos dá para
+desligar em Ajustes → Privacidade:
+
+- **Versão nova**: uma vez por dia, uma consulta à página de versões do GitHub (api.github.com). Ao atualizar, o
+  instalador é baixado da Release do GitHub. Vão só o endereço IP e o nome do programa, como em qualquer acesso a um
+  site.
+- **Raio-X da rede**: durante a partida (Performance com um jogo da lista aberto), um ping por segundo ao seu roteador
+  e ao 1.1.1.1 (Cloudflare), sem conteúdo.
+
+As configurações e o registro do que o app faz ficam neste PC, em `%APPDATA%\MouseModes`. O instalador mostra este
+aviso antes de instalar.
 
 ## Licença
 

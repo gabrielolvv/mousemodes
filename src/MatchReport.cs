@@ -219,7 +219,6 @@ namespace MouseModes
         internal static readonly TimeSpan MinDuration = TimeSpan.FromMinutes(2);
 
         private readonly int self = Process.GetCurrentProcess().Id;
-        private readonly bool measureNetwork;
         private MatchStats stats;
         private NetworkProbe probe;
         private string game;
@@ -227,17 +226,23 @@ namespace MouseModes
         /// <param name="measureNetwork">Mede também a rede (ping a cada segundo, numa thread própria).</param>
         public MatchRecorder(bool measureNetwork = true)
         {
-            this.measureNetwork = measureNetwork;
+            MeasureNetwork = measureNetwork;
         }
 
+        /// <summary>Mede a rede nas próximas partidas (Ajustes → Privacidade). Vale a partir do próximo Start.</summary>
+        public bool MeasureNetwork { get; set; }
+
         public bool Recording { get { return stats != null; } }
+
+        /// <summary>Há um ping rodando nesta partida (para os testes).</summary>
+        internal bool MeasuringNetwork { get { return probe != null; } }
 
         public void Start(string gameName)
         {
             game = gameName;
             DateTime now = DateTime.UtcNow;
             stats = new MatchStats(now, Environment.ProcessorCount);
-            probe = measureNetwork ? new NetworkProbe(now) : null;
+            probe = MeasureNetwork ? new NetworkProbe(now) : null;
         }
 
         public void Sample(IList<string> games)
