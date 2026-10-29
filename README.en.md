@@ -5,6 +5,8 @@
 Windows 10/11 app that switches your mouse and PC between two modes: **Performance** (games) and **Daily**.
 Switch from the main screen, with a global hotkey, or automatically when a game opens.
 
+**Website:** [gabrielolvv.github.io/mousemodes](https://gabrielolvv.github.io/mousemodes/): what the app does, screens and download.
+
 <p align="center">
   <a href="https://github.com/gabrielolvv/mousemodes/releases/latest/download/MouseModes-Setup.exe">
     <img alt="Download the Windows installer" src="https://img.shields.io/badge/Download%20installer-Windows%2010%2F11-E84C28?style=for-the-badge&logo=windows&logoColor=white" height="48">
