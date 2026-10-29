@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MouseModes · modo jogo para o seu PC com Windows</title>
+  <meta name="description" content="App grátis e de código aberto para Windows 10/11: um clique troca mouse, energia e Windows entre Performance e Dia a dia, e desfaz tudo quando o jogo fecha.">
+  <meta name="theme-color" content="#0a0d14">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="MouseModes · modo jogo para o seu PC">
+  <meta property="og:description" content="Um clique troca mouse, energia e Windows entre Performance e Dia a dia. Grátis, código aberto, sem administrador.">
+  <meta property="og:image" content="https://gabrielolvv.github.io/mousemodes/img/og.png">
+  <meta property="og:url" content="https://gabrielolvv.github.io/mousemodes/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top" aria-label="MouseModes">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="5"/><line x1="12" y1="7" x2="12" y2="10"/></svg></span>
+        <span class="brand-name">MouseModes</span>
+      </a>
+      <nav class="nav-links" aria-label="Seções">
+        <a href="#recursos" data-i18n="nav.features">Recursos</a>
+        <a href="#raio-x" data-i18n="nav.xray">Raio-X</a>
+        <a href="#delay" data-i18n="nav.delay">Delay de verdade</a>
+        <a href="#baixar" data-i18n="nav.download">Baixar</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="lang" type="button" id="lang" aria-label="Mudar idioma / Change language">EN</button>
+        <a class="star-btn" href="https://github.com/gabrielolvv/mousemodes" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>
+          <span data-i18n="nav.star">Estrela</span>
+          <span class="star-count" id="stars" hidden></span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Abertura -->
+    <section class="hero">
+      <div class="wrap hero-inner">
+        <div class="hero-text">
+          <p class="eyebrow"><span class="dot"></span><span data-i18n="hero.eyebrow">Grátis · código aberto · Windows 10 e 11</span></p>
+          <h1 data-i18n-html="hero.title">Um clique e o seu PC entra no <span class="grad-perf">modo jogo</span>.</h1>
+          <p class="lead" data-i18n="hero.lead">O MouseModes troca mouse, energia e Windows entre Performance e Dia a dia, sozinho quando o jogo abre, e desfaz tudo quando ele fecha. Sem administrador, sem telemetria, sem tweak milagroso.</p>
+          <div class="cta-row">
+            <a class="btn btn-perf" href="https://github.com/gabrielolvv/mousemodes/releases/latest/download/MouseModes-Setup.exe">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
+              <span data-i18n="cta.download">Baixar para Windows</span>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/gabrielolvv/mousemodes" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>
+              <span data-i18n="cta.star">Dar estrela no GitHub</span>
+            </a>
+          </div>
+          <p class="fineprint"><span data-i18n="hero.fine">Instalador de ~270 KB · só para o seu usuário · atualiza sozinho</span><span class="version" id="version"></span></p>
+        </div>
+        <div class="hero-shots" aria-hidden="true">
+          <img class="shot shot-back" src="img/main-daily-pt.png" data-src-pt="img/main-daily-pt.png" data-src-en="img/main-daily-en.png" alt="" width="480" height="724">
+          <img class="shot shot-front" src="img/main-perf-pt.png" data-src-pt="img/main-perf-pt.png" data-src-en="img/main-perf-en.png" alt="" width="480" height="724">
+        </div>
+      </div>
+    </section>
+
+    <!-- Garantias -->
+    <section class="trust">
+      <div class="wrap trust-inner">
+        <div class="trust-item"><strong data-i18n="trust.1t">Sem administrador</strong><span data-i18n="trust.1d">Instala e roda só no seu usuário.</span></div>
+        <div class="trust-item"><strong data-i18n="trust.2t">Desfaz tudo</strong><span data-i18n="trust.2d">Ao sair do Performance, fechar o app ou desligar o PC.</span></div>
+        <div class="trust-item"><strong data-i18n="trust.3t">Sem telemetria</strong><span data-i18n="trust.3d">Só consulta a página de versões do GitHub.</span></div>
+        <div class="trust-item"><strong data-i18n="trust.4t">Código aberto</strong><span data-i18n="trust.4d">Cada versão sai do GitHub com o SHA-256 publicado.</span></div>
+      </div>
+    </section>
+
+    <!-- Os dois modos -->
+    <section class="modes" id="modos">
+      <div class="wrap">
+        <h2 class="section-title" data-i18n="modes.title">Dois modos. Troca em um clique, por atalho ou sozinho.</h2>
+        <div class="mode-grid">
+          <article class="mode-card perf">
+            <h3>Performance</h3>
+            <p class="mode-sub" data-i18n="modes.perfSub">Para jogar</p>
+            <ul>
+              <li data-i18n="modes.perf1">Ponteiro 1:1 e aceleração desligada</li>
+              <li data-i18n="modes.perf2">Plano de energia Alto desempenho</li>
+              <li data-i18n="modes.perf3">USB sem suspensão: o mouse nunca "adormece"</li>
+              <li data-i18n="modes.perf4">Turbo: prioridade alta, tecla Windows bloqueada, notificações em silêncio</li>
+            </ul>
+          </article>
+          <article class="mode-card daily">
+            <h3 data-i18n="modes.dailyTitle">Dia a dia</h3>
+            <p class="mode-sub" data-i18n="modes.dailySub">Para trabalhar e navegar</p>
+            <ul>
+              <li data-i18n="modes.daily1">Volta a velocidade e a aceleração que você usava</li>
+              <li data-i18n="modes.daily2">Volta o plano de energia anterior</li>
+              <li data-i18n="modes.daily3">USB no padrão do Windows</li>
+              <li data-i18n="modes.daily4">Tudo o que o Turbo mudou volta ao normal</li>
+            </ul>
+          </article>
+        </div>
+        <p class="note" data-i18n="modes.note">A troca automática reconhece o jogo pelo nome do processo. Também dá para trocar com Ctrl+Alt+M, até dentro do jogo, ou por um botão do Stream Deck.</p>
+      </div>
+    </section>
+
+    <!-- Recursos -->
+    <section class="features" id="recursos">
+      <div class="wrap">
+        <h2 class="section-title" data-i18n="feat.title">Tudo o que vem junto</h2>
+        <div class="feature-grid">
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 12h4l2-6 4 12 2-6h4"/></svg></span>
+            <h3 data-i18n="feat.calm.t">Segundo plano calmo</h3>
+            <p data-i18n="feat.calm.d">Em vez de fechar, deixa navegador, Steam e OneDrive com prioridade baixa e em modo de eficiência. Nos Intel híbridos, manda eles para os núcleos E e deixa os P para o jogo.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+            <h3 data-i18n="feat.xray.t">Raio-X da partida</h3>
+            <p data-i18n="feat.xray.d">Ao fechar o jogo, mostra quem mais pesou em segundo plano e resolve num clique: fechar ao jogar ou acalmar.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></span>
+            <h3 data-i18n="feat.aim.t">Teste de mira e DPI</h3>
+            <p data-i18n="feat.aim.d">20 segundos de alvos. Mede se você passa do alvo, se para antes e quantas correções faz, e sugere o DPI.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17l6-6 4 4 6-8"/><path d="M15 7h5v5"/></svg></span>
+            <h3 data-i18n="feat.sens.t">Conversor de sensibilidade</h3>
+            <p data-i18n="feat.sens.d">A mesma mira (cm/360) em CS2, Apex, Valorant, Overwatch 2 e Call of Duty, ou com outro DPI.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19a9 9 0 1 1 14 0"/><path d="M12 13l4-5"/></svg></span>
+            <h3 data-i18n="feat.poll.t">Polling rate e clique</h3>
+            <p data-i18n="feat.poll.d">Mede quantas leituras por segundo o mouse manda, o jitter, e se o switch já dá clique duplo.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+            <h3 data-i18n="feat.hz.t">Taxa do monitor</h3>
+            <p data-i18n="feat.hz.d">Avisa quando o monitor de 144 ou 165 Hz está rodando a 60 Hz e corrige com um clique.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/><path d="M16.5 14v6M13.5 17h6"/></svg></span>
+            <h3 data-i18n="feat.games.t">Perfis por jogo</h3>
+            <p data-i18n="feat.games.d">Velocidade, aceleração e plano próprios para cada jogo. A busca acha os jogos da Steam e da Epic.</p>
+          </article>
+          <article class="feature">
+            <span class="ficon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></span>
+            <h3 data-i18n="feat.update.t">Atualiza sozinho</h3>
+            <p data-i18n="feat.update.d">Baixa a versão nova do GitHub, confere o SHA-256 e instala fora do jogo, com as mesmas configurações.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Destaques -->
+    <section class="spotlight" id="raio-x">
+      <div class="wrap spot">
+        <div class="spot-text">
+          <p class="kicker" data-i18n="spot1.k">Raio-X da partida</p>
+          <h2 data-i18n="spot1.t">Descubra quem rouba o seu PC durante o jogo.</h2>
+          <p data-i18n="spot1.d">Enquanto o jogo está aberto, o app anota a cada 3 segundos quanto processador e quantos dados cada programa em segundo plano usou. No fim, um aviso mostra os culpados (chrome com pico de 61%, OneDrive com 2,1 GB) e o que fazer com cada um.</p>
+          <p class="note" data-i18n="spot1.n">Só lê, sem administrador. Mede quem pesou, não o FPS.</p>
+        </div>
+        <img class="spot-shot" src="img/report-pt.png" data-src-pt="img/report-pt.png" data-src-en="img/report-en.png" alt="Tela do Raio-X da partida" data-alt-en="Match X-ray screen" width="480" height="548" loading="lazy">
+      </div>
+      <div class="wrap spot spot-rev">
+        <div class="spot-text">
+          <p class="kicker" data-i18n="spot2.k">Turbo</p>
+          <h2 data-i18n="spot2.t">Só no Performance, e tudo volta depois.</h2>
+          <p data-i18n="spot2.d">Prioridade alta para o jogo, tecla Windows bloqueada com o jogo na frente, sem o aviso das Teclas de Aderência, notificações em silêncio e o segundo plano calmo. Se o app travar no meio, ele desfaz ao abrir de novo.</p>
+        </div>
+        <img class="spot-shot" src="img/turbo-pt.png" data-src-pt="img/turbo-pt.png" data-src-en="img/turbo-en.png" alt="Ajustes do Turbo" data-alt-en="Turbo settings" width="660" height="680" loading="lazy">
+      </div>
+      <div class="wrap spot">
+        <div class="spot-text">
+          <p class="kicker" data-i18n="spot3.k">Conversor de sensibilidade</p>
+          <h2 data-i18n="spot3.t">Troque de jogo sem reaprender a mira.</h2>
+          <p data-i18n="spot3.d">Digite a sensibilidade e o DPI que você usa e veja quanto o mouse anda para uma volta completa, e o valor que dá a mesma mira em cada jogo. Trocou o DPI? O app recalcula tudo.</p>
+        </div>
+        <img class="spot-shot" src="img/sens-pt.png" data-src-pt="img/sens-pt.png" data-src-en="img/sens-en.png" alt="Conversor de sensibilidade" data-alt-en="Sensitivity converter" width="480" height="580" loading="lazy">
+      </div>
+    </section>
+
+    <!-- Honestidade -->
+    <section class="delay" id="delay">
+      <div class="wrap">
+        <h2 class="section-title" data-i18n="delay.title">O que realmente tira delay (e o que não)</h2>
+        <p class="section-lead" data-i18n="delay.lead">Sem promessa de FPS mágico. O que pesa de verdade:</p>
+        <div class="delay-grid">
+          <div class="delay-item"><span class="num">01</span><h3 data-i18n="delay.1t">Polling rate</h3><p data-i18n="delay.1d">É o que mais pesa, e se configura no programa do mouse. 1000 Hz é uma leitura por ms; 125 Hz, uma a cada 8 ms. O medidor do app confere.</p></div>
+          <div class="delay-item"><span class="num">02</span><h3 data-i18n="delay.2t">Aceleração desligada</h3><p data-i18n="delay.2d">Com velocidade 10, o movimento fica previsível em menus, no desktop e em jogos sem raw input.</p></div>
+          <div class="delay-item"><span class="num">03</span><h3 data-i18n="delay.3t">Energia e USB acordados</h3><p data-i18n="delay.3d">Evitam que processador e porta USB "durmam" e causem micro travadas.</p></div>
+          <div class="delay-item no"><span class="num">✕</span><h3 data-i18n="delay.4t">Tweak milagroso</h3><p data-i18n="delay.4d">O app não mexe em MouseDataQueueSize, bcdedit e afins: o ganho é duvidoso e às vezes piora.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Baixar -->
+    <section class="download" id="baixar">
+      <div class="wrap download-card">
+        <h2 data-i18n="dl.title">Baixe e jogue em 1 minuto</h2>
+        <ol class="steps">
+          <li data-i18n-html="dl.1">Clique em <strong>Baixar para Windows</strong>.</li>
+          <li data-i18n-html="dl.2">Abra o <code>MouseModes-Setup.exe</code> e clique em <strong>Próximo</strong> até o fim.</li>
+          <li data-i18n-html="dl.3">Se o Windows avisar que protegeu o computador (o app não é assinado), clique em <strong>Mais informações → Executar assim mesmo</strong>.</li>
+        </ol>
+        <div class="cta-row center">
+          <a class="btn btn-perf" href="https://github.com/gabrielolvv/mousemodes/releases/latest/download/MouseModes-Setup.exe">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg>
+            <span data-i18n="cta.download">Baixar para Windows</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/gabrielolvv/mousemodes/releases/latest" target="_blank" rel="noopener" data-i18n="dl.notes">Notas da versão e SHA-256</a>
+        </div>
+        <p class="note" data-i18n="dl.uninstall">Para desinstalar: Configurações → Aplicativos instalados → MouseModes. O mouse e a energia voltam ao Dia a dia.</p>
+      </div>
+    </section>
+
+    <!-- Estrela -->
+    <section class="star-cta">
+      <div class="wrap star-inner">
+        <svg class="big-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>
+        <h2 data-i18n="star.title">Curtiu? Deixe uma estrela.</h2>
+        <p data-i18n="star.lead">É de graça, leva um segundo e ajuda mais gente a achar o MouseModes. Ideias e bugs são bem-vindos nas issues.</p>
+        <div class="cta-row center">
+          <a class="btn btn-perf" href="https://github.com/gabrielolvv/mousemodes" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z"/></svg>
+            <span data-i18n="cta.star">Dar estrela no GitHub</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/gabrielolvv/mousemodes/issues" target="_blank" rel="noopener" data-i18n="star.issues">Sugerir uma ideia</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span>MouseModes</span>
+      <nav aria-label="Links">
+        <a href="https://github.com/gabrielolvv/mousemodes" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/gabrielolvv/mousemodes/releases" target="_blank" rel="noopener" data-i18n="foot.releases">Versões</a>
+        <a href="https://github.com/gabrielolvv/mousemodes/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-i18n="foot.changelog" data-href-en="https://github.com/gabrielolvv/mousemodes/blob/main/CHANGELOG.en.md">Novidades</a>
+        <a href="https://github.com/gabrielolvv/mousemodes/issues" target="_blank" rel="noopener" data-i18n="foot.issues">Problemas e ideias</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
