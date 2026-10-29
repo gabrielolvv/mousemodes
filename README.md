@@ -179,3 +179,7 @@ Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópi
 `--performance`, `--daily` e `--toggle` (trocam o modo). Com outra cópia aberta, o comando vai para ela e o exe sai
 com código 0, ou 1 se a cópia aberta for de uma versão sem esses comandos. Na atualização sozinha, o app roda o
 instalador com `/S /RELAUNCH`, e o instalador abre a versão nova com `--tray --updated`.
+
+## Licença
+
+[MIT](LICENSE): use, modifique e distribua à vontade, mantendo o aviso de copyright. O app vem sem garantia.
