@@ -183,5 +183,109 @@ namespace MouseModes
                 return false;
             }
         }
+
+        private const int DISPLAY_DEVICE_PRIMARY_DEVICE = 0x4;
+        private const int DM_BITSPERPEL = 0x40000;
+        private const int DM_PELSWIDTH = 0x80000;
+        private const int DM_PELSHEIGHT = 0x100000;
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "ChangeDisplaySettingsExW")]
+        private static extern int ResetDisplaySettings(string deviceName, IntPtr devMode, IntPtr hwnd, int flags, IntPtr lParam);
+
+        /// <summary>O nome do monitor principal (\\.\DISPLAY1); null se não achar.</summary>
+        private static string PrimaryDevice()
+        {
+            var dev = new DISPLAY_DEVICE();
+            dev.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
+            for (uint i = 0; EnumDisplayDevices(null, i, ref dev, 0); i++)
+            {
+                if ((dev.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0 && (dev.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0)
+                    return dev.DeviceName;
+                dev = new DISPLAY_DEVICE();
+                dev.cb = Marshal.SizeOf(typeof(DISPLAY_DEVICE));
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Põe o monitor principal na resolução pedida, na maior taxa que ele aceita nela e na mesma profundidade de cor.
+        /// Só na sessão (não grava no registro): <see cref="ResetPrimary"/> volta, e reiniciar o PC também.
+        /// </summary>
+        /// <param name="testOnly">Só pergunta ao driver se aceitaria (CDS_TEST), sem trocar nada.</param>
+        public static bool SetPrimaryResolution(int width, int height, out int hz, out string error, bool testOnly = false)
+        {
+            hz = 0;
+            error = null;
+            try
+            {
+                string device = PrimaryDevice();
+                DEVMODE current = NewDevMode();
+                if (device == null || !EnumDisplaySettings(device, ENUM_CURRENT_SETTINGS, ref current))
+                {
+                    error = L.T("não foi possível ler o monitor principal", "could not read the main monitor");
+                    return false;
+                }
+
+                DEVMODE best = NewDevMode();
+                bool found = false;
+                DEVMODE mode = NewDevMode();
+                for (int m = 0; EnumDisplaySettings(device, m, ref mode); m++)
+                {
+                    bool interlaced = (mode.dmDisplayFlags & DM_INTERLACED) != 0;
+                    if (mode.dmPelsWidth == width && mode.dmPelsHeight == height && mode.dmBitsPerPel == current.dmBitsPerPel &&
+                        !interlaced && (!found || mode.dmDisplayFrequency > best.dmDisplayFrequency))
+                    {
+                        best = mode;
+                        found = true;
+                    }
+                    mode = NewDevMode();
+                }
+                if (!found)
+                {
+                    error = L.T("o monitor principal não aceita ", "the main monitor does not support ") + width + "×" + height;
+                    return false;
+                }
+
+                best.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL | DM_DISPLAYFREQUENCY;
+                int test = ChangeDisplaySettingsEx(device, ref best, IntPtr.Zero, CDS_TEST, IntPtr.Zero);
+                if (test != DISP_CHANGE_SUCCESSFUL)
+                {
+                    error = L.T("o driver recusou (código ", "the driver refused it (code ") + test + ")";
+                    return false;
+                }
+                if (testOnly)
+                {
+                    hz = best.dmDisplayFrequency;
+                    return true;
+                }
+                int result = ChangeDisplaySettingsEx(device, ref best, IntPtr.Zero, 0, IntPtr.Zero); // 0: só nesta sessão
+                if (result != DISP_CHANGE_SUCCESSFUL)
+                {
+                    error = L.T("falhou (código ", "failed (code ") + result + ")";
+                    return false;
+                }
+                hz = best.dmDisplayFrequency;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>Volta o monitor principal à resolução salva no Windows (a que estava antes da troca do jogo).</summary>
+        public static void ResetPrimary()
+        {
+            try
+            {
+                string device = PrimaryDevice();
+                if (device != null) ResetDisplaySettings(device, IntPtr.Zero, IntPtr.Zero, 0, IntPtr.Zero);
+            }
+            catch
+            {
+                // Sem a API de vídeo: reiniciar o PC também volta à resolução salva.
+            }
+        }
     }
 }

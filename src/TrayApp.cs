@@ -30,6 +30,7 @@ namespace MouseModes
         private readonly System.Threading.RegisteredWaitHandle quitWait;
         private readonly GameBooster booster = new GameBooster();
         private readonly BackgroundCalmer calmer;
+        private readonly GameResolution resolution;
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -83,7 +84,9 @@ namespace MouseModes
                 NotificationSilencer.Restore(cfg);
             }
             BackgroundCalmer.Recover(cfg); // só faz algo se o app caiu com o segundo plano acalmado
+            GameResolution.Recover(cfg);   // ou com a resolução de um jogo na tela
             calmer = new BackgroundCalmer(cfg);
+            resolution = new GameResolution(cfg);
 
             modes = new ModeManager(cfg);
             modes.RunningGame = () => currentGame;
@@ -321,6 +324,9 @@ namespace MouseModes
             else if (!running)
                 booster.Prune();
 
+            // Resolução do perfil do jogo: entra com o jogo aberto no Performance, sai quando ele fecha.
+            resolution.Ensure(running && modes.Current == Mode.Performance ? cfg.PerformanceFor(game).Resolution : null);
+
             bool gameChanged = game != currentGame;
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
             {
@@ -491,6 +497,8 @@ namespace MouseModes
 
             if (perf && cfg.BoostGamePriority) booster.Boost(cfg.Games);
             else booster.RestoreAll();
+
+            resolution.Ensure(perf && currentGame != null ? cfg.PerformanceFor(currentGame).Resolution : null);
 
             if (perf && cfg.BlockWinKey) winKey.Enable();
             else winKey.Disable();
@@ -983,6 +991,7 @@ namespace MouseModes
             AccessibilityHotkeys.Restore();
             NotificationSilencer.Restore(cfg);
             calmer.RestoreAll();
+            resolution.Restore();
         }
 
         private void Quit()

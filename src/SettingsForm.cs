@@ -443,6 +443,7 @@ namespace MouseModes
         private readonly SectionLabel speedLabel;
         private readonly ToggleRow precision;
         private readonly Segmented plan;
+        private readonly Segmented resolution;
         private readonly Label emptyNote;
         private Entry current;
 
@@ -473,14 +474,14 @@ namespace MouseModes
             };
             list.DrawItem += DrawItem;
             list.SelectedIndexChanged += (s, e) => { list.Invalidate(); Select(list.SelectedIndex); };
-            var listHost = new FieldHost(list) { Location = new Point(0, 102), Size = new Size(440, 112), Accent = b };
+            var listHost = new FieldHost(list) { Location = new Point(0, 102), Size = new Size(440, 96), Accent = b };
 
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
             nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
-            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 222), Size = new Size(196, 38), Accent = b };
-            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 222), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 222), Size = new Size(78, 38), AccentA = a, AccentB = b };
-            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 222), Size = new Size(72, 38) };
+            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 206), Size = new Size(196, 38), Accent = b };
+            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 206), Size = new Size(74, 38), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 206), Size = new Size(78, 38), AccentA = a, AccentB = b };
+            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 206), Size = new Size(72, 38) };
             add.Click += (s, e) => AddName(nameBox.Text);
             pick.Click += (s, e) =>
             {
@@ -488,28 +489,36 @@ namespace MouseModes
             };
             remove.Click += (s, e) => RemoveSelected();
 
-            customRow = new ToggleRow { Location = new Point(0, 272), Size = new Size(440, 56), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
+            customRow = new ToggleRow { Location = new Point(0, 256), Size = new Size(440, 52), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
             customRow.SetAccents(a, b);
             customRow.Switch.CheckedChanged += OnCustomToggled;
 
-            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 336), Size = new Size(440, 210) };
+            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 312), Size = new Size(440, 238) };
             speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
             speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 22), Size = new Size(448, 36), AccentA = a, AccentB = b };
             speed.ValueChanged += () => { speedLabel.RightText = speed.Value + " / 20"; speedLabel.Invalidate(); };
-            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 66), Size = new Size(440, 52) };
+            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 60), Size = new Size(440, 48) };
             precision.SetAccents(a, b);
-            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 130), Size = new Size(440, 20) };
-            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 154), Size = new Size(440, 42), AccentA = a, AccentB = b };
+            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 114), Size = new Size(440, 20) };
+            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 136), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            // Resolução do monitor principal com o jogo aberto (4:3 esticado depende da escala da placa em "Tela cheia").
+            var resolutionLabel = new SectionLabel { Text = L.T("Resolução com o jogo aberto", "Resolution with the game open"), Location = new Point(0, 178), Size = new Size(440, 20), RightText = L.T("monitor principal", "main monitor"), RightColor = Theme.Faint };
+            var resolutionNames = new string[GameResolution.Options.Length];
+            for (int i = 0; i < resolutionNames.Length; i++)
+                resolutionNames[i] = GameResolution.Options[i] == null ? L.T("NATIVA", "NATIVE") : GameResolution.Format(GameResolution.Options[i]);
+            resolution = new Segmented { Options = resolutionNames, Location = new Point(0, 200), Size = new Size(440, 36), AccentA = a, AccentB = b };
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
             editor.Controls.Add(planLabel);
             editor.Controls.Add(plan);
+            editor.Controls.Add(resolutionLabel);
+            editor.Controls.Add(resolution);
 
             emptyNote = new Label
             {
                 Text = L.T("Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.", "Pick a game in the list to give it its own settings. Scroll and USB follow Performance mode."),
-                Location = new Point(0, 280),
+                Location = new Point(0, 264),
                 Size = new Size(440, 60),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
@@ -574,6 +583,8 @@ namespace MouseModes
             speedLabel.Invalidate();
             precision.Switch.SetChecked(current.Custom.EnhancePointerPrecision, false);
             plan.SelectedIndex = (int)current.Custom.PowerPlan;
+            int res = Array.FindIndex(GameResolution.Options, o => o == current.Custom.Resolution);
+            resolution.SelectedIndex = res < 0 ? 0 : res;
         }
 
         private void CommitEditor()
@@ -582,6 +593,7 @@ namespace MouseModes
             current.Custom.PointerSpeed = speed.Value;
             current.Custom.EnhancePointerPrecision = precision.Switch.Checked;
             current.Custom.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
+            current.Custom.Resolution = GameResolution.Options[Math.Max(0, resolution.SelectedIndex)];
         }
 
         private void AddName(string raw)

@@ -35,6 +35,9 @@ namespace MouseModes
         /// <summary>Impede o Windows de "adormecer" portas USB para economizar energia.</summary>
         public bool DisableUsbSelectiveSuspend { get; set; }
 
+        /// <summary>Resolução do monitor principal com o jogo aberto ("1280x960"); null = não muda. Só nos perfis de jogo.</summary>
+        public string Resolution { get; set; }
+
         public MouseProfile()
         {
             PointerSpeed = 10;
@@ -148,6 +151,9 @@ namespace MouseModes
         /// <summary>Processos acalmados agora (para desfazer após travamento). Só deste PC.</summary>
         public List<CalmedProcess> CalmBackup { get; set; }
 
+        /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
+        public bool ResolutionChanged { get; set; }
+
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
@@ -191,7 +197,8 @@ namespace MouseModes
         /// </summary>
         internal static readonly string[] MachineOnly =
         {
-            "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion"
+            "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
+            "ResolutionChanged"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -209,6 +216,7 @@ namespace MouseModes
             copy.CalmBackup = new List<CalmedProcess>();
             copy.LastUpdateCheck = null;
             copy.NotifiedVersion = null;
+            copy.ResolutionChanged = false;
             return copy;
         }
 

@@ -80,7 +80,12 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
 
 ### More
 
-- **Per-game profiles** (Settings → Games): speed, acceleration and power plan of their own for each game.
+- **Per-game profiles** (Settings → Games): speed, acceleration, power plan and resolution for each game. With a
+  resolution (e.g. 1280×960 for 4:3 stretched in CS2 or Valorant), the main monitor switches to it, at the highest
+  refresh rate it supports, when the game opens in Performance, and goes back to the usual one when the game closes,
+  when leaving Performance or when the app quits. The change is not saved in Windows: restarting the PC also undoes
+  it, and if the app crashes it undoes it when it opens again. To stretch, the graphics card scaling must be set to
+  "Full screen".
 - **Game mouse only with the game on screen** (Settings → Performance, off by default): on alt-tab and on the
   desktop, the mouse goes back to the Daily speed and acceleration; back in the game, it uses the Performance one.
   Power, USB and Turbo do not change.

@@ -5,6 +5,16 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Resolução por jogo** (Ajustes → Jogos → Configurações próprias): escolha 1280×960, 1440×1080, 1024×768 ou
+  1280×1024 para um jogo, e o monitor principal vai para ela, na maior taxa que aceita, com o jogo aberto no
+  Performance. Ao fechar o jogo, sair do Performance ou fechar o app, volta à de sempre. A troca não é gravada no
+  Windows (reiniciar também desfaz) e, se o app travar, ele desfaz ao abrir de novo. Se o monitor não aceitar a
+  resolução, nada muda e o motivo fica no Diagnóstico.
+
 ## 1.7.1
 
 ### Correções

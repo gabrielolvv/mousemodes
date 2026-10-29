@@ -104,7 +104,8 @@ namespace MouseModes.Tests
             // Uma configuração nova entra na importação sozinha; esta lista força pensar se ela é só deste PC.
             var expectedMachineOnly = new HashSet<string>
             {
-                "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion"
+                "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
+                "ResolutionChanged"
             };
             Assert.Equal(expectedMachineOnly, new HashSet<string>(AppConfig.MachineOnly));
             foreach (string name in AppConfig.MachineOnly)
