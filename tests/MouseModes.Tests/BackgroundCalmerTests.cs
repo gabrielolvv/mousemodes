@@ -193,7 +193,9 @@ namespace MouseModes.Tests
                 RedirectStandardOutput = true
             };
             Process proc = Process.Start(info);
-            Assert.Equal(ProcessPriorityClass.Normal, proc.PriorityClass);
+            // O filho herda a prioridade de quem roda os testes (no CI do GitHub ela é abaixo do normal).
+            proc.PriorityClass = ProcessPriorityClass.Normal;
+            Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(proc));
             return proc;
         }
 
