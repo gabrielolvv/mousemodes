@@ -149,8 +149,9 @@ Os textos da tela ficam no código com as duas versões lado a lado: `L.T("Ajust
    `MouseModes-Setup.exe` e o `MouseModes-Setup.exe.sha256` (o SHA-256 também vai no texto da Release).
    O botão de download do README sempre aponta para o instalador da Release mais recente.
 
-As actions do CI são fixadas pelo commit, com a versão num comentário. Para atualizar uma, troque o SHA pelo da versão
-nova (`git ls-remote --tags https://github.com/<dono>/<action>`).
+As actions do CI são fixadas pelo commit, com a versão num comentário. Uma vez por mês o Dependabot
+(`.github/dependabot.yml`) confere se saiu versão nova e, se saiu, abre um PR trocando o SHA e o comentário. Para
+atualizar à mão, troque o SHA pelo da versão nova (`git ls-remote --tags https://github.com/<dono>/<action>`).
 
 Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópia aberta restaurando tudo) e
 `--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador.

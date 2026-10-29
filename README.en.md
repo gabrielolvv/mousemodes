@@ -156,8 +156,9 @@ Texts on screen live in the code with both versions side by side: `L.T("Ajustes"
    and `MouseModes-Setup.exe.sha256` to the Release (the SHA-256 also goes in the Release text).
    The README download button always points to the installer of the latest Release.
 
-The CI actions are pinned by commit, with the version in a comment. To update one, replace the SHA with the new
-version's (`git ls-remote --tags https://github.com/<owner>/<action>`).
+The CI actions are pinned by commit, with the version in a comment. Once a month Dependabot
+(`.github/dependabot.yml`) checks for new versions and, if there is one, opens a PR replacing the SHA and the comment.
+To update by hand, replace the SHA with the new version's (`git ls-remote --tags https://github.com/<owner>/<action>`).
 
 Executable arguments: `--tray` (starts in the tray), `--quit` (closes the running copy, restoring everything) and
 `--uninstall-cleanup` (goes back to Daily and removes "Start with Windows"), used by the installer.
