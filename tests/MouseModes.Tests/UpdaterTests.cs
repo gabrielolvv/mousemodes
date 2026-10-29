@@ -52,6 +52,23 @@ namespace MouseModes.Tests
             Assert.Null(Updater.ParseSha256(content, Updater.Installer));
         }
 
+        [Theory]
+        [InlineData(@"C:\Users\a\AppData\Local\Programs\MouseModes", @"c:\users\a\appdata\local\programs\mousemodes\", true)]
+        [InlineData(@"C:\Users\a\Downloads", @"C:\Users\a\AppData\Local\Programs\MouseModes", false)]
+        [InlineData(@"C:\Users\a\AppData\Local\Programs\MouseModes2", @"C:\Users\a\AppData\Local\Programs\MouseModes", false)]
+        [InlineData(null, @"C:\x", false)]
+        public void SameFolder_IgnoresCaseAndTheTrailingSlash(string a, string b, bool expected)
+        {
+            Assert.Equal(expected, Updater.SameFolder(a, b));
+        }
+
+        [Fact]
+        public void IsInstalledCopy_IsFalseForALooseCopy()
+        {
+            // Uma cópia solta (Downloads, pendrive) só avisa: o instalador gravaria em outra pasta.
+            Assert.False(Updater.IsInstalledCopy(@"C:\Temp\mm-loose-copy\MouseModes.exe"));
+        }
+
         [Fact]
         public void Verify_AcceptsTheRightFileWithTheRightHashAndVersion()
         {

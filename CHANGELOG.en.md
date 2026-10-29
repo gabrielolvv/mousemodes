@@ -4,6 +4,31 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### Fixes
+
+- Self-update: anyone who leaves Performance on without a game open is told that the new version is already downloaded
+  and installs when they leave it (before, it waited silently, forever). The automatic check downloads nothing with a
+  game open. A loose copy of the exe (outside the installed folder) only notifies, instead of installing into another
+  folder every day. If the install fails with the old app still open, the window no longer opens by itself.
+- Calm background: a game opened through a middle process (the anti-cheat bootstrapper, the EA or Rockstar launcher)
+  from a calmed Steam also goes back to Normal, even if the middle process has already closed; before, it could stay
+  below normal. A calmed program that is added to the games list goes back to normal right away. The original priority
+  is no longer given back to another process that reused the game's PID.
+- Network X-ray: a single long outage (e.g. 30 s without internet) no longer comes out as "network stable". Packet
+  loss without spikes no longer shows as "0 spikes". The Wi-Fi dropping mid-match counts as a local problem, and the
+  end of the match no longer freezes the tray when the network does not answer. Whoever was busy at the time of a
+  spike shows as "read/wrote": those bytes are disk, and Windows does not split them from network per program.
+- Match X-ray: an off-cycle check (when saving Settings) no longer inflates the CPU peak. A report taller than the
+  screen (high Windows scaling) scrolls.
+- The polling meter, click test and real DPI opened at the same time no longer steal the mouse from each other, and
+  closing one no longer turns the others off. On remote desktop and in virtual machines, absolute movement is no
+  longer added up as sensor counts.
+- Real DPI: changing the mouse DPI resets the runs; the value is only saved with two or more runs that agree; alt-tab
+  mid-drag ends the run; quitting the app with the screen open also saves. The converter now shows the DPI entered in
+  the measurement, without overwriting it on close.
+
 ## 1.7.0
 
 ### New

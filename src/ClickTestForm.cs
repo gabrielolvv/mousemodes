@@ -83,7 +83,8 @@ namespace MouseModes
         {
             base.OnHandleCreated(e);
             string error;
-            if (!raw.Register(Handle, false, out error))
+            // Sem "sink": só conta clique com esta tela em primeiro plano.
+            if (!raw.Register(this, false, (dx, dy, flags) => { if (flags != 0) HandleButtons(flags); }, out error))
             {
                 summary.Warning = true;
                 summary.Title = L.T("Raw Input indisponível", "Raw Input unavailable");
@@ -94,20 +95,8 @@ namespace MouseModes
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            raw.Unregister();
             raw.Dispose();
             base.OnFormClosed(e);
-        }
-
-        protected override void WndProc(ref Message m)
-        {
-            if (m.Msg == RawMouse.WM_INPUT)
-            {
-                int dx, dy;
-                ushort flags;
-                if (raw.Read(m.LParam, out dx, out dy, out flags) && flags != 0) HandleButtons(flags);
-            }
-            base.WndProc(ref m);
         }
 
         private void HandleButtons(ushort flags)

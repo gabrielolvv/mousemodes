@@ -214,6 +214,103 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Calm_AdoptsAGrandchildOpenedThroughAMiddleProcess()
+        {
+            // Launcher acalmado → cmd → ping: como Steam → bootstrapper do anti-cheat → jogo.
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher("cmd /c ping -n 60 127.0.0.1"))
+            {
+                Process grandchild = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    calmer.Calm(NoGames, null);
+
+                    grandchild = WaitForPing(started => true, launcher.Id);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(grandchild));
+
+                    int launcherId = launcher.Id, pingId = grandchild.Id;
+                    calmer.Scope = id => id == launcherId || id == pingId;
+                    calmer.Calm(NoGames, null);
+                    CalmedProcess adopted = cfg.CalmBackup.Find(e => e.Pid == pingId);
+                    Assert.NotNull(adopted);
+                    Assert.Equal(ProcessPriorityClass.Normal, adopted.Priority);
+                    // Ele passa a prioridade baixa adiante desde que nasceu.
+                    Assert.Equal(adopted.StartTime, adopted.CalmedAt);
+
+                    calmer.RestoreAll();
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(grandchild));
+                }
+                finally
+                {
+                    if (grandchild != null) Stop(grandchild);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
+        public void Calm_GivesBackAGameWhoseLauncherChainAlreadyClosed()
+        {
+            // O cmd do meio abre o "jogo" e fecha na hora: não dá para subir até o launcher acalmado.
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher("cmd /c start /b ping -n 60 127.0.0.1"))
+            {
+                Process game = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    var games = new List<string> { "ping" };
+                    DateTime began = DateTime.Now;
+                    calmer.Calm(games, null);
+
+                    game = WaitForPing(started => started >= began, null);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(game));
+
+                    int launcherId = launcher.Id, gameId = game.Id;
+                    calmer.Scope = id => id == launcherId || id == gameId;
+                    calmer.Calm(games, null);
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(game));
+                    Assert.Null(cfg.CalmBackup.Find(e => e.Pid == gameId));
+
+                    calmer.RestoreAll();
+                }
+                finally
+                {
+                    if (game != null) Stop(game);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
+        public void Calm_ReleasesAProgramThatBecameAGame()
+        {
+            using (var temp = new TempFolder())
+            using (Process ping = StartPing())
+            {
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, ping);
+                    calmer.Calm(NoGames, null);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(ping));
+
+                    // A pessoa pôs o programa na lista de jogos e salvou com o Performance ligado.
+                    calmer.Calm(new List<string> { "ping" }, null);
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(ping));
+                    Assert.Empty(cfg.CalmBackup);
+                }
+                finally
+                {
+                    Stop(ping);
+                }
+            }
+        }
+
+        [Fact]
         public void ParentIds_KnowsWhoOpenedEachProcess()
         {
             using (Process ping = StartPing())
@@ -317,9 +414,9 @@ namespace MouseModes.Tests
         /// Faz o papel de um launcher: um powershell só deste teste que, depois de 3 s (tempo de ser acalmado), abre um
         /// ping. Fica aberto até o ping terminar.
         /// </summary>
-        private static Process StartLauncher()
+        private static Process StartLauncher(string then = "ping -n 60 127.0.0.1 > $null")
         {
-            var info = new ProcessStartInfo("powershell", "-NoProfile -Command \"Start-Sleep 3; ping -n 60 127.0.0.1 > $null\"")
+            var info = new ProcessStartInfo("powershell", "-NoProfile -Command \"Start-Sleep 3; " + then + "\"")
             {
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -327,6 +424,45 @@ namespace MouseModes.Tests
             Process proc = Process.Start(info);
             proc.PriorityClass = ProcessPriorityClass.Normal;
             return proc;
+        }
+
+        /// <summary>
+        /// Um ping aberto por este teste (espera até 15 s): descendente de <paramref name="ancestor"/>, ou, sem ele,
+        /// qualquer ping que tenha começado depois do que o filtro pedir.
+        /// </summary>
+        private static Process WaitForPing(Func<DateTime, bool> startedOk, int? ancestor)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed < TimeSpan.FromSeconds(15))
+            {
+                Dictionary<int, int> parents = BackgroundCalmer.ParentIds();
+                foreach (Process p in Process.GetProcessesByName("PING"))
+                {
+                    try
+                    {
+                        if (startedOk(p.StartTime) && (ancestor == null || Descends(p.Id, ancestor.Value, parents))) return p;
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // já fechou
+                    }
+                    p.Dispose();
+                }
+                System.Threading.Thread.Sleep(100);
+            }
+            throw new TimeoutException("o launcher do teste não abriu o ping");
+        }
+
+        private static bool Descends(int pid, int ancestor, Dictionary<int, int> parents)
+        {
+            for (int level = 0; level < 4; level++)
+            {
+                int parent;
+                if (!parents.TryGetValue(pid, out parent)) return false;
+                if (parent == ancestor) return true;
+                pid = parent;
+            }
+            return false;
         }
 
         /// <summary>O ping que o launcher abriu (espera até 15 s).</summary>

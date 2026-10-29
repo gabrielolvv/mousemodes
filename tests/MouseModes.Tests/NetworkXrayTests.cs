@@ -96,6 +96,21 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Analyze_ASingleLongOutageIsAProblem()
+        {
+            // Uma hora de partida com uma queda de 30 s: um pico só e menos de 1% de perda, mas não é "estável".
+            List<NetSample> samples = Calm(3600);
+            Set(samples, 1800, 1829, Lost, Lost);
+
+            NetworkReport report = NetworkStats.Analyze(samples, true, null);
+
+            Assert.Equal(1, report.SpikeCount);
+            Assert.True(report.LossPercent < 1);
+            Assert.Equal(30, report.Spikes[0].Seconds);
+            Assert.Equal(NetVerdict.Local, report.Verdict);
+        }
+
+        [Fact]
         public void Analyze_CannotTellWithoutARouterThatAnswersPing()
         {
             List<NetSample> samples = Calm(400, gateway: Lost);
@@ -132,7 +147,7 @@ namespace MouseModes.Tests
             NetSpike spike = NetworkStats.Analyze(samples, false, bursts).Spikes[0];
 
             Assert.Equal("OneDrive", spike.Busy);
-            Assert.Equal("aos 1 min · 150 ms por 6 s · nessa hora o OneDrive usava 120 MB de dados", NetworkReport.Describe(spike));
+            Assert.Equal("aos 1 min · 150 ms por 6 s · nessa hora o OneDrive lia/gravava 120 MB", NetworkReport.Describe(spike));
         }
 
         [Fact]
@@ -168,6 +183,24 @@ namespace MouseModes.Tests
             Assert.Equal("OneDrive", burst.Name);
             Assert.Equal(3, burst.At);
             Assert.Equal(60 * MB, burst.Bytes);
+        }
+
+        [Fact]
+        public void MatchStats_IgnoresAReadingRightAfterTheLastOne()
+        {
+            // Ajustes salvos no meio da partida: uma checagem 10 ms depois da anterior não pode virar "pico de 100%".
+            var t0 = new DateTime(2026, 10, 29, 20, 0, 0, DateTimeKind.Utc);
+            var stats = new MatchStats(t0, 1);
+            stats.Add(t0, new[] { Cpu(1, "chrome", 0) });
+            stats.Add(t0.AddMilliseconds(10), new[] { Cpu(1, "chrome", 156250) }); // 15,6 ms de processador em 10 ms
+            stats.Add(t0.AddSeconds(3), new[] { Cpu(1, "chrome", 156250 + 300000) }); // 30 ms em 3 s: 1%
+
+            Assert.Empty(stats.Finish("cs2").Culprits);
+        }
+
+        private static ProcessSample Cpu(int pid, string name, long ticks)
+        {
+            return new ProcessSample { Pid = pid, Name = name, StartTime = 1, CpuTicks = ticks, IoBytes = 0 };
         }
 
         private static ProcessSample Sample(int pid, string name, long ioBytes)

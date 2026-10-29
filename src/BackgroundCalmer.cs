@@ -99,6 +99,10 @@ namespace MouseModes
         private readonly Dictionary<int, CalmedProcess> calmed = new Dictionary<int, CalmedProcess>();
         private readonly HashSet<int> skipped = new HashSet<int>(); // já avaliados: não abre de novo a cada 3 s
         private bool reported;
+        /// <summary>Quando o segundo plano começou a ser acalmado (FILETIME UTC); 0 = não está acalmado.</summary>
+        private long since;
+        /// <summary>Quantos níveis acima procurar o programa acalmado (Steam → bootstrapper do anti-cheat → jogo).</summary>
+        private const int MaxAncestors = 4;
 
         /// <summary>Só os testes mudam: limita a estes PIDs, para nunca mexer nos programas de verdade do PC.</summary>
         internal Predicate<int> Scope;
@@ -135,6 +139,18 @@ namespace MouseModes
             var names = new List<string>();
             bool changed = false;
             Dictionary<int, int> parents = null; // só é lido se aparecer um processo abaixo do normal
+            if (since == 0) since = DateTime.UtcNow.ToFileTimeUtc();
+
+            // Entrou na lista de jogos depois de acalmado (Ajustes salvos no meio do Performance): volta ao normal.
+            var nowGames = new List<int>();
+            foreach (CalmedProcess entry in calmed.Values)
+                if (GameBooster.Matches(entry.Name, games)) nowGames.Add(entry.Pid);
+            foreach (int pid in nowGames)
+            {
+                Restore(calmed[pid]);
+                calmed.Remove(pid);
+                changed = true;
+            }
 
             foreach (Process proc in Process.GetProcesses())
             {
@@ -145,18 +161,23 @@ namespace MouseModes
                     if (Scope != null && !Scope(proc.Id)) continue;
                     string name = proc.ProcessName;
                     ProcessPriorityClass priority = proc.PriorityClass;
-                    CalmedProcess parent = priority == ProcessPriorityClass.BelowNormal ? CalmedParent(proc, ref parents) : null;
+                    long started = proc.StartTime.ToFileTimeUtc();
+                    CalmedProcess parent = priority == ProcessPriorityClass.BelowNormal ? CalmedAncestor(proc.Id, started, ref parents) : null;
+                    // Um jogo abaixo do normal que abriu depois de o segundo plano ser acalmado herdou isso de alguém,
+                    // mesmo que o processo do meio (launcher, bootstrapper do anti-cheat) já tenha fechado.
+                    bool inherited = parent != null ||
+                                     (priority == ProcessPriorityClass.BelowNormal && started >= since && GameBooster.Matches(name, games));
                     // O primeiro plano muda: reavalia quando ele for para trás (por isso não vai para skipped).
                     if (string.Equals(name, foreground, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (parent != null) proc.PriorityClass = ProcessPriorityClass.Normal;
+                        if (inherited) proc.PriorityClass = ProcessPriorityClass.Normal;
                         continue;
                     }
                     // Quem herdou a prioridade baixa de um programa acalmado nasceria no Normal: é julgado como tal.
-                    if (parent != null) priority = ProcessPriorityClass.Normal;
+                    if (inherited) priority = ProcessPriorityClass.Normal;
                     if (proc.SessionId != session || !ShouldCalm(name, priority, true, games, foreground))
                     {
-                        if (parent != null) GiveBackInherited(proc, name, parent, games);
+                        if (inherited) GiveBackInherited(proc, name, parent, games);
                         skipped.Add(proc.Id);
                         continue;
                     }
@@ -165,9 +186,10 @@ namespace MouseModes
                     {
                         Pid = proc.Id,
                         Name = name,
-                        StartTime = proc.StartTime.ToFileTimeUtc(),
+                        StartTime = started,
                         Priority = priority,
-                        CalmedAt = DateTime.UtcNow.ToFileTimeUtc()
+                        // Adotado: ele passa a prioridade baixa adiante desde que nasceu, não desde agora.
+                        CalmedAt = inherited ? started : DateTime.UtcNow.ToFileTimeUtc()
                     };
                     proc.PriorityClass = ProcessPriorityClass.BelowNormal;
                     // Registra antes do modo de eficiência: se ele falhar, a prioridade ainda é desfeita depois.
@@ -208,17 +230,22 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// O programa acalmado que abriu este processo, se ele nasceu depois disso (e por isso herdou a prioridade
-        /// baixa). null se não for o caso.
+        /// O programa acalmado de quem este processo descende (pai, avô...), se ele nasceu depois de o antepassado ser
+        /// acalmado (e por isso herdou a prioridade baixa). null se não for o caso.
         /// </summary>
-        private CalmedProcess CalmedParent(Process proc, ref Dictionary<int, int> parents)
+        private CalmedProcess CalmedAncestor(int pid, long started, ref Dictionary<int, int> parents)
         {
             if (calmed.Count == 0) return null;
             if (parents == null) parents = ParentIds();
-            int parentId;
-            CalmedProcess parent;
-            if (!parents.TryGetValue(proc.Id, out parentId) || !calmed.TryGetValue(parentId, out parent)) return null;
-            return proc.StartTime.ToFileTimeUtc() >= parent.CalmedAt ? parent : null;
+            for (int level = 0; level < MaxAncestors; level++)
+            {
+                int parentId;
+                if (!parents.TryGetValue(pid, out parentId) || parentId == pid || parentId == 0) return null;
+                CalmedProcess ancestor;
+                if (calmed.TryGetValue(parentId, out ancestor)) return started >= ancestor.CalmedAt ? ancestor : null;
+                pid = parentId;
+            }
+            return null;
         }
 
         /// <summary>Herdou a prioridade baixa, mas não é para acalmar (jogo, Windows, voz...): volta ao normal.</summary>
@@ -226,9 +253,10 @@ namespace MouseModes
         {
             proc.PriorityClass = ProcessPriorityClass.Normal;
             if (GameBooster.Matches(name, games))
-                Log.Info(name + L.T(" abriu pelo ", " was opened by ") + parent.Name +
-                         L.T(" acalmado e herdou a prioridade abaixo do normal; devolvida ao normal",
-                             " while it was calmed and inherited below normal priority; set back to normal"));
+                Log.Info(name + L.T(" abriu por um programa acalmado", " was opened by a calmed program") +
+                         (parent != null ? " (" + parent.Name + ")" : "") +
+                         L.T(" e herdou a prioridade abaixo do normal; devolvida ao normal",
+                             " and inherited below normal priority; set back to normal"));
         }
 
         /// <summary>PID de cada processo → PID de quem o abriu (uma foto de todos os processos, sem abrir nenhum).</summary>
@@ -276,6 +304,7 @@ namespace MouseModes
             calmed.Clear();
             skipped.Clear();
             reported = false;
+            since = 0;
             if (cfg.CalmBackup != null && cfg.CalmBackup.Count > 0) SaveBackup();
         }
 
