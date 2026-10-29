@@ -1,6 +1,9 @@
 # Novidades do MouseModes
 
-Cada versão tem uma seção `## X.Y.Z`. A Release do GitHub usa a seção da própria versão como texto.
+**Português** · [English](CHANGELOG.en.md)
+
+Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
+dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ## 1.3.0
 
