@@ -30,6 +30,8 @@ namespace MouseModes
         private readonly System.Threading.RegisteredWaitHandle quitWait;
         private readonly GameBooster booster = new GameBooster();
         private readonly BackgroundCalmer calmer;
+        private readonly MatchRecorder recorder = new MatchRecorder();
+        private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
         private readonly ForegroundWatcher foreground;
 
@@ -38,6 +40,8 @@ namespace MouseModes
         private ClickTestForm clickForm;
         private AimTestForm aimForm;
         private SensitivityForm sensForm;
+        private MatchReportForm reportForm;
+        private MatchReport lastReport;     // Raio-X da última partida (só enquanto o app estiver aberto)
         private DiagnosticsForm diagForm;
         private IntPtr iconHandle = IntPtr.Zero;
         private string currentGame;
@@ -52,6 +56,7 @@ namespace MouseModes
         private bool quitting;
         private ReleaseInfo pendingRelease; // versão nova esperando o fim do Performance para avisar
         private string balloonUrl;          // link do aviso que está na tela (só o de versão nova tem)
+        private Action balloonAction;       // ou o que fazer ao clicar nele (abrir o Raio-X)
         private bool checkingUpdate;
 
         /// <param name="startHidden">true quando inicia com o Windows: fica só na bandeja.</param>
@@ -133,6 +138,8 @@ namespace MouseModes
             menu.Items.Add(new ToolStripMenuItem(L.T("Testar mira e DPI...", "Aim and DPI test..."), null, (s, e) => OpenAimTest()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Conversor de sensibilidade...", "Sensitivity converter..."), null, (s, e) => OpenSensitivity()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), null, (s, e) => OpenSettings()));
+            reportItem = new ToolStripMenuItem(L.T("Raio-X da última partida...", "Last match X-ray..."), null, (s, e) => OpenReport()) { Enabled = false };
+            menu.Items.Add(reportItem);
             menu.Items.Add(new ToolStripMenuItem(L.T("Diagnóstico...", "Diagnostics..."), null, (s, e) => OpenDiagnostics()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Procurar versão nova", "Check for a new version"), null, (s, e) => CheckForUpdate(true)));
             menu.Items.Add(LanguageMenu());
@@ -270,6 +277,12 @@ namespace MouseModes
 
         private void CheckGames()
         {
+            CheckRunningGame();
+            TrackMatch(); // depois da troca automática: ao fim da partida, o Dia a dia já devolveu as notificações
+        }
+
+        private void CheckRunningGame()
+        {
             string game = GameDetector.FindRunning(cfg.Games);
             bool running = game != null;
 
@@ -329,6 +342,50 @@ namespace MouseModes
             {
                 modes.Apply(Mode.Performance, L.T("Perfil Performance", "Performance profile"));
             }
+        }
+
+        // ---------------- Raio-X da partida ----------------
+
+        /// <summary>Partida = jogo da lista aberto com o Performance ativo. Lê os processos a cada checagem (3 s).</summary>
+        private void TrackMatch()
+        {
+            if (quitting) return;
+            if (currentGame != null && modes.Current == Mode.Performance)
+            {
+                if (!recorder.Recording) recorder.Start(currentGame);
+                recorder.Sample(cfg.Games);
+            }
+            else if (recorder.Recording)
+            {
+                FinishMatch();
+            }
+        }
+
+        private void FinishMatch()
+        {
+            MatchReport report = recorder.Stop();
+            if (report == null) return; // curta demais
+            lastReport = report;
+            reportItem.Enabled = true;
+
+            var lines = report.Culprits.ConvertAll(c => c.Name + " (" + MatchReport.Describe(c) + ")");
+            Log.Info(L.T("Raio-X da partida (", "Match X-ray (") + report.Game + ", " + MatchReport.FormatDuration(report.Duration) + "): " +
+                     (lines.Count == 0 ? L.T("nada pesou em segundo plano", "nothing weighed in the background") : string.Join("; ", lines.ToArray())));
+
+            if (report.Culprits.Count == 0 || !cfg.ShowNotifications) return;
+            Culprit top = report.Culprits[0];
+            ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
+                top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n" +
+                L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
+        }
+
+        private void OpenReport()
+        {
+            if (lastReport == null) return;
+            if (reportForm != null && !reportForm.IsDisposed) reportForm.Close();
+            reportForm = new MatchReportForm(lastReport, cfg, SaveConfig);
+            reportForm.Show();
+            reportForm.Activate();
         }
 
         private void OnModeChanged(Mode mode, string reason, List<string> warnings)
@@ -621,11 +678,23 @@ namespace MouseModes
         {
             if (string.IsNullOrEmpty(text)) text = " ";
             balloonUrl = url;
+            balloonAction = null;
             tray.ShowBalloonTip(url != null ? 8000 : 2500, title, text, icon);
+        }
+
+        /// <param name="action">O que fazer ao clicar no aviso.</param>
+        private void ShowBalloonWithAction(string title, string text, ToolTipIcon icon, Action action)
+        {
+            balloonUrl = null;
+            balloonAction = action;
+            tray.ShowBalloonTip(8000, title, string.IsNullOrEmpty(text) ? " " : text, icon);
         }
 
         private void OpenBalloonLink()
         {
+            Action action = balloonAction;
+            balloonAction = null;
+            if (action != null) { action(); return; }
             string url = balloonUrl;
             balloonUrl = null;
             if (!UpdateChecker.IsReleaseLink(url)) return;
@@ -785,7 +854,7 @@ namespace MouseModes
 
             SaveConfig();
             hotkey.Dispose();
-            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, aimForm, sensForm, diagForm })
+            foreach (Form f in new Form[] { settingsForm, pollingForm, clickForm, aimForm, sensForm, reportForm, diagForm })
             {
                 if (f != null && !f.IsDisposed) f.Close();
             }

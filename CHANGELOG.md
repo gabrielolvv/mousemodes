@@ -9,6 +9,11 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 
 ### Novidades
 
+- **Raio-X da partida**: enquanto um jogo da lista estiver aberto no Performance, o app anota a cada 3 s quanto
+  processador e quantos dados cada programa em segundo plano usou. Ao fechar o jogo, um aviso mostra quem mais pesou
+  (ex.: chrome com média de 18% e pico de 61%, OneDrive com 2,1 GB) e, com um clique, põe o programa na lista para
+  fechar ao jogar ou liga o segundo plano calmo. Fica no ícone da bandeja → Raio-X da última partida. Só lê, sem
+  administrador; mede quem pesou, não o FPS.
 - **Conversor de sensibilidade** (tela inicial → Sensibilidade, ou ícone da bandeja): digite a sensibilidade e o DPI
   do seu jogo e veja o cm/360 (quanto o mouse anda para uma volta completa) e o valor que dá a mesma mira em CS2,
   Apex, TF2, Valorant, Overwatch 2 e Call of Duty. Trocou o DPI? Informe o novo e o app recalcula a sensibilidade de

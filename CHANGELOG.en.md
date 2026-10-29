@@ -8,6 +8,11 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 
 ### New
 
+- **Match X-ray**: while a game from the list is open in Performance, the app notes every 3 s how much CPU and data
+  each background program used. When the game closes, a notice shows what weighed the most (e.g. chrome averaging 18%
+  with 61% peaks, OneDrive with 2.1 GB) and, in one click, adds the program to the auto-close list or turns on calm
+  background. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures
+  what weighed, not FPS.
 - **Sensitivity converter** (main screen → Sensitivity, or the tray icon): type your game's sensitivity and DPI and
   see the cm/360 (how far the mouse travels for a full turn) and the value that gives the same aim in CS2, Apex, TF2,
   Valorant, Overwatch 2 and Call of Duty. Changed the DPI? Enter the new one and the app recalculates each game's
