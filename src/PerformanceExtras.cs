@@ -102,7 +102,7 @@ namespace MouseModes
     public static class AppCloser
     {
         // Nunca fecha estes, mesmo que estejam na lista por engano.
-        private static readonly HashSet<string> Protected = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        internal static readonly HashSet<string> Protected = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "explorer", "dwm", "csrss", "winlogon", "wininit", "services", "lsass", "smss", "svchost",
             "System", "Idle", "Registry", "fontdrvhost", "sihost", "ctfmon", "audiodg", "conhost",

@@ -20,6 +20,7 @@ namespace MouseModes
 
         // Turbo
         private readonly ToggleRow boostRow;
+        private readonly ToggleRow calmRow;
         private readonly ToggleRow winKeyRow;
         private readonly ToggleRow stickyRow;
         private readonly ToggleRow silenceRow;
@@ -72,27 +73,30 @@ namespace MouseModes
 
             // --- Turbo ---
             var turboPanel = new Panel { BackColor = Theme.Bg };
-            boostRow = MakeRow(L.T("Prioridade alta para o jogo", "High priority for the game"), L.T("Enquanto o modo Performance estiver ativo", "While Performance mode is on"), pa, pb, 8, 52);
+            boostRow = MakeRow(L.T("Prioridade alta para o jogo", "High priority for the game"), L.T("Enquanto o modo Performance estiver ativo", "While Performance mode is on"), pa, pb, 0, 50);
             boostRow.Switch.SetChecked(cfg.BoostGamePriority, false);
-            winKeyRow = MakeRow(L.T("Bloquear a tecla Windows", "Block the Windows key"), L.T("Só quando um jogo da lista estiver em primeiro plano", "Only while a game from the list is in the foreground"), pa, pb, 66, 52);
+            winKeyRow = MakeRow(L.T("Bloquear a tecla Windows", "Block the Windows key"), L.T("Só quando um jogo da lista estiver em primeiro plano", "Only while a game from the list is in the foreground"), pa, pb, 56, 50);
             winKeyRow.Switch.SetChecked(cfg.BlockWinKey, false);
-            stickyRow = MakeRow(L.T("Sem aviso das Teclas de Aderência", "No Sticky Keys prompt"), L.T("Desliga o atalho Shift 5x e outros de acessibilidade", "Turns off Shift 5x and other accessibility shortcuts"), pa, pb, 124, 52);
+            stickyRow = MakeRow(L.T("Sem aviso das Teclas de Aderência", "No Sticky Keys prompt"), L.T("Desliga o atalho Shift 5x e outros de acessibilidade", "Turns off Shift 5x and other accessibility shortcuts"), pa, pb, 112, 50);
             stickyRow.Switch.SetChecked(cfg.DisableAccessibilityHotkeys, false);
-            silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb, 182, 52);
+            silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb, 168, 50);
             silenceRow.Switch.SetChecked(cfg.SilenceNotifications, false);
-            closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb, 240, 52);
+            calmRow = MakeRow(L.T("Segundo plano calmo", "Calm background"),
+                L.T("Outros programas com prioridade baixa e em modo de eficiência", "Other programs at low priority and in efficiency mode"), pa, pb, 224, 50);
+            calmRow.Switch.SetChecked(cfg.CalmBackground, false);
+            closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb, 280, 50);
             closeRow.Switch.SetChecked(cfg.CloseAppsOnPerformance, false);
 
-            var appsLabel = new SectionLabel { Text = L.T("Programas para fechar", "Programs to close"), Location = new Point(0, 306), Size = new Size(440, 20) };
-            var appsNote = Note(L.T("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", "One per line. E.g.: OneDrive, EpicGamesLauncher, Spotify, chrome"), 0, 326, 440, 18, Theme.Faint, 8f);
+            var appsLabel = new SectionLabel { Text = L.T("Programas para fechar", "Programs to close"), Location = new Point(0, 338), Size = new Size(440, 20) };
+            var appsNote = Note(L.T("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", "One per line. E.g.: OneDrive, EpicGamesLauncher, Spotify, chrome"), 0, 358, 440, 18, Theme.Faint, 8f);
             appsToClose = NewListBox(cfg.AppsToClose);
-            var appsHost = new FieldHost(appsToClose) { Location = new Point(0, 346), Size = new Size(440, 80), Accent = pb };
-            var pickApp = new NeonButton { Text = L.T("Escolher programa aberto", "Pick an open program"), Glyph = GlyphKind.Mouse, Location = new Point(0, 434), Size = new Size(440, 38), AccentA = pa, AccentB = pb };
+            var appsHost = new FieldHost(appsToClose) { Location = new Point(0, 378), Size = new Size(440, 64), Accent = pb };
+            var pickApp = new NeonButton { Text = L.T("Escolher programa aberto", "Pick an open program"), Glyph = GlyphKind.Mouse, Location = new Point(0, 448), Size = new Size(440, 38), AccentA = pa, AccentB = pb };
             pickApp.Click += (s, e) => AppendPicked(appsToClose);
-            forceRow = MakeRow(L.T("Forçar se não fechar", "Force if it does not close"), L.T("Encerra à força: pode perder trabalho não salvo", "Kills it: unsaved work may be lost"), pa, pb, 482, 52);
+            forceRow = MakeRow(L.T("Forçar se não fechar", "Force if it does not close"), L.T("Encerra à força: pode perder trabalho não salvo", "Kills it: unsaved work may be lost"), pa, pb, 494, 50);
             forceRow.Switch.SetChecked(cfg.ForceCloseApps, false);
 
-            foreach (Control c in new Control[] { boostRow, winKeyRow, stickyRow, silenceRow, closeRow, appsLabel, appsNote, appsHost, pickApp, forceRow })
+            foreach (Control c in new Control[] { boostRow, winKeyRow, stickyRow, silenceRow, calmRow, closeRow, appsLabel, appsNote, appsHost, pickApp, forceRow })
                 turboPanel.Controls.Add(c);
 
             // --- Geral ---
@@ -367,6 +371,7 @@ namespace MouseModes
             cfg.BlockWinKey = winKeyRow.Switch.Checked;
             cfg.DisableAccessibilityHotkeys = stickyRow.Switch.Checked;
             cfg.SilenceNotifications = silenceRow.Switch.Checked;
+            cfg.CalmBackground = calmRow.Switch.Checked;
             cfg.CloseAppsOnPerformance = closeRow.Switch.Checked;
             cfg.ForceCloseApps = forceRow.Switch.Checked;
             cfg.MonitorCheck = monitorCheckRow.Switch.Checked;

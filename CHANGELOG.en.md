@@ -4,6 +4,17 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Calm background** (Settings → Turbo, off by default): instead of closing them, keeps the other open programs at
+  below normal priority and, on Windows 11, in efficiency mode. It helps with stutters when the CPU is maxed out
+  (browser, Steam downloading, OneDrive syncing). It does not touch the game, the program in the foreground (on
+  alt-tab it goes back to normal), Windows processes, or voice, music, streaming, overlay, mouse software and
+  anti-cheat (Discord, Spotify, OBS, NVIDIA, G HUB, Razer etc.). If the app crashes with the background calmed, it
+  undoes it when it opens again.
+
 ## 1.4.0
 
 ### New

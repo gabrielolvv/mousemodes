@@ -100,6 +100,9 @@ namespace MouseModes
         public bool DisableAccessibilityHotkeys { get; set; }
         public bool SilenceNotifications { get; set; }
 
+        /// <summary>Segundo plano calmo: prioridade abaixo do normal e modo de eficiência para os outros programas.</summary>
+        public bool CalmBackground { get; set; }
+
         /// <summary>Atalho global preferido (índice em HotkeyWindow.Choices).</summary>
         public int Hotkey { get; set; }
 
@@ -126,6 +129,9 @@ namespace MouseModes
 
         /// <summary>Estado original das notificações enquanto estão silenciadas (para desfazer após travamento).</summary>
         public NotificationBackup NotificationBackup { get; set; }
+
+        /// <summary>Processos acalmados agora (para desfazer após travamento). Só deste PC.</summary>
+        public List<CalmedProcess> CalmBackup { get; set; }
 
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
@@ -170,7 +176,7 @@ namespace MouseModes
         /// </summary>
         internal static readonly string[] MachineOnly =
         {
-            "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "LastUpdateCheck", "NotifiedVersion"
+            "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -185,6 +191,7 @@ namespace MouseModes
             copy.DailyPlanGuid = null;
             copy.PlanCopies = new List<PlanCopy>();
             copy.NotificationBackup = null;
+            copy.CalmBackup = new List<CalmedProcess>();
             copy.LastUpdateCheck = null;
             copy.NotifiedVersion = null;
             return copy;
@@ -226,6 +233,7 @@ namespace MouseModes
             AppsToClose = new List<string>();
             GameProfiles = new List<GameProfile>();
             PlanCopies = new List<PlanCopy>();
+            CalmBackup = new List<CalmedProcess>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;

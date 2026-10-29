@@ -29,6 +29,7 @@ namespace MouseModes
         private readonly System.Threading.RegisteredWaitHandle showWait;
         private readonly System.Threading.RegisteredWaitHandle quitWait;
         private readonly GameBooster booster = new GameBooster();
+        private readonly BackgroundCalmer calmer;
         private readonly WinKeyBlocker winKey;
         private readonly ForegroundWatcher foreground;
 
@@ -69,6 +70,8 @@ namespace MouseModes
                 Log.Warn(L.T("O app foi fechado sem restaurar as notificações da última vez; restaurando agora", "The app closed without restoring notifications last time; restoring them now"));
                 NotificationSilencer.Restore(cfg);
             }
+            BackgroundCalmer.Recover(cfg); // só faz algo se o app caiu com o segundo plano acalmado
+            calmer = new BackgroundCalmer(cfg);
 
             modes = new ModeManager(cfg);
             modes.RunningGame = () => currentGame;
@@ -83,7 +86,11 @@ namespace MouseModes
 
             // Mouse do jogo só com o jogo na tela (opção): troca a cada mudança de janela em primeiro plano.
             foreground = new ForegroundWatcher();
-            foreground.Changed += name => modes.SetGameFocused(GameFocused());
+            foreground.Changed += name =>
+            {
+                modes.SetGameFocused(GameFocused());
+                calmer.Release(name); // alt-tab para um programa acalmado: ele volta ao normal enquanto estiver na frente
+            };
 
             // --- Tela principal ---
             mainForm = new MainForm();
@@ -272,6 +279,10 @@ namespace MouseModes
             else if (!running)
                 booster.Prune();
 
+            // Segundo plano calmo: pega os programas abertos depois de entrar no Performance.
+            if (modes.Current == Mode.Performance && cfg.CalmBackground)
+                calmer.Calm(cfg.Games, foreground.ProcessName);
+
             bool gameChanged = game != currentGame;
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
             {
@@ -369,6 +380,9 @@ namespace MouseModes
 
             if (perf && cfg.SilenceNotifications) NotificationSilencer.Silence(cfg);
             else NotificationSilencer.Restore(cfg);
+
+            if (perf && cfg.CalmBackground) calmer.Calm(cfg.Games, foreground.ProcessName);
+            else calmer.RestoreAll();
 
             if (currentGame != null || lastBoostShown)
             {
@@ -729,6 +743,7 @@ namespace MouseModes
             winKey.Disable();
             AccessibilityHotkeys.Restore();
             NotificationSilencer.Restore(cfg);
+            calmer.RestoreAll();
         }
 
         private void Quit()
