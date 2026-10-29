@@ -74,6 +74,9 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Atalho global** (Ajustes → Geral): clique no campo e aperte a combinação, com Ctrl ou Alt (padrão: Ctrl+Alt+M).
   Se ela já for usada por outro programa, o app tenta Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 e Ctrl+Shift+F12 e mostra
   na tela inicial qual ficou.
+- **Troca por comando**: `MouseModes.exe --performance`, `--daily` ou `--toggle` troca o modo do app aberto, como o
+  atalho. Serve para um botão do Stream Deck, um atalho na área de trabalho ou o Agendador de Tarefas. Se o app não
+  estiver aberto, ele abre na bandeja já no modo pedido.
 - **Taxa do monitor**: avisa se algum monitor está abaixo do máximo (ex.: 60 Hz num de 144 Hz) e ajusta com um clique.
 - **Medidor de polling rate** e **teste de clique duplo** (switch gasto), lendo o mouse via Raw Input.
 - **Teste de mira e DPI** (tela inicial ou ícone da bandeja): 20 s de alvos. O app mede se você passa do alvo, se
@@ -154,4 +157,6 @@ As actions do CI são fixadas pelo commit, com a versão num comentário. Uma ve
 atualizar à mão, troque o SHA pelo da versão nova (`git ls-remote --tags https://github.com/<dono>/<action>`).
 
 Argumentos do executável: `--tray` (inicia na bandeja), `--quit` (fecha a cópia aberta restaurando tudo) e
-`--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador.
+`--uninstall-cleanup` (volta ao Dia a dia e tira do "Iniciar com o Windows"), usados pelo instalador; e
+`--performance`, `--daily` e `--toggle` (trocam o modo). Com outra cópia aberta, o comando vai para ela e o exe sai
+com código 0, ou 1 se a cópia aberta for de uma versão sem esses comandos.

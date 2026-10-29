@@ -81,6 +81,9 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
 - **Global hotkey** (Settings → General): click the field and press the combination, with Ctrl or Alt (default:
   Ctrl+Alt+M). If another program already uses it, the app tries Ctrl+Alt+M, Ctrl+Shift+M, Ctrl+Alt+F12 and
   Ctrl+Shift+F12 and shows on the main screen which one it got.
+- **Switch by command**: `MouseModes.exe --performance`, `--daily` or `--toggle` switches the mode of the running
+  app, like the hotkey. Use it for a Stream Deck button, a desktop shortcut or Task Scheduler. If the app is not
+  running, it opens in the tray already in that mode.
 - **Monitor refresh rate**: warns if a monitor is below its maximum (e.g. 60 Hz on a 144 Hz one) and fixes it in
   one click.
 - **Polling rate meter** and **double-click test** (worn switch), reading the mouse through Raw Input.
@@ -161,4 +164,6 @@ The CI actions are pinned by commit, with the version in a comment. Once a month
 To update by hand, replace the SHA with the new version's (`git ls-remote --tags https://github.com/<owner>/<action>`).
 
 Executable arguments: `--tray` (starts in the tray), `--quit` (closes the running copy, restoring everything) and
-`--uninstall-cleanup` (goes back to Daily and removes "Start with Windows"), used by the installer.
+`--uninstall-cleanup` (goes back to Daily and removes "Start with Windows"), used by the installer; and
+`--performance`, `--daily` and `--toggle` (switch the mode). With another copy running, the command goes to it and
+the exe exits with code 0, or 1 if the running copy is from a version without these commands.

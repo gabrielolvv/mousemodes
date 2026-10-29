@@ -54,7 +54,10 @@ namespace MouseModes
 
         /// <param name="startHidden">true quando inicia com o Windows: fica só na bandeja.</param>
         /// <param name="showSignal">Sinal disparado quando o usuário abre o app de novo.</param>
-        public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal)
+        /// <param name="commands">Comandos de modo vindos de outra cópia (--performance, --daily, --toggle).</param>
+        /// <param name="startCommand">Comando com que esta cópia foi aberta, ou null.</param>
+        public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal,
+                       CommandSignals commands = null, string startCommand = null)
         {
             cfg = AppConfig.LoadOrCreate();
             L.Init(cfg.Language); // antes de criar qualquer tela
@@ -165,6 +168,16 @@ namespace MouseModes
                 }, null, -1, true);
             }
 
+            // --- MouseModes.exe --performance / --daily / --toggle (Stream Deck, atalho, Agendador) ---
+            if (commands != null)
+            {
+                commands.Listen(command =>
+                {
+                    if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
+                        mainForm.BeginInvoke((Action)(() => RunCommand(command)));
+                });
+            }
+
             // "Iniciar com o Windows" aponta para o exe; se ele mudou de lugar (ex.: instalado), corrige.
             try { Startup.RefreshPath(); } catch (Exception ex) { Log.Error(L.T("Atualizar Iniciar com o Windows", "Update Start with Windows"), ex); }
 
@@ -189,6 +202,7 @@ namespace MouseModes
 
             quiet = false;
 
+            if (startCommand != null) RunCommand(startCommand);
             if (!startHidden) ShowMain();
 
             if (!hotkeyPreferred) WarnHotkey(L.T("Atalho alterado", "Hotkey changed"));
@@ -214,6 +228,16 @@ namespace MouseModes
         private void Toggle()
         {
             SwitchManually(modes.Current == Mode.Performance ? Mode.DiaADia : Mode.Performance);
+        }
+
+        /// <summary>Comando da linha de comando: conta como troca manual, como o atalho.</summary>
+        private void RunCommand(string command)
+        {
+            if (quitting) return;
+            Log.Info(L.T("Comando recebido: ", "Command received: ") + command);
+            if (command == CommandSignals.Performance) SwitchManually(Mode.Performance);
+            else if (command == CommandSignals.Daily) SwitchManually(Mode.DiaADia);
+            else if (command == CommandSignals.Toggle) Toggle();
         }
 
         private void SwitchManually(Mode mode)
