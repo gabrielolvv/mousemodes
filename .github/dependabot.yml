@@ -1,0 +1,14 @@
+# Atualização das actions do CI. Elas são fixadas pelo commit (com a versão num comentário), então não se
+# atualizam sozinhas: uma vez por mês o Dependabot confere e, se houver versão nova, abre um PR só, trocando o SHA
+# e o comentário. O CI roda nesse PR como em qualquer outro; o merge continua sendo decisão de quem mantém o repo.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "CI"
+    groups:
+      actions:
+        patterns: ["*"]
