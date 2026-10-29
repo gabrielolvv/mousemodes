@@ -98,10 +98,12 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   Apex, TF2, Valorant, Overwatch 2 e Call of Duty. Trocou o DPI? Informe o novo e o app recalcula a sensibilidade de
   cada jogo para a mira não mudar. Para outro jogo, basta informar o yaw dele.
 - **Raio-X da partida**: enquanto um jogo da lista estiver aberto no Performance, o app anota a cada 3 s quanto
-  processador e quantos dados cada programa em segundo plano usou. Ao fechar o jogo, um aviso mostra quem mais pesou
-  (ex.: chrome com média de 18% e pico de 61%, OneDrive com 2,1 GB) e, com um clique, põe o programa na lista para
-  fechar ao jogar ou liga o segundo plano calmo. Fica no ícone da bandeja → Raio-X da última partida. Só lê, sem
-  administrador; mede quem pesou, não o FPS.
+  processador e quantos dados cada programa em segundo plano usou, e mede a rede com um ping por segundo ao roteador e
+  ao 1.1.1.1 (Cloudflare). Ao fechar o jogo, um aviso mostra quem mais pesou (ex.: chrome com média de 18% e pico de
+  61%, OneDrive com 2,1 GB) e, com um clique, põe o programa na lista para fechar ao jogar ou liga o segundo plano
+  calmo. A parte da rede mostra ping, jitter e perda, os piores picos e de onde vieram: do Wi-Fi ou da sua rede (o
+  roteador também piorou) ou da internet (até o roteador estava tudo bem), e quem usava muitos dados na hora. Fica no
+  ícone da bandeja → Raio-X da última partida. Só lê, sem administrador; mede quem pesou, não o FPS.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
 - **Windows para jogos** (no Diagnóstico): mostra Modo de Jogo, gravação em segundo plano, agendamento de GPU acelerado
   e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão

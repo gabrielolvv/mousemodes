@@ -77,8 +77,12 @@ namespace MouseModes
                 }
             }
 
-            Controls.Add(Note(L.T("Lido a cada 3 s com o jogo aberto no Performance. Mostra o que pesou em segundo plano; o FPS não é medido.",
-                                  "Read every 3 s with the game open in Performance. Shows what weighed in the background; FPS is not measured."),
+            if (report.Network != null) y = AddNetwork(report.Network, y);
+
+            Controls.Add(Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1. " +
+                                  "Mostra o que pesou; o FPS não é medido.",
+                                  "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1. " +
+                                  "Shows what weighed; FPS is not measured."),
                               20, y, 440, 32, Theme.Faint, 8f));
             y += 38;
 
@@ -88,6 +92,32 @@ namespace MouseModes
             ClientSize = new Size(480, y + 42 + 18);
 
             FinishLayout();
+        }
+
+        /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>
+        private int AddNetwork(NetworkReport net, int y)
+        {
+            Controls.Add(new SectionLabel { Text = L.T("Rede", "Network"), Location = new Point(20, y), Size = new Size(440, 20) });
+            y += 24;
+            Controls.Add(Note(net.Summary(), 20, y, 440, 20, Theme.Text, 9.5f));
+            y += 22;
+            Controls.Add(Note(net.VerdictText(), 20, y, 440, 36, net.Verdict == NetVerdict.Stable ? Theme.DailyB : Theme.PerfB, 9f));
+            y += 40;
+            foreach (NetSpike spike in net.Spikes)
+            {
+                // Uma ou duas linhas, conforme o texto: cada item ocupa só a altura que precisa.
+                Label line = Note("• " + NetworkReport.Describe(spike), 20, y, 440, 32, Theme.Muted, 8.5f);
+                line.Height = TextRenderer.MeasureText(line.Text, line.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+                Controls.Add(line);
+                y += line.Height + 4;
+            }
+            if (net.SpikeCount > net.Spikes.Count)
+            {
+                Controls.Add(Note(L.T("e mais " + (net.SpikeCount - net.Spikes.Count) + " pico(s) menores",
+                                      "and " + (net.SpikeCount - net.Spikes.Count) + " smaller spike(s)"), 20, y, 440, 18, Theme.Faint, 8f));
+                y += 22;
+            }
+            return y + 6;
         }
 
         private void AddRow(Culprit c, int y)

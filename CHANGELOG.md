@@ -5,6 +5,17 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Raio-X da rede** (no Raio-X da partida): durante a partida, um ping por segundo ao roteador e ao 1.1.1.1
+  (Cloudflare), numa thread própria e sem administrador. No fim, o relatório mostra ping, jitter e perda, os três
+  piores picos (ex.: aos 23 min, 210 ms por 3 s) e de onde vieram: do Wi-Fi ou da sua rede, quando o roteador também
+  piorou, ou da internet, quando até o roteador estava tudo bem. Aponta também quem usava muitos dados na hora (ex.:
+  OneDrive com 120 MB). Com uma VPN ligada, mede o roteador da placa de verdade e avisa que os picos podem vir dela.
+  Se o roteador não responde a ping, diz que não dá para separar Wi-Fi de internet.
+
 ## 1.6.0
 
 ### Novidades

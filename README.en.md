@@ -106,10 +106,13 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   Valorant, Overwatch 2 and Call of Duty. Changed the DPI? Enter the new one and the app recalculates each game's
   sensitivity so your aim does not change. For another game, just enter its yaw.
 - **Match X-ray**: while a game from the list is open in Performance, the app notes every 3 s how much CPU and data
-  each background program used. When the game closes, a notice shows what weighed the most (e.g. chrome averaging 18%
-  with 61% peaks, OneDrive with 2.1 GB) and, in one click, adds the program to the auto-close list or turns on calm
-  background. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures
-  what weighed, not FPS.
+  each background program used, and measures the network with one ping per second to the router and to 1.1.1.1
+  (Cloudflare). When the game closes, a notice shows what weighed the most (e.g. chrome averaging 18% with 61% peaks,
+  OneDrive with 2.1 GB) and, in one click, adds the program to the auto-close list or turns on calm background. The
+  network part shows ping, jitter and loss, the worst spikes and where they came from: the Wi-Fi or your network (the
+  router got worse too) or the internet (everything was fine up to the router), and who was using a lot of data at the
+  time. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures what
+  weighed, not FPS.
 - **Diagnostics** (Settings → General): a log of what the app did and what failed. File at
   `%APPDATA%\MouseModes\log.txt`.
 - **Windows for games** (in Diagnostics): shows Game Mode, background recording, hardware-accelerated GPU scheduling

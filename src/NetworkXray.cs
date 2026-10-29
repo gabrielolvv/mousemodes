@@ -58,13 +58,16 @@ namespace MouseModes
         public long BusyBytes { get; set; }
     }
 
-    public enum NetVerdict { Stable, Local, Internet }
+    /// <summary>Unknown: houve problema, mas o roteador não responde a ping e não dá para separar Wi-Fi de internet.</summary>
+    public enum NetVerdict { Stable, Local, Internet, Unknown }
 
     /// <summary>A rede durante a partida.</summary>
     public class NetworkReport
     {
         public int Samples { get; set; }
         public bool Wifi { get; set; }
+        /// <summary>A internet saiu por uma VPN ou túnel: os picos depois do roteador podem ser dela.</summary>
+        public bool Vpn { get; set; }
         public int InternetMedian { get; set; }
         public double Jitter { get; set; }
         public double LossPercent { get; set; }
@@ -82,7 +85,7 @@ namespace MouseModes
             string text = "ping " + InternetMedian + " ms · jitter " + Jitter.ToString("0", culture) + " ms · " +
                           L.T("perda ", "loss ") + LossPercent.ToString(LossPercent < 10 && LossPercent > 0 ? "0.#" : "0", culture) + "%";
             if (GatewayMedian >= 0) text += L.T(" · roteador ", " · router ") + GatewayMedian + " ms";
-            return text + (Wifi ? " · Wi-Fi" : L.T(" · cabo", " · cable"));
+            return text + (Wifi ? " · Wi-Fi" : L.T(" · cabo", " · cable")) + (Vpn ? " · VPN" : "");
         }
 
         public string VerdictText()
@@ -95,9 +98,15 @@ namespace MouseModes
                               "The spikes started on the Wi-Fi, before the router. A cable or the 5 GHz network usually fixes it.")
                         : L.T("Os picos começaram na sua rede, antes do roteador: confira o cabo e o roteador.",
                               "The spikes started on your network, before the router: check the cable and the router.");
+                case NetVerdict.Unknown:
+                    return L.T("Houve picos, mas o seu roteador não responde a ping: não dá para saber se vieram do Wi-Fi ou da internet.",
+                               "There were spikes, but your router does not answer ping: there is no telling whether they came from the Wi-Fi or the internet.");
                 case NetVerdict.Internet:
-                    return L.T("Até o roteador estava tudo bem: os picos vieram da internet (provedor). Se for sempre, vale falar com ele.",
-                               "Everything was fine up to the router: the spikes came from the internet (your provider). If it keeps happening, talk to them.");
+                    return Vpn
+                        ? L.T("Até o roteador estava tudo bem: os picos vieram depois dele, da VPN ligada ou do provedor. Vale testar sem a VPN.",
+                              "Everything was fine up to the router: the spikes came after it, from the VPN that is on or from your provider. Try without the VPN.")
+                        : L.T("Até o roteador estava tudo bem: os picos vieram da internet (provedor). Se for sempre, vale falar com ele.",
+                              "Everything was fine up to the router: the spikes came from the internet (your provider). If it keeps happening, talk to them.");
                 default:
                     return SpikeCount == 0
                         ? L.T("Rede estável durante a partida.", "Network stable during the match.")
@@ -143,11 +152,12 @@ namespace MouseModes
 
             var internet = new List<int>();
             var gateway = new List<int>();
-            int lost = 0;
+            int lost = 0, lostAtGateway = 0;
             foreach (NetSample s in samples)
             {
                 if (s.Internet >= 0) internet.Add(s.Internet); else lost++;
                 if (s.Gateway >= 0) gateway.Add(s.Gateway);
+                if (s.Internet == NetSample.Lost && s.Gateway == NetSample.Lost) lostAtGateway++;
             }
             if (internet.Count == 0) return null; // ping bloqueado ou sem internet: não dá para medir
 
@@ -195,11 +205,19 @@ namespace MouseModes
             foreach (NetSpike spike in spikes) Blame(spike, bursts);
 
             double lossPercent = lost * 100.0 / samples.Count;
-            int localCount = spikes.FindAll(sp => sp.Local).Count;
+            int localSpikes = spikes.FindAll(sp => sp.Local).Count;
             NetVerdict verdict;
-            if (spikes.Count == 0 && lossPercent < 1) verdict = NetVerdict.Stable;
-            else if (spikes.Count <= 1 && lossPercent < 1) verdict = NetVerdict.Stable; // um soluço só não é problema
-            else verdict = localCount * 2 >= spikes.Count ? NetVerdict.Local : NetVerdict.Internet;
+            if (spikes.Count <= 1 && lossPercent < 1)
+                verdict = NetVerdict.Stable; // um soluço só não é problema
+            else if (!hasGateway)
+                verdict = NetVerdict.Unknown;
+            else
+            {
+                // Cada pico e cada pacote perdido conta para um lado: começou antes do roteador ou depois dele.
+                int local = localSpikes + lostAtGateway;
+                int beyond = spikes.Count - localSpikes + lost - lostAtGateway;
+                verdict = local > 0 && local >= beyond ? NetVerdict.Local : NetVerdict.Internet;
+            }
 
             // Os piores primeiro para escolher, depois em ordem de tempo para mostrar.
             var worst = new List<NetSpike>(spikes);
@@ -275,6 +293,7 @@ namespace MouseModes
         private volatile bool running = true;
         private IPAddress gateway;
         private bool wifi;
+        private bool vpn;
 
         public NetworkProbe(DateTime started)
         {
@@ -284,11 +303,14 @@ namespace MouseModes
         }
 
         /// <summary>Para de medir e devolve o que foi medido.</summary>
-        public List<NetSample> Stop(out bool onWifi)
+        /// <param name="onWifi">O roteador é alcançado pelo Wi-Fi.</param>
+        /// <param name="viaVpn">A internet sai por outra placa (VPN ou túnel), não pela do roteador.</param>
+        public List<NetSample> Stop(out bool onWifi, out bool viaVpn)
         {
             running = false;
             thread.Join(3 * TimeoutMs);
             onWifi = wifi;
+            viaVpn = vpn;
             lock (samples) return new List<NetSample>(samples);
         }
 
@@ -326,33 +348,53 @@ namespace MouseModes
             }
         }
 
-        /// <summary>A placa que o Windows usa para chegar à internet, o roteador dela e se é Wi-Fi.</summary>
+        /// <summary>
+        /// O roteador de casa e se ele é alcançado pelo Wi-Fi. É o da placa por onde o Windows sai para a internet;
+        /// com uma VPN ligada, essa placa não tem roteador, e vale a placa de verdade (Wi-Fi ou cabo) que tem um.
+        /// </summary>
         private void Discover()
         {
             try
             {
-                uint index;
-                if (GetBestInterface(BitConverter.ToUInt32(InternetHost.GetAddressBytes(), 0), out index) != 0) return;
+                uint best;
+                bool known = GetBestInterface(BitConverter.ToUInt32(InternetHost.GetAddressBytes(), 0), out best) == 0;
+                NetworkInterface chosen = null;
+                IPAddress chosenGateway = null;
+                int chosenIndex = -1;
                 foreach (NetworkInterface nic in NetworkInterface.GetAllNetworkInterfaces())
                 {
+                    if (nic.OperationalStatus != OperationalStatus.Up) continue;
+                    if (nic.NetworkInterfaceType != NetworkInterfaceType.Wireless80211 &&
+                        nic.NetworkInterfaceType != NetworkInterfaceType.Ethernet &&
+                        nic.NetworkInterfaceType != NetworkInterfaceType.GigabitEthernet) continue;
                     IPInterfaceProperties props = nic.GetIPProperties();
                     IPv4InterfaceProperties v4 = props.GetIPv4Properties();
-                    if (v4 == null || v4.Index != index) continue;
-                    wifi = nic.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
-                    gateway = null;
-                    foreach (GatewayIPAddressInformation g in props.GatewayAddresses)
-                        if (g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any))
-                        {
-                            gateway = g.Address;
-                            break;
-                        }
-                    return;
+                    IPAddress g = Gateway(props);
+                    if (v4 == null || g == null) continue;
+                    // A placa da internet vence; se ela não tem roteador (VPN), fica a primeira de verdade que tem.
+                    if (chosen == null || (known && v4.Index == best))
+                    {
+                        chosen = nic;
+                        chosenGateway = g;
+                        chosenIndex = v4.Index;
+                    }
                 }
+                gateway = chosenGateway;
+                wifi = chosen != null && chosen.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                vpn = chosen != null && known && chosenIndex != best;
             }
             catch
             {
                 // Sem informação da placa: mede só a internet.
             }
+        }
+
+        private static IPAddress Gateway(IPInterfaceProperties props)
+        {
+            foreach (GatewayIPAddressInformation g in props.GatewayAddresses)
+                if (g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any))
+                    return g.Address;
+            return null;
         }
     }
 }
