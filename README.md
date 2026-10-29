@@ -73,7 +73,11 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 
 ### Mais
 
-- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração e plano próprios para cada jogo.
+- **Perfis por jogo** (Ajustes → Jogos): velocidade, aceleração, plano e resolução próprios para cada jogo. Com a
+  resolução (ex.: 1280×960 para o 4:3 esticado no CS2 ou no Valorant), o monitor principal vai para ela, na maior taxa
+  que aceita, quando o jogo abre no Performance, e volta à de sempre quando o jogo fecha, ao sair do Performance ou ao
+  fechar o app. A troca não é gravada no Windows: reiniciar o PC também desfaz, e se o app travar ele desfaz ao abrir
+  de novo. Para esticar, a escala da placa de vídeo precisa estar em "Tela cheia".
 - **Mouse do jogo só com o jogo na tela** (Ajustes → Performance, desligado por padrão): no alt-tab e no desktop,
   o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
   Turbo não mudam.

@@ -4,6 +4,16 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Per-game resolution** (Settings → Games → Own settings): pick 1280×960, 1440×1080, 1024×768 or 1280×1024 for a
+  game, and the main monitor switches to it, at the highest refresh rate it supports, while the game is open in
+  Performance. When the game closes, Performance ends or the app quits, it goes back to the usual one. The change is
+  not saved in Windows (restarting also undoes it) and, if the app crashes, it undoes it when it opens again. If the
+  monitor does not support the resolution, nothing changes and the reason goes to Diagnostics.
+
 ## 1.7.1
 
 ### Fixes
