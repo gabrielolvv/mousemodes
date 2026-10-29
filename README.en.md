@@ -186,3 +186,7 @@ Executable arguments: `--tray` (starts in the tray), `--quit` (closes the runnin
 `--performance`, `--daily` and `--toggle` (switch the mode). With another copy running, the command goes to it and
 the exe exits with code 0, or 1 if the running copy is from a version without these commands. When updating by
 itself, the app runs the installer with `/S /RELAUNCH`, and the installer opens the new version with `--tray --updated`.
+
+## License
+
+[MIT](LICENSE): use, modify and share it freely, keeping the copyright notice. The app comes with no warranty.
