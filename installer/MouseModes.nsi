@@ -69,7 +69,7 @@ Function CloseRunning
   ExecWait '"$PLUGINSDIR\mm-quit.exe" --quit' $0
   ${If} $0 != 0
     ; Na atualização sozinha (/S) não há ninguém para clicar: desiste, e a versão aberta continua como está.
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION /SD IDCANCEL "Há um ${APPNAME} antigo aberto que não pôde ser fechado automaticamente.$\r$\n$\r$\nClique com o botão direito no ícone dele perto do relógio, escolha Sair e depois clique em Repetir." IDRETRY retry
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "Há um ${APPNAME} antigo aberto que não pôde ser fechado automaticamente.$\r$\n$\r$\nClique com o botão direito no ícone dele perto do relógio, escolha Sair e depois clique em Repetir." /SD IDCANCEL IDRETRY retry
     Abort
   ${EndIf}
 FunctionEnd
