@@ -42,6 +42,8 @@ namespace MouseModes
         public FrameReport Frames { get; set; }
         /// <summary>Por que os quadros não foram medidos (sem permissão, jogo em Vulkan...); null se foram.</summary>
         public string FramesMissing { get; set; }
+        /// <summary>A velocidade do processador e quando ele foi freado (calor, energia, bateria); null se não deu para ler.</summary>
+        public CpuSpeedReport CpuSpeed { get; set; }
 
         /// <summary>"47 min" ou "1 h 05 min".</summary>
         public static string FormatDuration(TimeSpan duration)
@@ -242,6 +244,9 @@ namespace MouseModes
         private NetworkProbe probe;
         private FrameProbe frames;
         private string framesError;
+        private CpuSpeedProbe cpuSpeed;
+        private List<CpuSpeedSample> speedSamples;
+        private DateTime started;
         private IList<string> games = new List<string>();
         private string game;
 
@@ -266,7 +271,11 @@ namespace MouseModes
         {
             game = gameName;
             DateTime now = DateTime.UtcNow;
+            started = now;
             stats = new MatchStats(now, Environment.ProcessorCount);
+            if (cpuSpeed != null) cpuSpeed.Dispose();
+            cpuSpeed = CpuSpeedProbe.TryOpen();
+            speedSamples = new List<CpuSpeedSample>();
             probe = MeasureNetwork ? new NetworkProbe(now) : null;
             frames = null;
             framesError = null;
@@ -286,7 +295,11 @@ namespace MouseModes
         {
             if (stats == null) return;
             this.games = games;
-            stats.Add(DateTime.UtcNow, Read(games));
+            DateTime now = DateTime.UtcNow;
+            stats.Add(now, Read(games));
+            float performance, limit, busy;
+            if (cpuSpeed != null && cpuSpeed.Read(out performance, out limit, out busy))
+                speedSamples.Add(new CpuSpeedSample((now - started).TotalSeconds, performance, limit, busy, !PowerSource.OnAC));
             if (frames != null) frames.RefreshNames(); // o nome de quem entregou quadros, enquanto ainda está aberto
         }
 
@@ -296,6 +309,12 @@ namespace MouseModes
             if (stats == null) return null;
             MatchReport report = stats.Finish(game);
             stats = null;
+            if (cpuSpeed != null)
+            {
+                cpuSpeed.Dispose();
+                cpuSpeed = null;
+            }
+            report.CpuSpeed = CpuSpeedStats.Analyze(speedSamples);
             List<NetSample> samples = null;
             if (probe != null)
             {
@@ -312,7 +331,8 @@ namespace MouseModes
                 Dictionary<int, List<FrameSample>> byProcess = frames.Stop();
                 frames = null;
                 List<FrameSample> gameFrames = FrameProbe.GameFrames(byProcess, names, games);
-                report.Frames = FrameStats.Analyze(gameFrames, report.Bursts, report.CpuBursts, samples);
+                report.Frames = FrameStats.Analyze(gameFrames, report.Bursts, report.CpuBursts, samples,
+                                                   report.CpuSpeed != null ? report.CpuSpeed.All : null);
                 if (report.Frames == null)
                     report.FramesMissing = L.T("o jogo não entregou quadros pelo DirectX 9–12 (Vulkan e OpenGL ainda não são lidos)",
                                                "the game did not deliver frames through DirectX 9–12 (Vulkan and OpenGL are not read yet)");

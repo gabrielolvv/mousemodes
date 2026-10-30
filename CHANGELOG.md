@@ -5,6 +5,13 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Processador na partida** (Raio-X): velocidade média em relação à nominal e os trechos em que o processador foi
+  freado por calor, limite de energia ou bateria. As travadinhas nesses trechos ganham essa causa.
+
 ## 1.11.0
 
 ### Novidades

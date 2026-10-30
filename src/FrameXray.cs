@@ -102,7 +102,8 @@ namespace MouseModes
             return Math.Max(medianMs * 2.5, medianMs + 20);
         }
 
-        public static FrameReport Analyze(IList<FrameSample> frames, IList<IoBurst> io, IList<CpuBurst> cpu, IList<NetSample> net)
+        public static FrameReport Analyze(IList<FrameSample> frames, IList<IoBurst> io, IList<CpuBurst> cpu, IList<NetSample> net,
+                                          IList<CpuSlowdown> slowdowns = null)
         {
             if (frames == null) return null;
             var used = new List<FrameSample>();
@@ -140,7 +141,7 @@ namespace MouseModes
             var worst = new List<Stutter>(stutters);
             worst.Sort((a, b) => b.Ms.CompareTo(a.Ms));
             if (worst.Count > MaxWorst) worst.RemoveRange(MaxWorst, worst.Count - MaxWorst);
-            foreach (Stutter s in worst) s.Cause = CauseOf(s, io, cpu, net);
+            foreach (Stutter s in worst) s.Cause = CauseOf(s, io, cpu, net, slowdowns);
             worst.Sort((a, b) => a.At.CompareTo(b.At));
 
             return new FrameReport
@@ -165,7 +166,8 @@ namespace MouseModes
         }
 
         /// <summary>O que mais se destacou perto da travadinha: processador, depois disco, depois a rede.</summary>
-        internal static string CauseOf(Stutter s, IList<IoBurst> io, IList<CpuBurst> cpu, IList<NetSample> net)
+        internal static string CauseOf(Stutter s, IList<IoBurst> io, IList<CpuBurst> cpu, IList<NetSample> net,
+                                       IList<CpuSlowdown> slowdowns = null)
         {
             CpuBurst? topCpu = null;
             if (cpu != null)
@@ -174,6 +176,13 @@ namespace MouseModes
             if (topCpu != null)
                 return L.T("nessa hora o ", "meanwhile ") + topCpu.Value.Name + L.T(" usava ", " used ") +
                        Math.Round(topCpu.Value.Percent) + L.T("% do processador", "% of the CPU");
+
+            // Um programa pesado vem antes: é o que dá para mudar. O freio explica a travadinha quando nada mais explica.
+            CpuSlowdown slow = CpuSpeedStats.During(slowdowns, s.At);
+            if (slow != null)
+                return L.T("nessa hora o processador estava freado a até ", "meanwhile the CPU was throttled down to ") + Math.Round(slow.LowestLimit) +
+                       (slow.OnBattery ? L.T("% da velocidade (na bateria)", "% speed (on battery)")
+                                       : L.T("% da velocidade (calor ou limite de energia)", "% speed (heat or power limit)"));
 
             IoBurst? topIo = null;
             if (io != null)
