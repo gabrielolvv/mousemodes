@@ -86,6 +86,14 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   when leaving Performance or when the app quits. The change is not saved in Windows: restarting the PC also undoes
   it, and if the app crashes it undoes it when it opens again. To stretch, the graphics card scaling must be set to
   "Full screen".
+- **Per-game FPS limit** (Settings → Games, beta): saves the limit in the graphics driver's own limiter, the same as
+  "Max Frame Rate" in the NVIDIA Control Panel or the Intel Arc limiter. AUTO uses the monitor refresh rate minus 3
+  (141 at 144 Hz), which stays inside G-SYNC/FreeSync without the V-Sync delay. The limit goes to the game's
+  executable (`cs2` → `cs2.exe`), is saved when you save Settings (the driver may ask for the administrator once) and
+  applies from the next time the game opens, even with the app closed. The app reads the value back from the driver to
+  confirm; removing the limit restores the NVIDIA profile default or deletes the profile the app created. AMD cards
+  and Intel UHD/Iris graphics are not supported yet. It has not been tested on a real NVIDIA card yet: if you have
+  one, you can run `tools/fps-cap-check.ps1` and send the result in an issue.
 - **Game mouse only with the game on screen** (Settings → Performance, off by default): on alt-tab and on the
   desktop, the mouse goes back to the Daily speed and acceleration; back in the game, it uses the Performance one.
   Power, USB and Turbo do not change.

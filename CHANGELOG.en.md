@@ -4,6 +4,14 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Per-game FPS limit** (Settings → Games, beta): saves the limit in the graphics driver's limiter (NVIDIA or Intel
+  Arc), with AUTO = monitor refresh rate minus 3. Saved when you save Settings, read back to confirm and valid from
+  the next time the game opens. Not tested on a real NVIDIA card yet: `tools/fps-cap-check.ps1` runs that test.
+
 ## 1.10.0
 
 ### New
