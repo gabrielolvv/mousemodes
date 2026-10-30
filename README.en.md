@@ -123,6 +123,13 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   router got worse too) or the internet (everything was fine up to the router), and who was using a lot of data at the
   time. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures what
   weighed, not FPS.
+- **Stutter finder** (in the Match X-ray; Settings → General → Allow): measures every frame the game delivers to the
+  screen (DirectX 9 to 12 Present events, like PresentMon) and shows at the end of the match the average FPS, the 1%
+  low and the stutters, with what stood out at the time: a program using a lot of CPU, another reading/writing the
+  disk or the internet not answering. If nothing in the background explains it, it says it may be the game itself
+  (shaders, loading). It does not touch the game. Windows only lets administrators or the "Performance Log Users"
+  group read frames: the Allow button adds your account to the group once (it asks for the administrator) and applies
+  after signing out and back in; the same button removes it. Vulkan and OpenGL games are not read yet.
 - **Diagnostics** (Settings → General): a log of what the app did and what failed. File at
   `%APPDATA%\MouseModes\log.txt`.
 - **Windows for games** (in Diagnostics): shows Game Mode, background recording, hardware-accelerated GPU scheduling

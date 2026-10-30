@@ -36,6 +36,8 @@ namespace MouseModes
         private readonly ToggleRow updateRow;
         private readonly ToggleRow autoUpdateRow;
         private readonly ToggleRow networkRow;
+        private Label framesStatus;
+        private NeonButton framesButton;
         private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
@@ -149,7 +151,14 @@ namespace MouseModes
                                        "Daily mode starts using these values."),
                                    0, 414, 440, 40, Theme.Faint, 8.5f);
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote })
+            // Caça-travadinhas: o Windows só deixa ler os quadros do jogo com a permissão do grupo "Performance Log Users".
+            var framesLabel = new SectionLabel { Text = L.T("Caça-travadinhas (quadros do jogo)", "Stutter finder (game frames)"), Location = new Point(0, 462), Size = new Size(440, 20) };
+            framesStatus = Note("", 0, 486, 300, 56, Theme.Faint, 8.5f);
+            framesButton = new NeonButton { Location = new Point(310, 490), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            framesButton.Click += (s, e) => ChangeFramePermission();
+            ShowFramePermission();
+
+            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote, framesLabel, framesStatus, framesButton })
                 generalPanel.Controls.Add(c);
 
             // --- Privacidade: tudo o que sai do PC, e como desligar ---
@@ -220,6 +229,51 @@ namespace MouseModes
 
             SelectPage(0);
             FinishLayout();
+        }
+
+        /// <summary>Estado da permissão do Caça-travadinhas e o que o botão faz.</summary>
+        private void ShowFramePermission()
+        {
+            bool allowed = FramePermission.Allowed;
+            if (allowed)
+            {
+                cfg.FramePermissionAsked = false;
+                framesStatus.Text = L.T("Ligado: mede os quadros em toda partida (FPS, 1% low e travadinhas) e mostra no Raio-X.",
+                                        "On: measures frames in every match (FPS, 1% low and stutters) and shows them in the X-ray.");
+            }
+            else if (cfg.FramePermissionAsked)
+            {
+                framesStatus.Text = L.T("Permissão dada. Falta sair e entrar de novo na conta do Windows para valer.",
+                                        "Permission granted. Sign out and back in to Windows for it to apply.");
+            }
+            else
+            {
+                framesStatus.Text = L.T("Precisa de uma permissão única do Windows (pede o administrador uma vez). Não entra no jogo.",
+                                        "Needs a one-time Windows permission (asks for the administrator once). It does not touch the game.");
+            }
+            framesButton.Text = allowed || cfg.FramePermissionAsked ? L.T("Tirar", "Remove") : L.T("Permitir", "Allow");
+            framesButton.Invalidate();
+        }
+
+        private void ChangeFramePermission()
+        {
+            bool allow = !(FramePermission.Allowed || cfg.FramePermissionAsked);
+            string error = FramePermission.Change(allow);
+            if (error != null)
+            {
+                Log.Warn(L.T("Caça-travadinhas: permissão não mudou (", "Stutter finder: permission not changed (") + error + ")");
+                ConfirmDialog.Inform(this, L.T("Caça-travadinhas", "Stutter finder"), L.T("A permissão não mudou: ", "The permission did not change: ") + error + ".");
+                return;
+            }
+            cfg.FramePermissionAsked = allow;
+            try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); } // vale mesmo com Cancelar
+            Log.Info(allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
+                           : L.T("Caça-travadinhas: conta tirada do grupo Performance Log Users", "Stutter finder: account removed from Performance Log Users"));
+            ShowFramePermission();
+            if (allow)
+                ConfirmDialog.Inform(this, L.T("Caça-travadinhas", "Stutter finder"),
+                    L.T("Pronto. Saia e entre de novo na conta do Windows (ou reinicie o PC) para começar a medir.",
+                        "Done. Sign out and back in to Windows (or restart the PC) to start measuring."));
         }
 
         internal static TextBox NewListBox(List<string> lines)

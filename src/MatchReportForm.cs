@@ -77,14 +77,20 @@ namespace MouseModes
                 }
             }
 
+            y = AddFrames(report, y);
             if (report.Network != null) y = AddNetwork(report.Network, y);
 
-            Controls.Add(Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
-                                  "(dá para desligar em Ajustes → Privacidade). O FPS não é medido.",
+            var footer = Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
+                                  "(dá para desligar em Ajustes → Privacidade). ",
                                   "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1 " +
-                                  "(you can turn it off in Settings → Privacy). FPS is not measured."),
-                              20, y, 440, 32, Theme.Faint, 8f));
-            y += 38;
+                                  "(you can turn it off in Settings → Privacy). ") +
+                              (report.Frames != null
+                                  ? L.T("Os quadros vêm do rastreamento do Windows, sem entrar no jogo.", "Frames come from Windows tracing, without touching the game.")
+                                  : L.T("O FPS só é medido com a permissão do Caça-travadinhas (Ajustes → Geral).", "FPS is only measured with the Stutter finder permission (Settings → General).")),
+                              20, y, 440, 32, Theme.Faint, 8f);
+            footer.Height = TextRenderer.MeasureText(footer.Text, footer.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+            Controls.Add(footer);
+            y += footer.Height + 6;
 
             var close = new NeonButton { Text = L.T("Fechar", "Close"), Location = new Point(20, y), Size = new Size(440, 42), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             close.Click += (s, e) => Close();
@@ -103,6 +109,36 @@ namespace MouseModes
             AutoScroll = true;
             Height = area.Height - 20;
             Top = area.Top + 10;
+        }
+
+        /// <summary>Caça-travadinhas: FPS, 1% low e as piores travadinhas com o que havia na hora. Devolve o y seguinte.</summary>
+        private int AddFrames(MatchReport report, int y)
+        {
+            FrameReport frames = report.Frames;
+            if (frames == null && report.FramesMissing == null) return y;
+            Controls.Add(new SectionLabel { Text = L.T("Travadinhas", "Stutters"), Location = new Point(20, y), Size = new Size(440, 20) });
+            y += 24;
+            if (frames == null)
+            {
+                Controls.Add(Note(L.T("Quadros não medidos: ", "Frames not measured: ") + report.FramesMissing + ".", 20, y, 440, 34, Theme.Faint, 8.5f));
+                return y + 40;
+            }
+            Controls.Add(Note(frames.Summary(), 20, y, 440, 20, Theme.Text, 9.5f));
+            y += 24;
+            foreach (Stutter stutter in frames.Worst)
+            {
+                Label line = Note("• " + FrameReport.Describe(stutter), 20, y, 440, 32, Theme.Muted, 8.5f);
+                line.Height = TextRenderer.MeasureText(line.Text, line.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+                Controls.Add(line);
+                y += line.Height + 4;
+            }
+            if (frames.StutterCount > frames.Worst.Count)
+            {
+                Controls.Add(Note(L.T("e mais " + (frames.StutterCount - frames.Worst.Count) + " travadinha(s) menores",
+                                      "and " + (frames.StutterCount - frames.Worst.Count) + " smaller stutter(s)"), 20, y, 440, 18, Theme.Faint, 8f));
+                y += 22;
+            }
+            return y + 6;
         }
 
         /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>

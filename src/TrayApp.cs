@@ -383,6 +383,7 @@ namespace MouseModes
                 if (!recorder.Recording)
                 {
                     recorder.MeasureNetwork = cfg.MeasureNetwork; // desligado em Ajustes → Privacidade: nenhum ping
+                    recorder.MeasureFrames = FramePermission.Allowed; // Caça-travadinhas: só com a permissão do Windows
                     recorder.Start(currentGame);
                 }
                 recorder.Sample(cfg.Games);
@@ -411,9 +412,23 @@ namespace MouseModes
                          (spikes.Count == 0 ? "" : " [" + string.Join("; ", spikes.ToArray()) + "]"));
             }
 
+            FrameReport frames = report.Frames;
+            if (frames != null)
+            {
+                var worst = frames.Worst.ConvertAll(FrameReport.Describe);
+                Log.Info(L.T("Caça-travadinhas: ", "Stutter finder: ") + frames.Summary() +
+                         (worst.Count == 0 ? "" : " [" + string.Join("; ", worst.ToArray()) + "]"));
+            }
+            else if (report.FramesMissing != null)
+            {
+                Log.Info(L.T("Caça-travadinhas: quadros não medidos (", "Stutter finder: frames not measured (") + report.FramesMissing + ")");
+            }
+
             bool badNetwork = net != null && net.Verdict != NetVerdict.Stable;
-            if ((report.Culprits.Count == 0 && !badNetwork) || !cfg.ShowNotifications) return;
+            bool stutters = frames != null && frames.StutterCount > 0;
+            if ((report.Culprits.Count == 0 && !badNetwork && !stutters) || !cfg.ShowNotifications) return;
             string text = "";
+            if (frames != null) text = frames.Summary() + ".\n";
             if (report.Culprits.Count > 0)
             {
                 Culprit top = report.Culprits[0];
