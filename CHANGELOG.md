@@ -5,7 +5,7 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
-## Próxima versão
+## 1.10.0
 
 ### Novidades
 
