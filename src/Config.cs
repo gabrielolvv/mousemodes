@@ -163,6 +163,12 @@ namespace MouseModes
         /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
         public bool ResolutionChanged { get; set; }
 
+        /// <summary>
+        /// Modo de energia do Windows (na tomada) antes do Performance pôr em Melhor desempenho; null = o app não trocou.
+        /// Volta ao sair do Performance, ou ao abrir de novo se o app cair. Só deste PC.
+        /// </summary>
+        public string PowerModeBackup { get; set; }
+
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
@@ -207,7 +213,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked"
+            "ResolutionChanged", "FramePermissionAsked", "PowerModeBackup"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -227,6 +233,7 @@ namespace MouseModes
             copy.NotifiedVersion = null;
             copy.ResolutionChanged = false;
             copy.FramePermissionAsked = false;
+            copy.PowerModeBackup = null;
             return copy;
         }
 

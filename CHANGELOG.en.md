@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Laptop power mode**: with the Balanced plan in Performance, the Windows power mode goes to Best performance while
+  plugged in and comes back when leaving (and when the app opens again, if it crashed). When the PC does not accept
+  High performance or Ultimate Performance, the app now stays on Balanced with Best performance instead of only
+  warning. It also warns when a game opens on battery.
+
 ## 1.10.0
 
 ### New

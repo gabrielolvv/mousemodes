@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Modo de energia no notebook**: com o plano Equilibrado no Performance, o modo de energia do Windows vai para
+  Melhor desempenho na tomada e volta ao sair (e ao abrir de novo, se o app cair). Quando o PC não aceita o Alto
+  desempenho ou o Desempenho máximo, o app agora fica no Equilibrado com Melhor desempenho em vez de só avisar. E
+  avisa quando um jogo abre na bateria.
+
 ## 1.10.0
 
 ### Novidades

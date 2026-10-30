@@ -52,6 +52,13 @@ page (also in the `MouseModes-Setup.exe.sha256` file). In PowerShell, in the dow
 | Power plan | High performance or Ultimate Performance | whatever you already used ("Previous") |
 | USB selective suspend | disabled (the mouse never "falls asleep") | Windows default |
 
+Laptops: with the Balanced plan in Performance (chosen, or because the PC did not accept High performance or
+Ultimate Performance, common on new laptops), the Windows **power mode** (Settings → System → Power) goes to Best
+performance while plugged in and back to the previous one when leaving Performance. With High or Ultimate on,
+Windows ignores the power mode; with the plan on KEEP, the app does not touch power. On battery the app does not
+change the mode (it would drain the charge) and warns when a game opens that way: Windows holds back the CPU and the
+graphics card to save charge.
+
 Everything can be changed in **Settings**. Closing the window with the X does not quit the app: it stays in the icon
 next to the clock.
 

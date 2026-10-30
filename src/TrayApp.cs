@@ -31,6 +31,8 @@ namespace MouseModes
         private readonly GameBooster booster = new GameBooster();
         private readonly BackgroundCalmer calmer;
         private readonly GameResolution resolution;
+        private readonly PowerModeKeeper powerMode;
+        private bool batteryWarned; // já avisou que este jogo abriu na bateria
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -87,6 +89,8 @@ namespace MouseModes
             GameResolution.Recover(cfg);   // ou com a resolução de um jogo na tela
             calmer = new BackgroundCalmer(cfg);
             resolution = new GameResolution(cfg);
+            powerMode = new PowerModeKeeper(cfg);
+            powerMode.Restore(); // ou com o modo de energia em Melhor desempenho (volta na tomada)
 
             modes = new ModeManager(cfg);
             modes.RunningGame = () => currentGame;
@@ -326,8 +330,12 @@ namespace MouseModes
 
             // Resolução do perfil do jogo: entra com o jogo aberto no Performance, sai quando ele fecha.
             resolution.Ensure(running && modes.Current == Mode.Performance ? cfg.PerformanceFor(game).Resolution : null);
+            // A cada 3 s: pega também a volta para a tomada (na bateria o app não mexe no modo de energia).
+            powerMode.Ensure(WantBestPowerMode());
 
             bool gameChanged = game != currentGame;
+            if (!running) batteryWarned = false;
+            else if (gameChanged) WarnIfOnBattery(game);
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
             {
                 currentGame = game;
@@ -506,6 +514,26 @@ namespace MouseModes
             return name != null && GameBooster.Matches(name, cfg.Games);
         }
 
+        /// <summary>Modo de energia em Melhor desempenho: no Performance com um plano escolhido (MANTER não mexe na energia).</summary>
+        private bool WantBestPowerMode()
+        {
+            return modes.Current == Mode.Performance && modes.CurrentProfile != null && modes.CurrentProfile.PowerPlan != PowerPlanOption.NaoAlterar;
+        }
+
+        /// <summary>Jogo aberto na bateria: o Windows segura processador e placa para poupar carga. Avisa uma vez por partida.</summary>
+        private void WarnIfOnBattery(string game)
+        {
+            if (batteryWarned || powerMode.OnAC) return;
+            batteryWarned = true;
+            int percent = PowerSource.BatteryPercent;
+            Log.Info(game + L.T(" abriu na bateria", " opened on battery") + (percent >= 0 ? " (" + percent + "%)" : ""));
+            if (cfg.ShowNotifications)
+                ShowBalloon(L.T("Jogando na bateria", "Playing on battery"),
+                            L.T("Na bateria o Windows segura o processador e a placa de vídeo para poupar carga. Na tomada, o jogo roda solto.",
+                                "On battery Windows holds back the CPU and the graphics card to save charge. Plugged in, the game runs freely."),
+                            ToolTipIcon.Warning);
+        }
+
         /// <summary>Tudo que só vale no Performance: prioridade, teclas, notificações, fechar programas, aviso de monitor.</summary>
         private void ApplyExtras(bool perf, bool entering)
         {
@@ -518,6 +546,7 @@ namespace MouseModes
             else booster.RestoreAll();
 
             resolution.Ensure(perf && currentGame != null ? cfg.PerformanceFor(currentGame).Resolution : null);
+            powerMode.Ensure(perf && WantBestPowerMode());
 
             if (perf && cfg.BlockWinKey) winKey.Enable();
             else winKey.Disable();
