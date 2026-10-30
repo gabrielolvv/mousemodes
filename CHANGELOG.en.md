@@ -4,6 +4,13 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **CPU during the match** (X-ray): average speed compared with nominal and the stretches when the CPU was throttled
+  by heat, a power limit or the battery. Stutters in those stretches get that cause.
+
 ## 1.11.0
 
 ### New
