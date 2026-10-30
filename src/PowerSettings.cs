@@ -52,13 +52,19 @@ namespace MouseModes
                         if (!ActivateBalanced(store))
                             warnings.Add(L.T("Não foi possível ativar um plano Equilibrado neste PC (veja o Diagnóstico).", "Could not turn on a Balanced plan on this PC (see Diagnostics)."));
                         break;
+                    // Sem o plano pedido (comum em notebooks novos, que só têm o Equilibrado), fica o Equilibrado: no
+                    // Performance o modo de energia dele vai para Melhor desempenho (PowerModeKeeper).
                     case PowerPlanOption.AltoDesempenho:
                         if (!ActivateFromTemplate(HighPerformanceGuid, HighCopyName, store, "Alto desempenho", "High performance"))
-                            warnings.Add(L.T("Não foi possível ativar o plano Alto desempenho.", "Could not turn on the High performance plan."));
+                            warnings.Add(ActivateBalanced(store)
+                                ? L.T("Este PC não aceitou o plano Alto desempenho; ficou o Equilibrado com o modo de energia em Melhor desempenho.", "This PC did not accept the High performance plan; Balanced is on, with the Best performance power mode.")
+                                : L.T("Não foi possível ativar o plano Alto desempenho.", "Could not turn on the High performance plan."));
                         break;
                     case PowerPlanOption.DesempenhoMaximo:
                         if (!ActivateFromTemplate(UltimateGuid, UltimateCopyName, store, "Desempenho M", "Ultimate Performance"))
-                            warnings.Add(L.T("Este PC não aceitou o plano Desempenho máximo (comum em notebooks). Use Alto desempenho.", "This PC did not accept the Ultimate Performance plan (common on laptops). Use High performance."));
+                            warnings.Add(ActivateBalanced(store)
+                                ? L.T("Este PC não aceitou o plano Desempenho máximo (comum em notebooks); ficou o Equilibrado com o modo de energia em Melhor desempenho.", "This PC did not accept the Ultimate Performance plan (common on laptops); Balanced is on, with the Best performance power mode.")
+                                : L.T("Este PC não aceitou o plano Desempenho máximo (comum em notebooks). Use Alto desempenho.", "This PC did not accept the Ultimate Performance plan (common on laptops). Use High performance."));
                         break;
                 }
             }

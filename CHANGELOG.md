@@ -12,6 +12,10 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 - **Limite de FPS por jogo** (Ajustes → Jogos, beta): grava o limite no limitador do driver da placa (NVIDIA ou Intel
   Arc), com AUTO = taxa do monitor menos 3. Gravado ao salvar os Ajustes, relido para confirmar e válido da próxima
   vez que o jogo abrir. Ainda sem teste numa placa NVIDIA de verdade: o `tools/fps-cap-check.ps1` faz esse teste.
+- **Modo de energia no notebook**: com o plano Equilibrado no Performance, o modo de energia do Windows vai para
+  Melhor desempenho na tomada e volta ao sair (e ao abrir de novo, se o app cair). Quando o PC não aceita o Alto
+  desempenho ou o Desempenho máximo, o app agora fica no Equilibrado com Melhor desempenho em vez de só avisar. E
+  avisa quando um jogo abre na bateria.
 
 ## 1.10.0
 

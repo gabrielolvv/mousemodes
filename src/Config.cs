@@ -167,6 +167,12 @@ namespace MouseModes
         public bool ResolutionChanged { get; set; }
 
         /// <summary>
+        /// Modo de energia do Windows (na tomada) antes do Performance pôr em Melhor desempenho; null = o app não trocou.
+        /// Volta ao sair do Performance, ou ao abrir de novo se o app cair. Só deste PC.
+        /// </summary>
+        public string PowerModeBackup { get; set; }
+
+        /// <summary>
         /// Limites de FPS que o app gravou no driver deste PC e confirmou ("cs2.exe=141"): para saber o que mudar ou tirar
         /// quando a tela muda. Só deste PC.
         /// </summary>
@@ -216,7 +222,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied"
+            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -237,6 +243,7 @@ namespace MouseModes
             copy.ResolutionChanged = false;
             copy.FramePermissionAsked = false;
             copy.FpsCapsApplied = new List<string>();
+            copy.PowerModeBackup = null;
             return copy;
         }
 

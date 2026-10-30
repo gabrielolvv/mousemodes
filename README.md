@@ -47,6 +47,13 @@ Para conferir que o instalador baixado é o mesmo que o GitHub gerou, compare o 
 | Plano de energia | Alto desempenho ou Desempenho máximo | o que você já usava ("Anterior") |
 | Suspensão seletiva de USB | desativada (mouse nunca "adormece") | padrão do Windows |
 
+Notebook: com o plano Equilibrado no Performance (escolhido, ou porque o PC não aceitou o Alto desempenho ou o
+Desempenho máximo, comum em notebooks novos), o **modo de energia** do Windows (Configurações → Sistema → Energia)
+vai para Melhor desempenho na tomada e volta ao de antes ao sair do Performance. Com o Alto ou o Máximo ativo, o
+Windows ignora o modo de energia; com o plano em MANTER, o app não mexe na energia. Na bateria o app não troca o
+modo (gastaria a carga) e avisa quando um jogo abre assim: o Windows segura o processador e a placa de vídeo para
+poupar carga.
+
 Tudo é editável em **Ajustes**. Fechar a janela no X não encerra o app: ele fica no ícone perto do relógio.
 
 O Dia a dia acompanha o próprio Windows: se você mudar a velocidade ou a aceleração no Painel de Controle,
