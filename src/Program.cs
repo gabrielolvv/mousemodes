@@ -21,10 +21,13 @@ namespace MouseModes
         ///   --performance, --daily, --toggle
         ///                        troca o modo da cópia aberta; sem cópia aberta, abre na bandeja já nesse modo
         ///   --updated            aberto pelo instalador depois de uma atualização sozinha (avisa e limpa o download)
+        ///   --fps-caps jogo.exe=141 ...
+        ///                        cópia aberta como administrador pelo próprio app: grava os limites de FPS no driver e sai
         /// </summary>
         [STAThread]
         private static int Main(string[] args)
         {
+            if (HasArg(args, FpsCap.HelperArg)) return FpsCap.RunHelper(args);
             if (HasArg(args, "--quit")) return QuitRunningInstance() ? 0 : 1;
             if (HasArg(args, "--uninstall-cleanup")) return UninstallCleanup();
 

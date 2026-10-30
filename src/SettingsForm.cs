@@ -525,7 +525,11 @@ namespace MouseModes
         private readonly ToggleRow precision;
         private readonly Segmented plan;
         private readonly Segmented resolution;
+        private readonly SectionLabel fpsLabel;
+        private readonly Segmented fps;
         private readonly Label emptyNote;
+        private IFpsLimiter limiter;
+        private bool limiterChecked;
         private Entry current;
 
         public GamesPanel(AppConfig cfg, SettingsForm owner)
@@ -540,11 +544,11 @@ namespace MouseModes
                 entries.Add(new Entry { Name = g, Custom = gp != null ? gp.Profile.Clone() : null });
             }
 
-            autoSwitch = new ToggleRow { Title = L.T("Troca automática", "Automatic switch"), Subtitle = L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), Location = new Point(0, 8), Size = new Size(440, 56) };
+            autoSwitch = new ToggleRow { Title = L.T("Troca automática", "Automatic switch"), Subtitle = L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), Location = new Point(0, 4), Size = new Size(440, 52) };
             autoSwitch.SetAccents(a, b);
             autoSwitch.Switch.SetChecked(cfg.AutoSwitch, false);
 
-            var listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 78), Size = new Size(440, 20) };
+            var listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 64), Size = new Size(440, 20) };
             list = new ListBox
             {
                 BorderStyle = BorderStyle.None,
@@ -555,14 +559,14 @@ namespace MouseModes
             };
             list.DrawItem += DrawItem;
             list.SelectedIndexChanged += (s, e) => { list.Invalidate(); Select(list.SelectedIndex); };
-            var listHost = new FieldHost(list) { Location = new Point(0, 102), Size = new Size(440, 96), Accent = b };
+            var listHost = new FieldHost(list) { Location = new Point(0, 88), Size = new Size(440, 80), Accent = b };
 
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
             nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
-            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 206), Size = new Size(196, 38), Accent = b };
-            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 206), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 206), Size = new Size(78, 38), AccentA = a, AccentB = b };
-            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 206), Size = new Size(72, 38) };
+            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 176), Size = new Size(196, 38), Accent = b };
+            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 176), Size = new Size(74, 38), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 176), Size = new Size(78, 38), AccentA = a, AccentB = b };
+            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 176), Size = new Size(72, 38) };
             add.Click += (s, e) => AddName(nameBox.Text);
             pick.Click += (s, e) =>
             {
@@ -570,24 +574,31 @@ namespace MouseModes
             };
             remove.Click += (s, e) => RemoveSelected();
 
-            customRow = new ToggleRow { Location = new Point(0, 256), Size = new Size(440, 52), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
+            customRow = new ToggleRow { Location = new Point(0, 220), Size = new Size(440, 46), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
             customRow.SetAccents(a, b);
             customRow.Switch.CheckedChanged += OnCustomToggled;
 
-            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 312), Size = new Size(440, 238) };
+            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 270), Size = new Size(440, 284) };
             speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
-            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 22), Size = new Size(448, 36), AccentA = a, AccentB = b };
+            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 20), Size = new Size(448, 34), AccentA = a, AccentB = b };
             speed.ValueChanged += () => { speedLabel.RightText = speed.Value + " / 20"; speedLabel.Invalidate(); };
-            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 60), Size = new Size(440, 48) };
+            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 54), Size = new Size(440, 44) };
             precision.SetAccents(a, b);
-            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 114), Size = new Size(440, 20) };
-            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 136), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 102), Size = new Size(440, 20) };
+            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 124), Size = new Size(440, 36), AccentA = a, AccentB = b };
             // Resolução do monitor principal com o jogo aberto (4:3 esticado depende da escala da placa em "Tela cheia").
-            var resolutionLabel = new SectionLabel { Text = L.T("Resolução com o jogo aberto", "Resolution with the game open"), Location = new Point(0, 178), Size = new Size(440, 20), RightText = L.T("monitor principal", "main monitor"), RightColor = Theme.Faint };
+            var resolutionLabel = new SectionLabel { Text = L.T("Resolução com o jogo aberto", "Resolution with the game open"), Location = new Point(0, 164), Size = new Size(440, 20), RightText = L.T("monitor principal", "main monitor"), RightColor = Theme.Faint };
             var resolutionNames = new string[GameResolution.Options.Length];
             for (int i = 0; i < resolutionNames.Length; i++)
                 resolutionNames[i] = GameResolution.Options[i] == null ? L.T("NATIVA", "NATIVE") : GameResolution.Format(GameResolution.Options[i]);
-            resolution = new Segmented { Options = resolutionNames, Location = new Point(0, 200), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            resolution = new Segmented { Options = resolutionNames, Location = new Point(0, 186), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            // Limite de FPS no driver da placa (NVIDIA ou Intel Arc): gravado ao salvar, vale da próxima vez que o jogo abrir.
+            fpsLabel = new SectionLabel { Text = L.T("Limite de FPS (beta)", "FPS limit (beta)"), Location = new Point(0, 226), Size = new Size(440, 20), RightColor = Theme.Faint };
+            var fpsNames = new string[FpsCap.Options.Length];
+            for (int i = 0; i < fpsNames.Length; i++)
+                fpsNames[i] = FpsCap.Options[i] == 0 ? L.T("SEM", "OFF") : FpsCap.Options[i] == FpsCap.Auto ? "AUTO" : FpsCap.Options[i].ToString();
+            fps = new Segmented { Options = fpsNames, Location = new Point(0, 248), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            fps.SelectedIndexChanged += ShowFpsTarget;
             editor.Controls.Add(speedLabel);
             editor.Controls.Add(speed);
             editor.Controls.Add(precision);
@@ -595,11 +606,13 @@ namespace MouseModes
             editor.Controls.Add(plan);
             editor.Controls.Add(resolutionLabel);
             editor.Controls.Add(resolution);
+            editor.Controls.Add(fpsLabel);
+            editor.Controls.Add(fps);
 
             emptyNote = new Label
             {
                 Text = L.T("Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.", "Pick a game in the list to give it its own settings. Scroll and USB follow Performance mode."),
-                Location = new Point(0, 264),
+                Location = new Point(0, 228),
                 Size = new Size(440, 60),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
@@ -666,6 +679,33 @@ namespace MouseModes
             plan.SelectedIndex = (int)current.Custom.PowerPlan;
             int res = Array.FindIndex(GameResolution.Options, o => o == current.Custom.Resolution);
             resolution.SelectedIndex = res < 0 ? 0 : res;
+            int cap = Array.IndexOf(FpsCap.Options, current.Custom.FpsCap);
+            fps.SelectedIndex = cap < 0 ? 0 : cap;
+            ShowFpsTarget();
+        }
+
+        /// <summary>Ao lado do título do limite: para qual executável e placa ele vai (ou que a placa não tem limitador).</summary>
+        private void ShowFpsTarget()
+        {
+            if (current == null) return;
+            if (!limiterChecked)
+            {
+                limiterChecked = true;
+                limiter = FpsCap.Detect();
+            }
+            int choice = FpsCap.Options[Math.Max(0, fps.SelectedIndex)];
+            if (limiter == null)
+                fpsLabel.RightText = L.T("esta placa não tem limitador", "this card has no limiter");
+            else if (choice == 0)
+                fpsLabel.RightText = limiter.Name + " · " + FpsCap.ExeFor(current.Name);
+            else
+            {
+                int value = FpsCap.Resolve(choice, FpsCap.PrimaryRefresh());
+                fpsLabel.RightText = (value > 0 ? value + " FPS" : L.T("taxa desconhecida", "unknown rate")) + " · " +
+                                     limiter.Name + " · " + FpsCap.ExeFor(current.Name);
+            }
+            fpsLabel.RightColor = limiter == null ? Theme.Faint : Theme.PerfB;
+            fpsLabel.Invalidate();
         }
 
         private void CommitEditor()
@@ -675,6 +715,7 @@ namespace MouseModes
             current.Custom.EnhancePointerPrecision = precision.Switch.Checked;
             current.Custom.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             current.Custom.Resolution = GameResolution.Options[Math.Max(0, resolution.SelectedIndex)];
+            current.Custom.FpsCap = FpsCap.Options[Math.Max(0, fps.SelectedIndex)];
         }
 
         private void AddName(string raw)

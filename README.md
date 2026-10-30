@@ -78,6 +78,14 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   que aceita, quando o jogo abre no Performance, e volta à de sempre quando o jogo fecha, ao sair do Performance ou ao
   fechar o app. A troca não é gravada no Windows: reiniciar o PC também desfaz, e se o app travar ele desfaz ao abrir
   de novo. Para esticar, a escala da placa de vídeo precisa estar em "Tela cheia".
+- **Limite de FPS por jogo** (Ajustes → Jogos, beta): grava o limite no limitador do próprio driver da placa, o mesmo
+  do "Taxa máxima de quadros" do Painel de Controle da NVIDIA ou do limitador da Intel Arc. AUTO usa a taxa do monitor
+  menos 3 (141 em 144 Hz), que fica dentro do G-SYNC/FreeSync sem o atraso do V-Sync. O limite vai para o executável
+  do jogo (`cs2` → `cs2.exe`), é gravado ao salvar os Ajustes (o driver pode pedir o administrador uma vez) e vale a
+  partir da próxima vez que o jogo abrir, mesmo com o app fechado. O app relê o valor no driver para confirmar; tirar
+  o limite devolve o padrão do perfil da NVIDIA ou apaga o perfil que o app criou. Placas AMD e os gráficos Intel
+  UHD/Iris ainda não têm. Ainda não foi testado numa placa NVIDIA de verdade: quem tiver uma pode rodar o
+  `tools/fps-cap-check.ps1` e mandar o resultado numa issue.
 - **Mouse do jogo só com o jogo na tela** (Ajustes → Performance, desligado por padrão): no alt-tab e no desktop,
   o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
   Turbo não mudam.
