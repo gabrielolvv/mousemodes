@@ -8,6 +8,9 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 
 ### New
 
+- **Per-game FPS limit** (Settings → Games, beta): saves the limit in the graphics driver's limiter (NVIDIA or Intel
+  Arc), with AUTO = monitor refresh rate minus 3. Saved when you save Settings, read back to confirm and valid from
+  the next time the game opens. Not tested on a real NVIDIA card yet: `tools/fps-cap-check.ps1` runs that test.
 - **Laptop power mode**: with the Balanced plan in Performance, the Windows power mode goes to Best performance while
   plugged in and comes back when leaving (and when the app opens again, if it crashed). When the PC does not accept
   High performance or Ultimate Performance, the app now stays on Balanced with Best performance instead of only

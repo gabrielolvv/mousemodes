@@ -33,6 +33,7 @@ namespace MouseModes
         private readonly GameResolution resolution;
         private readonly PowerModeKeeper powerMode;
         private bool batteryWarned; // já avisou que este jogo abriu na bateria
+        private bool fpsSyncRunning, fpsSyncAgain;
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -604,6 +605,76 @@ namespace MouseModes
                 mainForm.BeginInvoke((Action)RefreshMonitors);
         }
 
+        /// <summary>
+        /// Limite de FPS por jogo: grava no driver o que mudou na tela de jogos (ao salvar os Ajustes, nunca durante a
+        /// partida). O driver pode pedir administrador; isso roda fora da tela e o resultado vem num aviso.
+        /// </summary>
+        private void SyncFpsCaps()
+        {
+            if (fpsSyncRunning)
+            {
+                fpsSyncAgain = true;
+                return;
+            }
+            List<FpsCapChange> changes = FpsCap.Plan(FpsCap.Wanted(cfg, FpsCap.PrimaryRefresh()), cfg.FpsCapsApplied);
+            if (changes.Count == 0) return;
+            fpsSyncRunning = true;
+            var applied = new List<string>(cfg.FpsCapsApplied);
+            System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+            {
+                IFpsLimiter limiter = null;
+                List<string> problems;
+                try
+                {
+                    limiter = FpsCap.Detect();
+                    problems = limiter == null ? new List<string>() : FpsCap.Apply(changes, limiter, applied, FpsCap.RunElevated);
+                }
+                catch (Exception ex)
+                {
+                    problems = new List<string> { ex.Message };
+                }
+                if (mainForm.IsDisposed) return;
+                mainForm.BeginInvoke((Action)(() => FinishFpsSync(changes, limiter, applied, problems)));
+            });
+        }
+
+        private void FinishFpsSync(List<FpsCapChange> changes, IFpsLimiter limiter, List<string> applied, List<string> problems)
+        {
+            fpsSyncRunning = false;
+            if (limiter == null)
+            {
+                Log.Warn(L.T("Limite de FPS: esta placa de vídeo não tem limitador que o app consiga usar (só NVIDIA e Intel Arc)",
+                             "FPS limit: this video card has no limiter the app can use (NVIDIA and Intel Arc only)"));
+                if (changes.Exists(c => c.Fps > 0))
+                    ShowBalloon(L.T("Limite de FPS", "FPS limit"), L.T("Esta placa de vídeo não tem um limitador que o MouseModes consiga usar (só NVIDIA e Intel Arc).",
+                                                                       "This video card has no limiter MouseModes can use (NVIDIA and Intel Arc only)."), ToolTipIcon.Warning);
+            }
+            else
+            {
+                cfg.FpsCapsApplied = applied;
+                SaveConfig();
+                var done = new List<string>();
+                foreach (FpsCapChange c in changes)
+                {
+                    if (problems.Exists(p => p.StartsWith(c.Exe + ":", StringComparison.OrdinalIgnoreCase))) continue;
+                    string line = c.Exe + ": " + (c.Fps > 0 ? c.Fps + " FPS" : L.T("sem limite", "no limit"));
+                    done.Add(line);
+                    Log.Info(L.T("Limite de FPS no driver ", "FPS limit in the driver ") + limiter.Name + ": " + line);
+                }
+                foreach (string p in problems) Log.Warn(L.T("Limite de FPS não gravado: ", "FPS limit not saved: ") + p);
+                var text = new List<string>(done);
+                text.AddRange(problems);
+                if (done.Count > 0) text.Add(L.T("Vale a partir da próxima vez que o jogo abrir.", "It applies the next time the game opens."));
+                ShowBalloon(problems.Count == 0 ? L.T("Limite de FPS gravado (", "FPS limit saved (") + limiter.Name + ")" : L.T("Limite de FPS", "FPS limit"),
+                            string.Join("\n", text), problems.Count == 0 ? ToolTipIcon.Info : ToolTipIcon.Warning);
+            }
+            if (fpsSyncAgain)
+            {
+                fpsSyncAgain = false;
+                SyncFpsCaps();
+            }
+        }
+
         private void RefreshMonitors()
         {
             monitors = cfg.MonitorCheck ? Displays.Scan() : new List<MonitorStatus>();
@@ -653,6 +724,7 @@ namespace MouseModes
                 modes.Apply(modes.Current, L.T("Configurações salvas", "Settings saved"));
                 RefreshMonitors();
                 CheckGames();
+                SyncFpsCaps();
             };
             settingsForm.DiagnosticsRequested += OpenDiagnostics;
             settingsForm.RestoreDefaultsRequested += () =>

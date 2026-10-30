@@ -38,6 +38,9 @@ namespace MouseModes
         /// <summary>Resolução do monitor principal com o jogo aberto ("1280x960"); null = não muda. Só nos perfis de jogo.</summary>
         public string Resolution { get; set; }
 
+        /// <summary>Limite de FPS gravado no driver da placa (0 = sem limite; -1 = taxa do monitor menos 3). Só nos perfis de jogo.</summary>
+        public int FpsCap { get; set; }
+
         public MouseProfile()
         {
             PointerSpeed = 10;
@@ -169,6 +172,12 @@ namespace MouseModes
         /// </summary>
         public string PowerModeBackup { get; set; }
 
+        /// <summary>
+        /// Limites de FPS que o app gravou no driver deste PC e confirmou ("cs2.exe=141"): para saber o que mudar ou tirar
+        /// quando a tela muda. Só deste PC.
+        /// </summary>
+        public List<string> FpsCapsApplied { get; set; }
+
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
@@ -213,7 +222,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "PowerModeBackup"
+            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -233,6 +242,7 @@ namespace MouseModes
             copy.NotifiedVersion = null;
             copy.ResolutionChanged = false;
             copy.FramePermissionAsked = false;
+            copy.FpsCapsApplied = new List<string>();
             copy.PowerModeBackup = null;
             return copy;
         }
@@ -274,6 +284,7 @@ namespace MouseModes
             GameProfiles = new List<GameProfile>();
             PlanCopies = new List<PlanCopy>();
             CalmBackup = new List<CalmedProcess>();
+            FpsCapsApplied = new List<string>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;
