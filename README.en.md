@@ -211,20 +211,19 @@ itself, the app runs the installer with `/S /RELAUNCH`, and the installer opens 
 
 ## Code signing policy
 
-MouseModes has applied for the SignPath Foundation's free code signing for open source projects. Once the project is
-approved, the installers published on the GitHub Releases are signed by it, straight from this repository's CI
-build, and the "Windows protected your PC" warning tends to go away. Until then, the installer is not signed: check
-the SHA-256 published with each Release.
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+The MouseModes installer is not digitally signed yet; code signing is planned. The project applied for the SignPath
+Foundation's free code signing for open source, but it has not been granted yet: the foundation asks for more public
+use of the project first, and the application will be made again later. Meanwhile, Windows may show the "Windows
+protected your PC" warning, and the SHA-256 published with each Release lets you check that the installer is the one
+this repository's CI build produced.
 
 Team and roles:
 
 - Committers and reviewers: [gabrielolvv](https://github.com/gabrielolvv)
 - Approvers (each signing request): [gabrielolvv](https://github.com/gabrielolvv)
 
-Only what comes out of this repository's automated build, from the public source code, is signed, with manual
-approval for every version.
+Once there is signing, only what comes out of this repository's automated build, from the public source code, will
+be signed, with manual approval for every version.
 
 ## Privacy
 
