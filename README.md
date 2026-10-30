@@ -202,20 +202,19 @@ instalador com `/S /RELAUNCH`, e o instalador abre a versão nova com `--tray --
 
 ## Política de assinatura de código
 
-O MouseModes pediu a assinatura de código gratuita para projetos open source da SignPath Foundation. Quando o
-projeto for aprovado, os instaladores publicados nas Releases do GitHub passam a ser assinados por ela, direto do
-build do CI deste repositório, e o aviso "O Windows protegeu o computador" tende a sumir. Até lá, o instalador não é
-assinado: confira o SHA-256 publicado em cada Release.
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+O instalador do MouseModes ainda não é assinado digitalmente; a assinatura de código está nos planos. O projeto
+pediu a assinatura gratuita para open source da SignPath Foundation, mas ela ainda não foi concedida: a fundação
+pede que o projeto tenha mais uso público antes, e o pedido vai ser refeito mais tarde. Enquanto isso, o Windows
+pode mostrar o aviso "O Windows protegeu o computador", e o SHA-256 publicado em cada Release permite conferir que o
+instalador é o que o build do CI deste repositório gerou.
 
 Equipe e papéis:
 
 - Commits e revisão: [gabrielolvv](https://github.com/gabrielolvv)
 - Aprovação de cada assinatura: [gabrielolvv](https://github.com/gabrielolvv)
 
-Só é assinado o que sai do build automático deste repositório, a partir do código público, com aprovação manual a
-cada versão.
+Quando houver assinatura, só vai ser assinado o que sai do build automático deste repositório, a partir do código
+público, com aprovação manual a cada versão.
 
 ## Privacidade
 
