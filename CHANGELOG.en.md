@@ -4,6 +4,16 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Stutter finder** (Match X-ray; Settings → General → Allow): the match's average FPS, 1% low and stutters, each
+  with what stood out at the time (CPU, disk or internet), or the note that it may be the game itself. It reads
+  DirectX 9 to 12 Present events through Windows tracing, without touching the game. It needs a one-time permission:
+  the Allow button adds the account to the "Performance Log Users" group (it asks for the administrator once) and
+  applies after signing out and back in.
+
 ## 1.9.0
 
 ### New

@@ -154,6 +154,12 @@ namespace MouseModes
         /// <summary>Raio-X da rede: um ping por segundo ao roteador e ao 1.1.1.1 durante a partida. Desligado, não sai ping.</summary>
         public bool MeasureNetwork { get; set; }
 
+        /// <summary>
+        /// A permissão do Caça-travadinhas foi pedida neste PC (a conta entrou no grupo "Performance Log Users"): até sair e
+        /// entrar de novo na conta, a tela avisa que falta isso. Só deste PC.
+        /// </summary>
+        public bool FramePermissionAsked { get; set; }
+
         /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
         public bool ResolutionChanged { get; set; }
 
@@ -201,7 +207,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged"
+            "ResolutionChanged", "FramePermissionAsked"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -220,6 +226,7 @@ namespace MouseModes
             copy.LastUpdateCheck = null;
             copy.NotifiedVersion = null;
             copy.ResolutionChanged = false;
+            copy.FramePermissionAsked = false;
             return copy;
         }
 

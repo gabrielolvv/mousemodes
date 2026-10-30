@@ -36,6 +36,12 @@ namespace MouseModes
         public NetworkReport Network { get; set; }
         /// <summary>Quem leu/gravou muitos dados e quando: serve para apontar o culpado de um pico de ping.</summary>
         internal List<IoBurst> Bursts { get; set; }
+        /// <summary>Quem usou muito processador e quando: serve para apontar o culpado de uma travadinha.</summary>
+        internal List<CpuBurst> CpuBursts { get; set; }
+        /// <summary>Os quadros do jogo (Caça-travadinhas); null se não deu para medir.</summary>
+        public FrameReport Frames { get; set; }
+        /// <summary>Por que os quadros não foram medidos (sem permissão, jogo em Vulkan...); null se foram.</summary>
+        public string FramesMissing { get; set; }
 
         /// <summary>"47 min" ou "1 h 05 min".</summary>
         public static string FormatDuration(TimeSpan duration)
@@ -99,6 +105,7 @@ namespace MouseModes
         private Dictionary<int, ProcessSample> previous = new Dictionary<int, ProcessSample>();
         private readonly Dictionary<string, Total> totals = new Dictionary<string, Total>(StringComparer.OrdinalIgnoreCase);
         private readonly List<IoBurst> bursts = new List<IoBurst>();
+        private readonly List<CpuBurst> cpuBursts = new List<CpuBurst>();
 
         public MatchStats(DateTime started, int processors)
         {
@@ -148,12 +155,17 @@ namespace MouseModes
 
             if (interval > 0)
             {
+                string heaviest = null;
+                double heaviestPercent = 0;
                 foreach (KeyValuePair<string, long> pair in intervalCpu)
                 {
                     double percent = pair.Value / (interval * processors) * 100.0;
                     Total total = totals[pair.Key];
                     if (percent > total.Peak) total.Peak = percent;
+                    if (percent > heaviestPercent) { heaviest = pair.Key; heaviestPercent = percent; }
                 }
+                if (heaviest != null && heaviestPercent >= FrameStats.CpuBurstPercent)
+                    cpuBursts.Add(new CpuBurst((at - started).TotalSeconds, heaviest, Math.Min(100.0, heaviestPercent)));
             }
             previous = current;
             last = at;
@@ -179,7 +191,14 @@ namespace MouseModes
             // Primeiro quem mais pesou no processador; dados contam como desempate (500 MB valem 1 ponto).
             culprits.Sort((a, b) => Score(b).CompareTo(Score(a)));
             if (culprits.Count > MaxCulprits) culprits.RemoveRange(MaxCulprits, culprits.Count - MaxCulprits);
-            return new MatchReport { Game = game, Duration = duration, Culprits = culprits, Bursts = new List<IoBurst>(bursts) };
+            return new MatchReport
+            {
+                Game = game,
+                Duration = duration,
+                Culprits = culprits,
+                Bursts = new List<IoBurst>(bursts),
+                CpuBursts = new List<CpuBurst>(cpuBursts)
+            };
         }
 
         private static double Score(Culprit c)
@@ -221,6 +240,9 @@ namespace MouseModes
         private readonly int self = Process.GetCurrentProcess().Id;
         private MatchStats stats;
         private NetworkProbe probe;
+        private FrameProbe frames;
+        private string framesError;
+        private IList<string> games = new List<string>();
         private string game;
 
         /// <param name="measureNetwork">Mede também a rede (ping a cada segundo, numa thread própria).</param>
@@ -231,6 +253,9 @@ namespace MouseModes
 
         /// <summary>Mede a rede nas próximas partidas (Ajustes → Privacidade). Vale a partir do próximo Start.</summary>
         public bool MeasureNetwork { get; set; }
+
+        /// <summary>Mede os quadros do jogo (Caça-travadinhas); só funciona com a permissão do Windows. Vale no próximo Start.</summary>
+        public bool MeasureFrames { get; set; }
 
         public bool Recording { get { return stats != null; } }
 
@@ -243,12 +268,26 @@ namespace MouseModes
             DateTime now = DateTime.UtcNow;
             stats = new MatchStats(now, Environment.ProcessorCount);
             probe = MeasureNetwork ? new NetworkProbe(now) : null;
+            frames = null;
+            framesError = null;
+            if (MeasureFrames)
+            {
+                frames = FrameProbe.TryStart(out framesError);
+                if (frames == null) Log.Warn(L.T("Caça-travadinhas: ", "Stutter finder: ") + framesError);
+            }
+            else
+            {
+                framesError = L.T("o Caça-travadinhas não tem a permissão do Windows (Ajustes → Geral)",
+                                  "the stutter finder does not have the Windows permission (Settings → General)");
+            }
         }
 
         public void Sample(IList<string> games)
         {
             if (stats == null) return;
+            this.games = games;
             stats.Add(DateTime.UtcNow, Read(games));
+            if (frames != null) frames.RefreshNames(); // o nome de quem entregou quadros, enquanto ainda está aberto
         }
 
         /// <summary>Fecha a partida. null se ela foi curta demais para dizer algo.</summary>
@@ -257,13 +296,26 @@ namespace MouseModes
             if (stats == null) return null;
             MatchReport report = stats.Finish(game);
             stats = null;
+            List<NetSample> samples = null;
             if (probe != null)
             {
                 bool wifi, vpn;
-                List<NetSample> samples = probe.Stop(out wifi, out vpn);
+                samples = probe.Stop(out wifi, out vpn);
                 probe = null;
                 report.Network = NetworkStats.Analyze(samples, wifi, report.Bursts);
                 if (report.Network != null) report.Network.Vpn = vpn;
+            }
+            report.FramesMissing = framesError;
+            if (frames != null)
+            {
+                Dictionary<int, string> names = frames.Names;
+                Dictionary<int, List<FrameSample>> byProcess = frames.Stop();
+                frames = null;
+                List<FrameSample> gameFrames = FrameProbe.GameFrames(byProcess, names, games);
+                report.Frames = FrameStats.Analyze(gameFrames, report.Bursts, report.CpuBursts, samples);
+                if (report.Frames == null)
+                    report.FramesMissing = L.T("o jogo não entregou quadros pelo DirectX 9–12 (Vulkan e OpenGL ainda não são lidos)",
+                                               "the game did not deliver frames through DirectX 9–12 (Vulkan and OpenGL are not read yet)");
             }
             return report.Duration >= MinDuration ? report : null;
         }

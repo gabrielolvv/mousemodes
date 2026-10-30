@@ -113,6 +113,13 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   calmo. A parte da rede mostra ping, jitter e perda, os piores picos e de onde vieram: do Wi-Fi ou da sua rede (o
   roteador também piorou) ou da internet (até o roteador estava tudo bem), e quem usava muitos dados na hora. Fica no
   ícone da bandeja → Raio-X da última partida. Só lê, sem administrador; mede quem pesou, não o FPS.
+- **Caça-travadinhas** (no Raio-X da partida; Ajustes → Geral → Permitir): mede cada quadro que o jogo entrega para a
+  tela (eventos de Present do DirectX 9 ao 12, como o PresentMon) e mostra no fim da partida o FPS médio, o 1% low e
+  as travadinhas, com o que se destacou na hora: um programa usando muito processador, outro lendo/gravando no disco
+  ou a internet sem responder. Se nada em segundo plano explica, ele diz que pode ser do próprio jogo (shaders,
+  carregamento). Não entra no jogo. O Windows só deixa ler os quadros para administradores ou para o grupo
+  "Performance Log Users": o botão Permitir põe a sua conta no grupo uma vez (pede o administrador) e vale depois de
+  sair e entrar de novo na conta; o mesmo botão tira. Jogos em Vulkan ou OpenGL ainda não são lidos.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
 - **Windows para jogos** (no Diagnóstico): mostra Modo de Jogo, gravação em segundo plano, agendamento de GPU acelerado
   e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão

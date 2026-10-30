@@ -5,6 +5,16 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Caça-travadinhas** (Raio-X da partida; Ajustes → Geral → Permitir): o FPS médio, o 1% low e as travadinhas da
+  partida, cada uma com o que se destacou na hora (processador, disco ou internet), ou o aviso de que pode ser do
+  próprio jogo. Lê os eventos de Present do DirectX 9 ao 12 pelo rastreamento do Windows, sem entrar no jogo. Precisa
+  de uma permissão única: o botão Permitir põe a conta no grupo "Performance Log Users" (pede o administrador uma vez)
+  e vale depois de sair e entrar de novo.
+
 ## 1.9.0
 
 ### Novidades
