@@ -13,6 +13,13 @@ namespace MouseModes.Tests
     {
         private static readonly IList<string> NoGames = new List<string>();
 
+        /// <summary>
+        /// Quanto esperar o launcher abrir o ping. Ele é acalmado de propósito (prioridade baixa, modo de eficiência,
+        /// núcleos E): com o PC ocupado ele quase não ganha processador, por isso o launcher é o cmd (leve) e a espera é
+        /// longa. No caso normal o ping aparece em uns 3 s.
+        /// </summary>
+        private static readonly TimeSpan LauncherWait = TimeSpan.FromSeconds(90);
+
         [Theory]
         [InlineData("chrome", ProcessPriorityClass.Normal, true, null, true)]
         [InlineData("OneDrive", ProcessPriorityClass.Normal, true, "cs2", true)]
@@ -218,7 +225,7 @@ namespace MouseModes.Tests
         {
             // Launcher acalmado → cmd → ping: como Steam → bootstrapper do anti-cheat → jogo.
             using (var temp = new TempFolder())
-            using (Process launcher = StartLauncher("cmd /c ping -n 60 127.0.0.1"))
+            using (Process launcher = StartLauncher("cmd /c ping -n 120 127.0.0.1"))
             {
                 Process grandchild = null;
                 try
@@ -255,7 +262,7 @@ namespace MouseModes.Tests
         {
             // O cmd do meio abre o "jogo" e fecha na hora: não dá para subir até o launcher acalmado.
             using (var temp = new TempFolder())
-            using (Process launcher = StartLauncher("cmd /c start /b ping -n 60 127.0.0.1"))
+            using (Process launcher = StartLauncher("cmd /c start /b ping -n 120 127.0.0.1"))
             {
                 Process game = null;
                 try
@@ -411,12 +418,13 @@ namespace MouseModes.Tests
         }
 
         /// <summary>
-        /// Faz o papel de um launcher: um powershell só deste teste que, depois de 3 s (tempo de ser acalmado), abre um
-        /// ping. Fica aberto até o ping terminar.
+        /// Faz o papel de um launcher: um cmd só deste teste que, depois de 3 s (tempo de ser acalmado), abre um ping.
+        /// Fica aberto até o ping terminar. A espera é o waitfor (esperando um sinal que nunca vem), que não é um ping
+        /// e é leve como o cmd: acalmado num PC ocupado, um powershell levava mais de 90 s só para começar.
         /// </summary>
-        private static Process StartLauncher(string then = "ping -n 60 127.0.0.1 > $null")
+        private static Process StartLauncher(string then = "ping -n 120 127.0.0.1 >nul")
         {
-            var info = new ProcessStartInfo("powershell", "-NoProfile -Command \"Start-Sleep 3; " + then + "\"")
+            var info = new ProcessStartInfo("cmd", "/c waitfor /t 3 MouseModesTesteNuncaChega >nul 2>&1 & " + then)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true
@@ -427,13 +435,13 @@ namespace MouseModes.Tests
         }
 
         /// <summary>
-        /// Um ping aberto por este teste (espera até 15 s): descendente de <paramref name="ancestor"/>, ou, sem ele,
+        /// Um ping aberto por este teste (espera até LauncherWait): descendente de <paramref name="ancestor"/>, ou, sem ele,
         /// qualquer ping que tenha começado depois do que o filtro pedir.
         /// </summary>
         private static Process WaitForPing(Func<DateTime, bool> startedOk, int? ancestor)
         {
             var watch = Stopwatch.StartNew();
-            while (watch.Elapsed < TimeSpan.FromSeconds(15))
+            while (watch.Elapsed < LauncherWait)
             {
                 Dictionary<int, int> parents = BackgroundCalmer.ParentIds();
                 foreach (Process p in Process.GetProcessesByName("PING"))
@@ -450,7 +458,7 @@ namespace MouseModes.Tests
                 }
                 System.Threading.Thread.Sleep(100);
             }
-            throw new TimeoutException("o launcher do teste não abriu o ping");
+            throw new TimeoutException("o launcher do teste não abriu o ping em " + LauncherWait.TotalSeconds + " s");
         }
 
         private static bool Descends(int pid, int ancestor, Dictionary<int, int> parents)
@@ -465,11 +473,11 @@ namespace MouseModes.Tests
             return false;
         }
 
-        /// <summary>O ping que o launcher abriu (espera até 15 s).</summary>
+        /// <summary>O ping que o launcher abriu (espera até LauncherWait).</summary>
         private static Process WaitForChild(Process launcher)
         {
             var watch = Stopwatch.StartNew();
-            while (watch.Elapsed < TimeSpan.FromSeconds(15))
+            while (watch.Elapsed < LauncherWait)
             {
                 foreach (KeyValuePair<int, int> pair in BackgroundCalmer.ParentIds())
                 {
@@ -484,10 +492,14 @@ namespace MouseModes.Tests
                     {
                         // já fechou
                     }
+                    catch (InvalidOperationException)
+                    {
+                        // fechou entre achar e ler o nome (o waitfor do launcher fecha sozinho depois de 3 s)
+                    }
                 }
                 System.Threading.Thread.Sleep(100);
             }
-            throw new TimeoutException("o launcher do teste não abriu o ping");
+            throw new TimeoutException("o launcher do teste não abriu o ping em " + LauncherWait.TotalSeconds + " s");
         }
 
         private static ProcessPriorityClass PriorityOf(Process proc)
