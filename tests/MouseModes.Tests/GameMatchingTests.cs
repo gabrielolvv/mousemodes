@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using Xunit;
 
 namespace MouseModes.Tests
@@ -39,6 +40,80 @@ namespace MouseModes.Tests
         public void CanBeGame_LeavesWindowsProcessesOut(string name, int session, string path, bool expected)
         {
             Assert.Equal(expected, GameDetector.CanBeGame(name, session, 1, path, @"C:\Windows"));
+        }
+
+        [Fact]
+        public void IsListedGame_LeavesProcessesFromTheWindowsFolderOut()
+        {
+            // Só lê: nenhum processo muda. O próprio processo dos testes fica fora da pasta do Windows; o cmd, dentro.
+            // (Um cmd, não um ping: os testes do segundo plano calmo procuram pings novos.)
+            using (Process me = Process.GetCurrentProcess())
+            {
+                Assert.True(GameDetector.IsListedGame(me, me.ProcessName, new List<string> { me.ProcessName }));
+                Assert.False(GameDetector.IsListedGame(me, me.ProcessName, new List<string> { "NaoEsteJogo" }));
+            }
+            var info = new ProcessStartInfo("cmd", "/c waitfor /t 10 MouseModesJogoNuncaChega >nul 2>&1") { UseShellExecute = false, CreateNoWindow = true };
+            using (Process cmd = Process.Start(info))
+            {
+                try
+                {
+                    Assert.False(GameDetector.IsListedGame(cmd, "cmd", new List<string> { "cmd" }));
+                }
+                finally
+                {
+                    try { if (!cmd.HasExited) cmd.Kill(); } catch { }
+                }
+            }
+        }
+
+        [Fact]
+        public void Biggest_PrefersTheGameOverItsLauncher()
+        {
+            var running = new List<RunningGame>
+            {
+                new RunningGame("FiveM", 10, 300L << 20),                   // o launcher, aberto primeiro
+                new RunningGame("FiveM_ChromeBrowser", 11, 120L << 20),
+                new RunningGame("FiveM_b3095_GTAProcess", 12, 3000L << 20),  // o jogo
+                new RunningGame("cs2", 13, 2000L << 20)
+            };
+
+            Assert.Equal("FiveM_b3095_GTAProcess", GameDetector.Biggest("FiveM.exe", running));
+            Assert.Equal("cs2", GameDetector.Biggest("cs2", running));
+            Assert.Null(GameDetector.Biggest("valorant", running));
+            Assert.Null(GameDetector.Biggest("", running));
+            // Empate: fica o primeiro visto.
+            Assert.Equal("JogoA", GameDetector.Biggest("Jogo", new List<RunningGame> { new RunningGame("JogoA", 1, 0), new RunningGame("JogoB", 2, 0) }));
+        }
+
+        [Fact]
+        public void KeyOf_ChangesOnlyWhenTheSetOfProcessesChanges()
+        {
+            var a = new List<RunningGame> { new RunningGame("FiveM", 20, 1), new RunningGame("FiveM_b3095_GTAProcess", 7, 2) };
+            var sameOtherOrder = new List<RunningGame> { new RunningGame("FiveM_b3095_GTAProcess", 7, 999), new RunningGame("FiveM", 20, 5) };
+            var oneMore = new List<RunningGame>(a) { new RunningGame("FiveM_ChromeBrowser", 30, 1) };
+
+            Assert.Equal(GameDetector.KeyOf(a), GameDetector.KeyOf(sameOtherOrder)); // a memória muda o tempo todo: não conta
+            Assert.NotEqual(GameDetector.KeyOf(a), GameDetector.KeyOf(oneMore));
+        }
+
+        [Fact]
+        public void RememberGameExe_KeepsTheBiggestProcessOfEachEntry()
+        {
+            var cfg = new AppConfig();
+            cfg.Games.Clear();
+            cfg.Games.Add("FiveM.exe");
+            cfg.Games.Add("cs2");
+
+            // Só o launcher aberto: é o que há.
+            Assert.True(cfg.RememberGameExe(new List<RunningGame> { new RunningGame("FiveM", 10, 300L << 20) }));
+            Assert.Equal("FiveM", cfg.SeenGameExe("FiveM"));
+
+            // O jogo abriu e cresceu: troca para ele, mesmo o launcher vindo primeiro na lista do Windows.
+            var both = new List<RunningGame> { new RunningGame("FiveM", 10, 300L << 20), new RunningGame("FiveM_b3095_GTAProcess", 12, 3000L << 20) };
+            Assert.True(cfg.RememberGameExe(both));
+            Assert.Equal("FiveM_b3095_GTAProcess", cfg.SeenGameExe("FiveM"));
+            Assert.Null(cfg.SeenGameExe("cs2"));
+            Assert.False(cfg.RememberGameExe(both)); // nada mudou: nada a gravar
         }
 
         [Fact]

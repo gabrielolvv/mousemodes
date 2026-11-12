@@ -89,6 +89,23 @@ namespace MouseModes
         }
     }
 
+    /// <summary>Um processo aberto que pode ser um jogo da lista.</summary>
+    public sealed class RunningGame
+    {
+        public RunningGame(string name, int pid, long workingSet)
+        {
+            Name = name;
+            Pid = pid;
+            WorkingSet = workingSet;
+        }
+
+        /// <summary>Nome do processo, sem ".exe".</summary>
+        public string Name { get; private set; }
+        public int Pid { get; private set; }
+        /// <summary>Memória em uso (bytes).</summary>
+        public long WorkingSet { get; private set; }
+    }
+
     public static class GameDetector
     {
         private const uint ProcessQueryLimitedInformation = 0x1000;
@@ -109,6 +126,28 @@ namespace MouseModes
         internal static readonly string[] WindowsGaming = { "GameBar", "GameInput", "GamingServices", "XboxGameBar", "XboxPcApp" };
 
         private static int mySession = -1;
+
+        /// <summary>Sessão do Windows de quem usa o app (a deste processo).</summary>
+        private static int MySession
+        {
+            get
+            {
+                if (mySession < 0)
+                    using (Process me = Process.GetCurrentProcess()) mySession = me.SessionId;
+                return mySession;
+            }
+        }
+
+        /// <summary>
+        /// O processo bate com a lista de jogos e pode mesmo ser o jogo (CanBeGame). Para quem vai mexer no processo
+        /// (prioridade alta, devolver o normal): só quem bate pelo nome paga a leitura do caminho do .exe.
+        /// </summary>
+        internal static bool IsListedGame(Process proc, string name, IList<string> games)
+        {
+            if (!GameBooster.Matches(name, games)) return false;
+            return CanBeGame(name, proc.SessionId, MySession, ImagePath(proc.Id),
+                             Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+        }
 
         /// <summary>
         /// Se um processo cujo nome bateu com a lista pode ser o jogo. Um item curto como "Game" (o Game.exe do RPG Maker
@@ -144,6 +183,15 @@ namespace MouseModes
         /// <summary>Retorna o nome do primeiro processo aberto que começa com algum item da lista, ou null.</summary>
         public static string FindRunning(IList<string> games)
         {
+            return FindRunning(games, null);
+        }
+
+        /// <summary>
+        /// Como FindRunning(games); com <paramref name="all"/>, também junta nela todos os processos abertos que podem ser
+        /// o jogo (nome, PID e memória em uso), para escolher o executável de cada item da lista.
+        /// </summary>
+        public static string FindRunning(IList<string> games, List<RunningGame> all)
+        {
             var prefixes = new List<string>();
             foreach (string g in games)
             {
@@ -152,10 +200,10 @@ namespace MouseModes
             }
             if (prefixes.Count == 0) return null;
 
-            if (mySession < 0)
-                using (Process me = Process.GetCurrentProcess()) mySession = me.SessionId;
+            int session = MySession;
             string windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
 
+            string first = null;
             Process[] processes = Process.GetProcesses();
             try
             {
@@ -174,8 +222,14 @@ namespace MouseModes
                     {
                         if (!procName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
                         // Só quem bateu com a lista paga a leitura do caminho (a checagem roda a cada 3 s).
-                        if (CanBeGame(procName, sessionId, mySession, ImagePath(proc.Id), windowsDir))
-                            return procName;
+                        if (CanBeGame(procName, sessionId, session, ImagePath(proc.Id), windowsDir))
+                        {
+                            if (first == null) first = procName;
+                            if (all == null) return first;
+                            long workingSet = 0;
+                            try { workingSet = proc.WorkingSet64; } catch { } // vem da mesma foto dos processos
+                            all.Add(new RunningGame(procName, proc.Id, workingSet));
+                        }
                         break;
                     }
                 }
@@ -184,7 +238,33 @@ namespace MouseModes
             {
                 foreach (Process proc in processes) proc.Dispose();
             }
-            return null;
+            return first;
+        }
+
+        /// <summary>
+        /// O executável de um item da lista entre os processos abertos: o que usa mais memória (o FiveM.exe é só o
+        /// launcher; o jogo é o FiveM_b3095_GTAProcess.exe). null se nenhum começa com o item.
+        /// </summary>
+        internal static string Biggest(string entry, IList<RunningGame> running)
+        {
+            string prefix = Normalize(entry);
+            if (prefix.Length == 0 || running == null) return null;
+            RunningGame best = null;
+            foreach (RunningGame r in running)
+            {
+                if (r == null || string.IsNullOrEmpty(r.Name) || !r.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (best == null || r.WorkingSet > best.WorkingSet) best = r;
+            }
+            return best != null ? best.Name : null;
+        }
+
+        /// <summary>Quais processos de jogo estão abertos (os PIDs, em ordem): muda quando um abre ou fecha.</summary>
+        internal static string KeyOf(IList<RunningGame> running)
+        {
+            var pids = new List<int>();
+            foreach (RunningGame r in running) if (r != null) pids.Add(r.Pid);
+            pids.Sort();
+            return string.Join(",", pids.ConvertAll(p => p.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray());
         }
 
         public static string Normalize(string entry)

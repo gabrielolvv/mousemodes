@@ -371,6 +371,16 @@ namespace MouseModes
         public bool RememberGameExe(string process)
         {
             if (string.IsNullOrEmpty(process)) return false;
+            return RememberGameExe(new List<RunningGame> { new RunningGame(process, 0, 0) });
+        }
+
+        /// <summary>
+        /// Como RememberGameExe(process), com todos os processos de jogo abertos: quando um item da lista pega vários
+        /// (FiveM.exe e FiveM_b3095_GTAProcess.exe), fica o que usa mais memória — o jogo, não o launcher.
+        /// </summary>
+        public bool RememberGameExe(IList<RunningGame> running)
+        {
+            if (running == null || running.Count == 0) return false;
             bool changed = GameExes.RemoveAll(line =>
             {
                 int bar = line != null ? line.IndexOf('|') : -1;
@@ -381,7 +391,9 @@ namespace MouseModes
             foreach (string entry in Games)
             {
                 string prefix = GameDetector.Normalize(entry);
-                if (prefix.Length == 0 || !process.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (prefix.Length == 0) continue;
+                string process = GameDetector.Biggest(prefix, running);
+                if (process == null) continue;
                 if (string.Equals(SeenGameExe(prefix), process, StringComparison.OrdinalIgnoreCase)) continue;
                 GameExes.RemoveAll(line => line.StartsWith(prefix + "|", StringComparison.OrdinalIgnoreCase));
                 GameExes.Add(prefix + "|" + process);

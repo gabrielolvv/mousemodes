@@ -36,6 +36,9 @@ namespace MouseModes
         private bool fpsSyncRunning, fpsSyncAgain;
         private bool fpsSyncAgainAutomatic; // o pedido que esperou veio só de gatilhos automáticos (sem aviso de placa sem limitador)
         private bool fpsExeLearned;         // o detector achou o executável de um jogo: grava o limite quando ele fechar
+        private bool fpsSyncDeferred;       // uma gravação automática esperou o jogo: tenta de novo quando ele fechar
+        private bool fpsAdminNoticeLogged;  // já anotou no log que a gravação automática espera o administrador
+        private string gameProcessesKey;    // os processos do jogo da última checagem: o executável é reavaliado quando mudam
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -79,6 +82,8 @@ namespace MouseModes
         public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal,
                        CommandSignals commands = null, string startCommand = null, bool updated = false)
         {
+            // O .exe que está rodando, para o pedido de administrador do limite de FPS conferir que é o mesmo no disco.
+            FpsCap.RememberRunningImage();
             cfg = AppConfig.LoadOrCreate();
             L.Init(cfg.Language); // antes de criar qualquer tela
             Log.Info("MouseModes " + typeof(TrayApp).Assembly.GetName().Version.ToString(3) + L.T(" iniciado", " started") + (startHidden ? L.T(" (com o Windows)", " (with Windows)") : "") + " — " + Application.ExecutablePath);
@@ -302,7 +307,8 @@ namespace MouseModes
 
         private void CheckRunningGame()
         {
-            string game = GameDetector.FindRunning(cfg.Games);
+            var gameProcesses = new List<RunningGame>();
+            string game = GameDetector.FindRunning(cfg.Games, gameProcesses);
             bool running = game != null;
 
             if (game != currentGame)
@@ -329,15 +335,21 @@ namespace MouseModes
             if (!running) batteryWarned = false;
             else if (gameChanged) WarnIfOnBattery(game);
 
-            // Limite de FPS: a lista guarda o começo do nome; o driver precisa do executável exato que abriu.
-            if (running && gameChanged && cfg.RememberGameExe(game))
+            // Limite de FPS: a lista guarda o começo do nome; o driver precisa do executável exato que abriu. Um item pode
+            // pegar vários processos (FiveM.exe e FiveM_b3095_GTAProcess.exe): vale o maior, reavaliado só quando o jogo
+            // abre ou os processos dele mudam.
+            string processesKey = running ? GameDetector.KeyOf(gameProcesses) : null;
+            bool processesChanged = processesKey != gameProcessesKey;
+            gameProcessesKey = processesKey;
+            if (running && processesChanged && cfg.RememberGameExe(gameProcesses))
             {
                 SaveConfig();
                 fpsExeLearned = true;
             }
-            else if (!running && fpsExeLearned)
+            else if (!running && (fpsExeLearned || fpsSyncDeferred))
             {
                 fpsExeLearned = false; // o jogo fechou: grava agora, nunca no meio da partida
+                fpsSyncDeferred = false;
                 SyncFpsCaps(true);
             }
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
@@ -628,8 +640,9 @@ namespace MouseModes
         /// monitor ou ao achar o executável de um jogo; nunca durante a partida). O driver pode pedir administrador; isso
         /// roda fora da tela e o resultado vem num aviso.
         /// </summary>
-        /// <param name="automatic">Não foi a pessoa que salvou: sem aviso de placa sem limitador, e sem mexer no AUTO
-        /// enquanto a taxa do monitor não puder ser lida.</param>
+        /// <param name="automatic">Não foi a pessoa que salvou: sem aviso de placa sem limitador, sem mexer no AUTO
+        /// enquanto a taxa do monitor não puder ser lida, nunca com um jogo da lista aberto (ou abrindo) e nunca com
+        /// pedido de administrador — o que precisar dele fica para quando a pessoa salvar os Ajustes.</param>
         private void SyncFpsCaps(bool automatic = false)
         {
             if (fpsSyncRunning)
@@ -643,28 +656,55 @@ namespace MouseModes
             if (automatic && refresh <= 0 && FpsCap.UsesAuto(cfg)) return;
             List<FpsCapChange> changes = FpsCap.Plan(FpsCap.Wanted(cfg, refresh), cfg.FpsCapsApplied);
             if (changes.Count == 0) return;
+            if (!automatic) fpsAdminNoticeLogged = false; // a pessoa salvou: um próximo aviso automático volta ao log
+            // Olha os processos agora, não só o jogo da última checagem: um jogo pode estar abrindo neste momento.
+            if (automatic && GameDetector.FindRunning(cfg.Games) != null)
+            {
+                fpsSyncDeferred = true;
+                return;
+            }
             fpsSyncRunning = true;
             var applied = new List<string>(cfg.FpsCapsApplied);
+            Func<List<FpsCapChange>, string> elevate = automatic ? (Func<List<FpsCapChange>, string>)FpsCap.WithoutElevation : FpsCap.RunElevated;
             System.Threading.ThreadPool.QueueUserWorkItem(_ =>
             {
                 IFpsLimiter limiter = null;
                 List<string> problems;
+                var waiting = new List<FpsCapChange>(); // o que ficou esperando o administrador (só nas automáticas)
                 try
                 {
                     limiter = FpsCap.Detect();
-                    problems = limiter == null ? new List<string>() : FpsCap.Apply(changes, limiter, applied, FpsCap.RunElevated);
+                    problems = limiter == null ? new List<string>() : FpsCap.Apply(changes, limiter, applied, pending =>
+                    {
+                        if (automatic) waiting.AddRange(pending);
+                        return elevate(pending);
+                    });
                 }
                 catch (Exception ex)
                 {
                     problems = new List<string> { ex.Message };
                 }
-                PostToUi(() => FinishFpsSync(changes, limiter, applied, problems, automatic));
+                PostToUi(() => FinishFpsSync(changes, limiter, applied, problems, automatic, waiting));
             });
         }
 
-        private void FinishFpsSync(List<FpsCapChange> changes, IFpsLimiter limiter, List<string> applied, List<string> problems, bool automatic)
+        private void FinishFpsSync(List<FpsCapChange> changes, IFpsLimiter limiter, List<string> applied, List<string> problems, bool automatic,
+                                   List<FpsCapChange> waiting)
         {
             fpsSyncRunning = false;
+            // Automática sem administrador: a mudança continua pendente (fora de applied) e vai na próxima vez que a pessoa
+            // salvar os Ajustes. Uma linha no log, sem aviso na tela (a taxa do monitor pode mudar muitas vezes).
+            var adminLater = problems.FindAll(p => waiting.Exists(c => p.StartsWith(c.Exe + ":", StringComparison.OrdinalIgnoreCase)));
+            List<string> shown = problems.FindAll(p => !adminLater.Contains(p));
+            if (adminLater.Count > 0)
+            {
+                if (!fpsAdminNoticeLogged)
+                {
+                    fpsAdminNoticeLogged = true;
+                    Log.Info(L.T("Limite de FPS esperando o administrador (grava ao salvar os Ajustes): ",
+                                 "FPS limit waiting for the administrator (saved when you save Settings): ") + string.Join("; ", adminLater.ToArray()));
+                }
+            }
             if (limiter == null)
             {
                 Log.Warn(L.T("Limite de FPS: esta placa de vídeo não tem limitador que o app consiga usar (só NVIDIA e Intel Arc)",
@@ -685,12 +725,13 @@ namespace MouseModes
                     done.Add(line);
                     Log.Info(L.T("Limite de FPS no driver ", "FPS limit in the driver ") + limiter.Name + ": " + line);
                 }
-                foreach (string p in problems) Log.Warn(L.T("Limite de FPS não gravado: ", "FPS limit not saved: ") + p);
+                foreach (string p in shown) Log.Warn(L.T("Limite de FPS não gravado: ", "FPS limit not saved: ") + p);
                 var text = new List<string>(done);
-                text.AddRange(problems);
+                text.AddRange(shown);
                 if (done.Count > 0) text.Add(L.T("Vale a partir da próxima vez que o jogo abrir.", "It applies the next time the game opens."));
-                ShowBalloon(problems.Count == 0 ? L.T("Limite de FPS gravado (", "FPS limit saved (") + limiter.Name + ")" : L.T("Limite de FPS", "FPS limit"),
-                            string.Join("\n", text), problems.Count == 0 ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                if (text.Count > 0) // só o que espera o administrador: já está no log
+                    ShowBalloon(shown.Count == 0 ? L.T("Limite de FPS gravado (", "FPS limit saved (") + limiter.Name + ")" : L.T("Limite de FPS", "FPS limit"),
+                                string.Join("\n", text), shown.Count == 0 ? ToolTipIcon.Info : ToolTipIcon.Warning);
             }
             if (fpsSyncAgain)
             {

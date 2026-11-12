@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -225,7 +227,68 @@ namespace MouseModes
             return (IFpsLimiter)NvidiaLimiter.TryCreate() ?? IntelLimiter.TryCreate();
         }
 
-        /// <summary>Roda esta mesma cópia como administrador só para gravar as mudanças. null se deu certo.</summary>
+        /// <summary>
+        /// Para as gravações automáticas (jogo fechou, taxa do monitor mudou): nunca abre o pedido de administrador sem a
+        /// pessoa ter feito nada. O que o driver só aceita como administrador fica para quando ela salvar os Ajustes.
+        /// </summary>
+        public static string WithoutElevation(List<FpsCapChange> changes)
+        {
+            return L.T("o driver pede administrador; grava quando você salvar os Ajustes",
+                       "the driver asks for the administrator; it is saved when you save Settings");
+        }
+
+        /// <summary>SHA-256 do .exe como estava ao abrir o app (o que está rodando).</summary>
+        private static byte[] runningImage;
+
+        /// <summary>Guarda o SHA-256 do .exe que está rodando. Chamado ao abrir o app, antes de qualquer pedido de administrador.</summary>
+        public static void RememberRunningImage()
+        {
+            if (runningImage != null) return;
+            try { runningImage = HashOf(System.Windows.Forms.Application.ExecutablePath); }
+            catch (Exception ex) { Log.Error(L.T("Ler o executável do app", "Read the app executable"), ex); }
+        }
+
+        internal static byte[] HashOf(string path)
+        {
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (SHA256 sha = SHA256.Create())
+                return sha.ComputeHash(file);
+        }
+
+        /// <summary>
+        /// Abre o arquivo travado contra escrita, troca e renomeação (FileShare.Read) e confere o SHA-256. Devolve o arquivo
+        /// aberto se for o esperado (quem chamou fecha depois de usar); null se for outro ou não der para ler.
+        /// </summary>
+        internal static FileStream OpenIfSame(string path, byte[] expected)
+        {
+            if (expected == null) return null;
+            FileStream file = null;
+            try
+            {
+                file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] now;
+                using (SHA256 sha = SHA256.Create()) now = sha.ComputeHash(file);
+                if (now.Length != expected.Length) return null;
+                for (int i = 0; i < now.Length; i++)
+                    if (now[i] != expected[i]) return null;
+                FileStream same = file;
+                file = null;
+                return same;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (file != null) file.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Roda esta mesma cópia como administrador só para gravar as mudanças. null se deu certo. Só a partir de um pedido
+        /// da pessoa (salvar os Ajustes, desinstalar): as gravações automáticas usam WithoutElevation.
+        /// </summary>
         public static string RunElevated(List<FpsCapChange> changes)
         {
             var args = new StringBuilder(HelperArg);
@@ -234,15 +297,31 @@ namespace MouseModes
                 if (!ValidExe(c.Exe)) return L.T("nome de executável inválido", "invalid executable name");
                 args.Append(" \"").Append(Format(c.Exe, c.Fps)).Append('"');
             }
+            // A pasta do app pode ser gravável pela conta: outro programa poderia trocar o .exe antes do pedido. Só pede
+            // administrador para o mesmo .exe que está rodando, travado contra troca até o Windows abrir a cópia.
+            // (Sem o SHA-256 da abertura, como na cópia da desinstalação que acabou de abrir, ele é lido agora.)
+            RememberRunningImage();
+            string exe = System.Windows.Forms.Application.ExecutablePath;
+            FileStream image = OpenIfSame(exe, runningImage);
+            if (image == null)
+            {
+                Log.Warn(L.T("Limite de FPS: o executável no disco não é o que está rodando; pedido de administrador cancelado — ",
+                             "FPS limit: the executable on disk is not the one running; administrator request cancelled — ") + exe);
+                return L.T("o executável do app mudou no disco; feche e abra o MouseModes de novo",
+                           "the app executable changed on disk; close and reopen MouseModes");
+            }
             try
             {
-                var info = new ProcessStartInfo(System.Windows.Forms.Application.ExecutablePath, args.ToString())
+                var info = new ProcessStartInfo(exe, args.ToString())
                 {
                     UseShellExecute = true,
                     Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                using (Process p = Process.Start(info))
+                Process p;
+                try { p = Process.Start(info); }
+                finally { image.Dispose(); } // a cópia já abriu (ou foi recusada): o arquivo pode ser liberado
+                using (p)
                 {
                     p.WaitForExit(60000);
                     if (!p.HasExited) return L.T("o driver não respondeu a tempo", "the driver did not answer in time");

@@ -326,5 +326,47 @@ namespace MouseModes.Tests
             using (var cut = NativeBuffer.Unicode("um-nome-bem-longo.exe", 8))
                 Assert.Equal("um-", Marshal.PtrToStringUni(cut.Pointer)); // 3 letras + o zero final
         }
+
+        [Fact]
+        public void Apply_WithoutElevationLeavesWhatNeedsTheAdministratorPending()
+        {
+            var driver = new FakeLimiter { AskAdmin = true };
+            var applied = new List<string>();
+            var changes = new List<FpsCapChange> { new FpsCapChange { Exe = "cs2.exe", Fps = 141 } };
+
+            List<string> problems = FpsCap.Apply(changes, driver, applied, FpsCap.WithoutElevation);
+
+            Assert.Equal(new[] { "cs2.exe: " + FpsCap.WithoutElevation(changes) }, problems.ToArray());
+            Assert.Empty(applied); // fica para o próximo Salvar dos Ajustes
+            Assert.False(driver.Driver.ContainsKey("cs2.exe"));
+            Assert.Empty(FpsCap.Plan(new Dictionary<string, int>(), applied)); // e não vira um "tirar o limite"
+            Assert.Single(FpsCap.Plan(new Dictionary<string, int> { { "cs2.exe", 141 } }, applied));
+        }
+
+        [Fact]
+        public void OpenIfSame_OnlyOpensTheFileWithTheSameContentAndLocksIt()
+        {
+            using (var temp = new TempFolder())
+            {
+                string exe = temp.Text("app.exe", "o executável que está rodando");
+                byte[] running = FpsCap.HashOf(exe);
+
+                using (System.IO.FileStream same = FpsCap.OpenIfSame(exe, running))
+                {
+                    Assert.NotNull(same);
+                    // Aberto: ninguém troca, grava nem renomeia o arquivo até o pedido de administrador sair.
+                    Assert.Throws<System.IO.IOException>(() => System.IO.File.WriteAllText(exe, "outro"));
+                    Assert.Throws<System.IO.IOException>(() => System.IO.File.Move(exe, temp.File("antigo.exe")));
+                }
+
+                System.IO.File.WriteAllText(exe, "outro programa no lugar");
+                Assert.Null(FpsCap.OpenIfSame(exe, running));
+                Assert.Null(FpsCap.OpenIfSame(exe, null));
+                Assert.Null(FpsCap.OpenIfSame(temp.File("nao-existe.exe"), running));
+                // Depois da recusa o arquivo não fica preso.
+                System.IO.File.WriteAllText(exe, "o executável que está rodando");
+                using (System.IO.FileStream back = FpsCap.OpenIfSame(exe, running)) Assert.NotNull(back);
+            }
+        }
     }
 }

@@ -21,6 +21,16 @@ namespace MouseModes
         public long CalmedAt { get; set; }
     }
 
+    /// <summary>Um processo acalmado ou adotado neste Performance, guardado mesmo depois de ele fechar.</summary>
+    internal sealed class CalmedRecord
+    {
+        public int Pid;
+        /// <summary>Desde quando ele passa a prioridade baixa adiante (FILETIME UTC).</summary>
+        public long CalmedAt;
+        /// <summary>Uma checagem em que ele já não estava aberto (FILETIME UTC); 0 = visto aberto até agora.</summary>
+        public long Gone;
+    }
+
     /// <summary>
     /// Segundo plano calmo: no Performance, os programas desta sessão que estão em segundo plano passam para a
     /// prioridade abaixo do normal, para o modo de eficiência do Windows 11 (EcoQoS) e, nos processadores híbridos,
@@ -104,8 +114,20 @@ namespace MouseModes
         /// <summary>Quantos níveis acima procurar o programa acalmado (Steam → bootstrapper do anti-cheat → jogo).</summary>
         private const int MaxAncestors = 4;
 
+        /// <summary>
+        /// Todo processo que este Performance acalmou ou adotou, mesmo os que já fecharam (o de um cmd /c start fecha
+        /// logo). É a prova para adotar um órfão: quem o abriu é um destes. Limpo ao sair do Performance.
+        /// </summary>
+        private readonly List<CalmedRecord> history = new List<CalmedRecord>();
+
         /// <summary>Só os testes mudam: limita a estes PIDs, para nunca mexer nos programas de verdade do PC.</summary>
         internal Predicate<int> Scope;
+
+        /// <summary>
+        /// Se o processo é um jogo da lista (e não um componente do Windows que bate com um item curto). Só os testes
+        /// mudam: o ping que faz o papel do jogo fica na pasta do Windows.
+        /// </summary>
+        internal Func<Process, string, IList<string>, bool> IsGame = GameDetector.IsListedGame;
 
         /// <param name="save">Como gravar o backup (padrão: o config do app). Os testes gravam numa pasta temporária.</param>
         public BackgroundCalmer(AppConfig cfg, Action save = null)
@@ -139,7 +161,8 @@ namespace MouseModes
             var names = new List<string>();
             bool changed = false;
             Dictionary<int, int> parents = null; // só é lido se aparecer um processo abaixo do normal
-            if (since == 0) since = DateTime.UtcNow.ToFileTimeUtc();
+            long scanned = DateTime.UtcNow.ToFileTimeUtc(); // antes da foto: quem não estiver nela fechou antes disto
+            if (since == 0) since = scanned;
 
             // Entrou na lista de jogos depois de acalmado (Ajustes salvos no meio do Performance): volta ao normal.
             var nowGames = new List<int>();
@@ -159,20 +182,27 @@ namespace MouseModes
                     alive.Add(proc.Id);
                     if (proc.Id == self || calmed.ContainsKey(proc.Id) || skipped.Contains(proc.Id)) continue;
                     if (Scope != null && !Scope(proc.Id)) continue;
+                    // Outra sessão (serviços, outro usuário): nunca é nosso, nem como herdeiro. Antes de qualquer outra coisa.
+                    if (proc.SessionId != session)
+                    {
+                        skipped.Add(proc.Id);
+                        continue;
+                    }
                     string name = proc.ProcessName;
                     ProcessPriorityClass priority = proc.PriorityClass;
                     long started = proc.StartTime.ToFileTimeUtc();
                     CalmedProcess parent = priority == ProcessPriorityClass.BelowNormal ? CalmedAncestor(proc.Id, started, ref parents) : null;
                     bool lateBelowNormal = parent == null && priority == ProcessPriorityClass.BelowNormal && started >= since;
                     // Um jogo abaixo do normal que abriu depois de o segundo plano ser acalmado herdou isso de alguém,
-                    // mesmo que o processo do meio (launcher, bootstrapper do anti-cheat) já tenha fechado.
-                    // Fora os jogos, o mesmo vale para quem ficou órfão: o do meio (cmd /c start, Update.exe --processStart
-                    // do Squirrel, stub de launcher) fechou e não dá para subir até o programa acalmado. Sem adotar, ele
-                    // ficaria abaixo do normal depois do Performance. Processos do Windows ficam de fora (não são nossos).
+                    // mesmo que o processo do meio (launcher, bootstrapper do anti-cheat) já tenha fechado. Componentes de
+                    // jogo do Windows que batem com um item curto da lista ("Game") não contam.
+                    // Fora os jogos, só com prova: quem o abriu já fechou, mas foi um programa que este Performance acalmou
+                    // ou adotou (cmd /c start, Update.exe --processStart do Squirrel, stub de launcher acalmados). Uma
+                    // tarefa agendada também nasce abaixo do normal, e essa não é nossa.
                     bool inherited = parent != null ||
-                                     (lateBelowNormal && GameBooster.Matches(name, games)) ||
-                                     (lateBelowNormal && calmed.Count > 0 && !AppCloser.Protected.Contains(name) &&
-                                      ParentGone(proc.Id, started, ref parents));
+                                     (lateBelowNormal && IsGame(proc, name, games)) ||
+                                     (lateBelowNormal && !AppCloser.Protected.Contains(name) &&
+                                      OrphanOfCalmed(proc.Id, started, ref parents));
                     // O primeiro plano muda: reavalia quando ele for para trás (por isso não vai para skipped).
                     if (string.Equals(name, foreground, StringComparison.OrdinalIgnoreCase))
                     {
@@ -181,7 +211,7 @@ namespace MouseModes
                     }
                     // Quem herdou a prioridade baixa de um programa acalmado nasceria no Normal: é julgado como tal.
                     if (inherited) priority = ProcessPriorityClass.Normal;
-                    if (proc.SessionId != session || !ShouldCalm(name, priority, true, games, foreground))
+                    if (!ShouldCalm(name, priority, true, games, foreground))
                     {
                         if (inherited) GiveBackInherited(proc, name, parent, games);
                         skipped.Add(proc.Id);
@@ -200,6 +230,7 @@ namespace MouseModes
                     proc.PriorityClass = ProcessPriorityClass.BelowNormal;
                     // Registra antes do modo de eficiência: se ele falhar, a prioridade ainda é desfeita depois.
                     calmed[proc.Id] = entry;
+                    history.Add(new CalmedRecord { Pid = entry.Pid, CalmedAt = entry.CalmedAt });
                     changed = true;
                     if (!names.Contains(name)) names.Add(name);
                     entry.Eco = TurnOnEco(proc);
@@ -217,6 +248,8 @@ namespace MouseModes
             }
 
             skipped.RemoveWhere(pid => !alive.Contains(pid));
+            foreach (CalmedRecord record in history)
+                if (record.Gone == 0 && !alive.Contains(record.Pid)) record.Gone = scanned;
             var dead = new List<int>();
             foreach (int pid in calmed.Keys) if (!alive.Contains(pid)) dead.Add(pid);
             foreach (int pid in dead) calmed.Remove(pid);
@@ -255,14 +288,24 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// Quem abriu este processo já fechou (não está na foto, ou o PID agora é de um processo mais novo que ele).
-        /// false se não der para saber.
+        /// Órfão de um programa acalmado: quem abriu este processo já fechou e era um que este Performance acalmou ou
+        /// adotou (e que já estava abaixo do normal quando ele nasceu). Sem essa prova, não é nosso.
         /// </summary>
-        private static bool ParentGone(int pid, long started, ref Dictionary<int, int> parents)
+        private bool OrphanOfCalmed(int pid, long started, ref Dictionary<int, int> parents)
         {
+            if (history.Count == 0) return false;
             if (parents == null) parents = ParentIds();
             int parentId;
             if (!parents.TryGetValue(pid, out parentId) || parentId == pid || parentId == 0) return false;
+            return ParentGone(parentId, started, parents) && LaunchedByCalmed(history, parentId, started);
+        }
+
+        /// <summary>
+        /// Quem abriu o processo já fechou (não está na foto, ou o PID agora é de um processo mais novo que ele).
+        /// false se não der para saber.
+        /// </summary>
+        private static bool ParentGone(int parentId, long started, Dictionary<int, int> parents)
+        {
             if (!parents.ContainsKey(parentId)) return true;
             try
             {
@@ -278,6 +321,18 @@ namespace MouseModes
             {
                 return false; // acesso negado (processo elevado ou do sistema): está vivo
             }
+        }
+
+        /// <summary>
+        /// O PID que abriu um processo nascido em <paramref name="started"/> é de um processo acalmado ou adotado: com
+        /// esse PID, já abaixo do normal antes de ele nascer (CalmedAt), e não visto fechado antes disso (Gone).
+        /// </summary>
+        internal static bool LaunchedByCalmed(IList<CalmedRecord> history, int parentId, long started)
+        {
+            foreach (CalmedRecord record in history)
+                if (record.Pid == parentId && record.CalmedAt <= started && (record.Gone == 0 || started < record.Gone))
+                    return true;
+            return false;
         }
 
         /// <summary>Herdou a prioridade baixa, mas não é para acalmar (jogo, Windows, voz...): volta ao normal.</summary>
@@ -335,6 +390,7 @@ namespace MouseModes
                 Log.Info(L.T("Segundo plano calmo desfeito em ", "Calm background undone on ") + count + L.T(" processo(s)", " process(es)"));
             calmed.Clear();
             skipped.Clear();
+            history.Clear();
             reported = false;
             since = 0;
             if (cfg.CalmBackup != null && cfg.CalmBackup.Count > 0) SaveBackup();
