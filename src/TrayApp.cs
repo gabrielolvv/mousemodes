@@ -433,9 +433,18 @@ namespace MouseModes
                 Log.Info(L.T("Caça-travadinhas: quadros não medidos (", "Stutter finder: frames not measured (") + report.FramesMissing + ")");
             }
 
+            CpuSpeedReport cpu = report.CpuSpeed;
+            if (cpu != null)
+            {
+                var slow = cpu.Worst.ConvertAll(CpuSpeedReport.Describe);
+                Log.Info(L.T("Processador na partida: ", "CPU during the match: ") + cpu.Summary() +
+                         (slow.Count == 0 ? "" : " [" + string.Join("; ", slow.ToArray()) + "]"));
+            }
+
             bool badNetwork = net != null && net.Verdict != NetVerdict.Stable;
             bool stutters = frames != null && frames.StutterCount > 0;
-            if ((report.Culprits.Count == 0 && !badNetwork && !stutters) || !cfg.ShowNotifications) return;
+            bool throttled = cpu != null && cpu.Limited;
+            if ((report.Culprits.Count == 0 && !badNetwork && !stutters && !throttled) || !cfg.ShowNotifications) return;
             string text = "";
             if (frames != null) text = frames.Summary() + ".\n";
             if (report.Culprits.Count > 0)
@@ -449,6 +458,9 @@ namespace MouseModes
                             ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
                             : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
                         NetSource(net) + ".\n";
+            if (throttled)
+                text += L.T("Processador freado ", "CPU throttled for ") + CpuSpeedReport.Span(cpu.LimitedSeconds) +
+                        L.T(" (até ", " (down to ") + Math.Round(cpu.LowestLimit) + L.T("% da velocidade).\n", "% speed).\n");
             ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
                 text + L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
         }

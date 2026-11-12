@@ -145,6 +145,11 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   (shaders, loading). It does not touch the game. Windows only lets administrators or the "Performance Log Users"
   group read frames: the Allow button adds your account to the group once (it asks for the administrator) and applies
   after signing out and back in; the same button removes it. Vulkan and OpenGL games are not read yet.
+- **CPU during the match** (in the X-ray): the CPU's average speed compared with its nominal speed and the stretches
+  when it was throttled, read every 3 s from the Windows counters (the Task Manager ones). It counts as throttling
+  when the processor's own limit is below 90% (heat, battery) or the speed is below 85% of nominal while the CPU is
+  busy; when idle, it slows down on purpose and that does not count. A stutter in one of those stretches shows "CPU
+  throttled" as its cause, and on battery the report says it was the battery.
 - **Diagnostics** (Settings → General): a log of what the app did and what failed. File at
   `%APPDATA%\MouseModes\log.txt`.
 - **Windows for games** (in Diagnostics): shows Game Mode, background recording, hardware-accelerated GPU scheduling

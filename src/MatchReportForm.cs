@@ -78,6 +78,7 @@ namespace MouseModes
             }
 
             y = AddFrames(report, y);
+            if (report.CpuSpeed != null) y = AddCpuSpeed(report.CpuSpeed, y);
             if (report.Network != null) y = AddNetwork(report.Network, y);
 
             var footer = Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
@@ -136,6 +137,27 @@ namespace MouseModes
             {
                 Controls.Add(Note(L.T("e mais " + (frames.StutterCount - frames.Worst.Count) + " travadinha(s) menores",
                                       "and " + (frames.StutterCount - frames.Worst.Count) + " smaller stutter(s)"), 20, y, 440, 18, Theme.Faint, 8f));
+                y += 22;
+            }
+            return y + 6;
+        }
+
+        /// <summary>O processador: velocidade média, se foi freado e os trechos mais longos de freio. Devolve o y seguinte.</summary>
+        private int AddCpuSpeed(CpuSpeedReport cpu, int y)
+        {
+            Controls.Add(new SectionLabel { Text = L.T("Processador", "CPU"), Location = new Point(20, y), Size = new Size(440, 20) });
+            y += 24;
+            Label summary = Note(cpu.Summary(), 20, y, 440, 20, Theme.Text, 9.5f);
+            summary.Height = TextRenderer.MeasureText(summary.Text, summary.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+            Controls.Add(summary);
+            y += summary.Height + 2;
+            Label verdict = Note(cpu.VerdictText(), 20, y, 440, 36, cpu.Limited ? Theme.PerfB : Theme.DailyB, 9f);
+            verdict.Height = TextRenderer.MeasureText(verdict.Text, verdict.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+            Controls.Add(verdict);
+            y += verdict.Height + 8;
+            foreach (CpuSlowdown s in cpu.Worst)
+            {
+                Controls.Add(Note("• " + CpuSpeedReport.Describe(s), 20, y, 440, 18, Theme.Muted, 8.5f));
                 y += 22;
             }
             return y + 6;

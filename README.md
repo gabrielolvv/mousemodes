@@ -135,6 +135,11 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   carregamento). Não entra no jogo. O Windows só deixa ler os quadros para administradores ou para o grupo
   "Performance Log Users": o botão Permitir põe a sua conta no grupo uma vez (pede o administrador) e vale depois de
   sair e entrar de novo na conta; o mesmo botão tira. Jogos em Vulkan ou OpenGL ainda não são lidos.
+- **Processador na partida** (no Raio-X): a velocidade média do processador em relação à nominal e os trechos em que
+  ele foi freado, lidos a cada 3 s pelos contadores do Windows (os do Gerenciador de Tarefas). Conta como freio o
+  limite do próprio processador abaixo de 90% (calor, bateria) ou a velocidade abaixo de 85% da nominal com o
+  processador ocupado; parado, ele baixa a velocidade de propósito e isso não conta. Uma travadinha num desses trechos
+  aparece com a causa "processador freado", e na bateria o relatório diz que foi a bateria.
 - **Diagnóstico** (Ajustes → Geral): registro do que o app fez e do que falhou. Arquivo em `%APPDATA%\MouseModes\log.txt`.
 - **Windows para jogos** (no Diagnóstico): mostra Modo de Jogo, gravação em segundo plano, agendamento de GPU acelerado
   e, no Windows 11, otimizações para jogos em janela, com o que costuma ajudar. O app não muda nada disso: o botão
