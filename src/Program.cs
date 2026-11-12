@@ -30,6 +30,9 @@ namespace MouseModes
         {
             if (HasArg(args, FpsCap.HelperArg)) return FpsCap.RunHelper(args);
             if (HasArg(args, "--quit")) return QuitRunningInstance() ? 0 : 1;
+            // Daqui em diante pode haver pedido de administrador (limite de FPS): o SHA-256 do .exe é lido já, antes de
+            // qualquer outra coisa, para o pedido conferir que o .exe no disco ainda é este.
+            FpsCap.RememberRunningImage();
             if (HasArg(args, "--uninstall-cleanup")) return UninstallCleanup();
 
             string command = CommandSignals.Find(args);
@@ -115,6 +118,8 @@ namespace MouseModes
         /// <summary>
         /// Usado pelo desinstalador depois do --quit (a cópia aberta já saiu e restaurou o que era dela). Desfaz o que
         /// pode ter ficado no Windows. Cada parte isolada: se uma falhar, as outras ainda rodam.
+        /// Saída: 0 = tudo certo; 1 = alguma parte falhou (está no log); PowerModeLeftChanged = o modo de energia da
+        /// tomada pode ter ficado em Melhor desempenho (o desinstalador avisa na tela: o log pode ser apagado junto).
         /// </summary>
         private static int UninstallCleanup()
         {
@@ -128,6 +133,7 @@ namespace MouseModes
 
             bool ok = true;
             bool planSettled = false;
+            bool powerModeLeft = false;
             // Mesma regra da abertura: se ficou no Performance, volta ao Dia a dia (com o plano anterior).
             ok &= Step(L.T("Desinstalação: modo Dia a dia", "Uninstall: Daily mode"), () =>
             {
@@ -142,11 +148,17 @@ namespace MouseModes
             {
                 var keeper = new PowerModeKeeper(cfg);
                 if (cfg.PowerModeBackup != null && !keeper.OnAC)
+                {
+                    powerModeLeft = true;
                     Log.Warn(L.T("Desinstalação na bateria: o modo de energia da tomada pode ter ficado em Melhor desempenho; ajuste em Configurações → Energia com o PC na tomada",
                                  "Uninstall on battery: the plugged-in power mode may have stayed on Best performance; set it in Settings → Power while plugged in"));
+                }
                 else if (!keeper.Restore())
+                {
+                    powerModeLeft = true;
                     Log.Warn(L.T("Desinstalação: o modo de energia do Windows não voltou; ajuste em Configurações → Energia",
                                  "Uninstall: the Windows power mode did not go back; set it in Settings → Power"));
+                }
             });
             // A sessão de leitura dos quadros desta conta, se o app caiu no meio de uma partida.
             ok &= Step(L.T("Desinstalação: leitura dos quadros", "Uninstall: frame reading"), () => FrameProbe.StopLeftover());
@@ -167,8 +179,12 @@ namespace MouseModes
             ok &= Step(L.T("Desinstalação: limites de FPS", "Uninstall: FPS limits"), () => RemoveFpsCaps(cfg));
             ok &= Step(L.T("Desinstalação: Iniciar com o Windows", "Uninstall: Start with Windows"), () => Startup.SetEnabled(false));
             Log.Info(L.T("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows", "Uninstall: Daily mode applied and removed from Start with Windows"));
+            if (powerModeLeft) return PowerModeLeftChanged; // o aviso que importa para a pessoa; o resto está no log
             return ok ? 0 : 1;
         }
+
+        /// <summary>Saída do --uninstall-cleanup quando o modo de energia não voltou (o MouseModes.nsi confere este número).</summary>
+        internal const int PowerModeLeftChanged = 3;
 
         private static bool Step(string what, Action action)
         {
@@ -194,7 +210,8 @@ namespace MouseModes
             string error = L.T("o Windows não respondeu em 90 s", "Windows did not answer within 90 s");
             var worker = new Thread(() =>
             {
-                try { error = FramePermission.Change(false); }
+                bool alreadyMember; // só vale ao pôr
+                try { error = FramePermission.Change(false, out alreadyMember); }
                 catch (Exception ex) { error = ex.Message; }
             }) { IsBackground = true, Name = "MouseModes permissão dos quadros" };
             worker.Start();

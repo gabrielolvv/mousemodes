@@ -395,6 +395,44 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void MarkExited_UsesTheHandleForTheExactExitTimeAndThenClosesIt()
+        {
+            // O handle segura o PID (o Windows não o reaproveita enquanto ele está aberto) e diz quando o processo
+            // fechou. Só abre handles e lê horas: nenhum processo muda de prioridade.
+            using (Process ping = StartPing())
+            {
+                try
+                {
+                    long started = ping.StartTime.ToFileTimeUtc();
+                    Assert.Null(BackgroundCalmer.OpenTracked(ping.Id, started + 1)); // outro processo com o mesmo PID
+                    var record = new CalmedRecord { Pid = ping.Id, CalmedAt = started, Handle = BackgroundCalmer.OpenTracked(ping.Id, started) };
+                    Assert.NotNull(record.Handle);
+                    var withoutHandle = new CalmedRecord { Pid = 1, CalmedAt = started }; // fica para a regra do PID na foto
+                    var history = new List<CalmedRecord> { record, withoutHandle };
+
+                    BackgroundCalmer.MarkExited(history);
+                    Assert.Equal(0, record.Gone); // ainda aberto
+                    Assert.NotNull(record.Handle);
+
+                    Stop(ping);
+                    Assert.True(ping.WaitForExit(30000));
+                    long exited = ping.ExitTime.ToFileTimeUtc();
+                    BackgroundCalmer.MarkExited(history);
+                    Assert.Equal(exited, record.Gone);
+                    Assert.Null(record.Handle); // fechado: o PID pode voltar a ser usado, e o Gone já separa os dois
+                    Assert.Equal(0, withoutHandle.Gone);
+                    // Quem nasceu depois da saída, com o mesmo PID, não é filho dele.
+                    Assert.False(BackgroundCalmer.LaunchedByCalmed(history, ping.Id, exited + 1));
+                    Assert.True(BackgroundCalmer.LaunchedByCalmed(history, ping.Id, exited - 1));
+                }
+                finally
+                {
+                    Stop(ping);
+                }
+            }
+        }
+
+        [Fact]
         public void Calm_ReleasesAProgramThatBecameAGame()
         {
             using (var temp = new TempFolder())

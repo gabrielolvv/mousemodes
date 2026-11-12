@@ -260,7 +260,8 @@ namespace MouseModes
         private void ChangeFramePermission()
         {
             bool allow = !(FramePermission.Allowed || cfg.FramePermissionAsked);
-            string error = FramePermission.Change(allow);
+            bool alreadyMember;
+            string error = FramePermission.Change(allow, out alreadyMember);
             if (error != null)
             {
                 Log.Warn(L.T("Caça-travadinhas: permissão não mudou (", "Stutter finder: permission not changed (") + error + ")");
@@ -268,9 +269,13 @@ namespace MouseModes
                 return;
             }
             cfg.FramePermissionAsked = allow;
-            cfg.FramePermissionGranted = allow; // só o Change muda; o Asked some quando a permissão passa a valer, este fica
+            // Só o Change muda; o Asked some quando a permissão passa a valer, este fica. Só marca quando foi o app que pôs:
+            // se a conta já estava no grupo (administrador, política do PC), a desinstalação não tira.
+            if (!allow) cfg.FramePermissionGranted = false;
+            else if (!alreadyMember) cfg.FramePermissionGranted = true;
             try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); } // vale mesmo com Cancelar
-            Log.Info(allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
+            Log.Info(allow && alreadyMember ? L.T("Caça-travadinhas: a conta já estava no grupo Performance Log Users", "Stutter finder: the account was already in Performance Log Users")
+                   : allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
                            : L.T("Caça-travadinhas: conta tirada do grupo Performance Log Users", "Stutter finder: account removed from Performance Log Users"));
             ShowFramePermission();
             if (allow)

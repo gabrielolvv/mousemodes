@@ -185,16 +185,22 @@ namespace MouseModes.Tests
         }
 
         [Fact]
-        public void FramePermission_CommandTreatsAlreadyInAndAlreadyOutAsSuccess()
+        public void FramePermission_CommandTellsAlreadyInApartAndTreatsAlreadyOutAsSuccess()
         {
             string add = FramePermission.Command(true, "S-1-5-21-1-2-3-1001");
             string remove = FramePermission.Command(false, "S-1-5-21-1-2-3-1001");
 
             Assert.Contains("Add-LocalGroupMember -SID S-1-5-32-559 -Member S-1-5-21-1-2-3-1001 -ErrorAction Stop", add);
             Assert.Contains("Remove-LocalGroupMember -SID S-1-5-32-559", remove);
+            // Pôr: já estar no grupo sai com 2 (não foi o app que pôs; a desinstalação não tira). Pôr de verdade sai com 0.
+            Assert.Equal(2, FramePermission.AlreadyMemberExit);
+            Assert.Contains("-eq 'MemberExistsException') { exit 2 }", add);
+            Assert.DoesNotContain("MemberNotFoundException", add);
+            // Tirar: já não estar no grupo conta como certo.
+            Assert.Contains("-eq 'MemberNotFoundException') { exit 0 }", remove);
+            Assert.DoesNotContain("MemberExistsException", remove);
             foreach (string command in new[] { add, remove })
             {
-                Assert.Contains("'MemberExistsException','MemberNotFoundException') { exit 0 }", command);
                 Assert.EndsWith("exit 1 }", command); // qualquer outro erro continua sendo erro
                 Assert.DoesNotContain("\"", command);  // vai dentro de -Command "..."
             }

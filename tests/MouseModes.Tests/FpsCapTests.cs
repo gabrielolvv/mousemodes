@@ -368,5 +368,35 @@ namespace MouseModes.Tests
                 using (System.IO.FileStream back = FpsCap.OpenIfSame(exe, running)) Assert.NotNull(back);
             }
         }
+
+        [Fact]
+        public void UnsafeFileNextTo_FindsWhatWouldLoadCodeIntoTheAdministratorCopy()
+        {
+            using (var temp = new TempFolder())
+            {
+                string folder = temp.File("app");
+                temp.Text(@"app\MouseModes.exe", "o app");
+                temp.Text(@"app\Desinstalar.exe", "o desinstalador");
+                temp.Text(@"app\leia.txt", "nada a ver");
+                Assert.Null(FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+
+                // AppDomainManager pelo .config, redirecionamento de DLL pelo .local (arquivo ou pasta), DLL ao lado.
+                foreach (string name in new[] { "MouseModes.exe.config", "MouseModes.exe.local", "version.dll", "QUALQUER.DLL" })
+                {
+                    string path = temp.Text(@"app\" + name, "x");
+                    Assert.Equal(path, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"), StringComparer.OrdinalIgnoreCase);
+                    System.IO.File.Delete(path);
+                }
+                string localDir = temp.File(@"app\MouseModes.exe.local");
+                System.IO.Directory.CreateDirectory(localDir);
+                Assert.Equal(localDir, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                System.IO.Directory.Delete(localDir);
+
+                // O nome vem do .exe que está rodando: o .config de outro .exe não conta.
+                temp.Text(@"app\Outro.exe.config", "x");
+                Assert.Null(FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                Assert.NotNull(FpsCap.UnsafeFileNextTo(folder, "Outro.exe"));
+            }
+        }
     }
 }

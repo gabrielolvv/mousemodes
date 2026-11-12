@@ -240,7 +240,10 @@ namespace MouseModes
         /// <summary>SHA-256 do .exe como estava ao abrir o app (o que está rodando).</summary>
         private static byte[] runningImage;
 
-        /// <summary>Guarda o SHA-256 do .exe que está rodando. Chamado ao abrir o app, antes de qualquer pedido de administrador.</summary>
+        /// <summary>
+        /// Guarda o SHA-256 do .exe que está rodando. Chamado no começo do Main, antes de qualquer pedido de administrador
+        /// (abertura normal e desinstalação): ler depois daria tempo de o .exe ser trocado no disco.
+        /// </summary>
         public static void RememberRunningImage()
         {
             if (runningImage != null) return;
@@ -286,6 +289,22 @@ namespace MouseModes
         }
 
         /// <summary>
+        /// Arquivo na pasta do .exe que faria o Windows ou o .NET carregar código de fora na cópia administradora:
+        /// MouseModes.exe.config (AppDomainManager), MouseModes.exe.local (redirecionamento de DLL) ou qualquer .dll
+        /// (o app é um .exe só). A pasta pode ser gravável pela conta. null se não há nenhum.
+        /// </summary>
+        internal static string UnsafeFileNextTo(string folder, string exeName)
+        {
+            foreach (string name in new[] { exeName + ".config", exeName + ".local" })
+            {
+                string path = Path.Combine(folder, name);
+                if (File.Exists(path) || Directory.Exists(path)) return path;
+            }
+            foreach (string dll in Directory.EnumerateFiles(folder, "*.dll")) return dll;
+            return null;
+        }
+
+        /// <summary>
         /// Roda esta mesma cópia como administrador só para gravar as mudanças. null se deu certo. Só a partir de um pedido
         /// da pessoa (salvar os Ajustes, desinstalar): as gravações automáticas usam WithoutElevation.
         /// </summary>
@@ -299,9 +318,25 @@ namespace MouseModes
             }
             // A pasta do app pode ser gravável pela conta: outro programa poderia trocar o .exe antes do pedido. Só pede
             // administrador para o mesmo .exe que está rodando, travado contra troca até o Windows abrir a cópia.
-            // (Sem o SHA-256 da abertura, como na cópia da desinstalação que acabou de abrir, ele é lido agora.)
-            RememberRunningImage();
+            // Sem o SHA-256 lido na abertura não há com o que comparar: não pede.
+            if (runningImage == null)
+            {
+                Log.Warn(L.T("Limite de FPS: o executável não foi lido ao abrir o app; pedido de administrador cancelado",
+                             "FPS limit: the executable was not read when the app started; administrator request cancelled"));
+                return L.T("não deu para conferir o executável do app; feche e abra o MouseModes de novo",
+                           "could not check the app executable; close and reopen MouseModes");
+            }
             string exe = System.Windows.Forms.Application.ExecutablePath;
+            string unsafeFile;
+            try { unsafeFile = UnsafeFileNextTo(Path.GetDirectoryName(exe), Path.GetFileName(exe)); }
+            catch (Exception ex) { unsafeFile = ex.Message; } // sem ler a pasta, também não pede
+            if (unsafeFile != null)
+            {
+                Log.Warn(L.T("Limite de FPS: arquivo estranho na pasta do app; pedido de administrador cancelado — ",
+                             "FPS limit: unexpected file in the app folder; administrator request cancelled — ") + unsafeFile);
+                return L.T("há um arquivo estranho na pasta do app (", "there is an unexpected file in the app folder (") + unsafeFile +
+                       L.T("); reinstale o MouseModes", "); reinstall MouseModes");
+            }
             FileStream image = OpenIfSame(exe, runningImage);
             if (image == null)
             {

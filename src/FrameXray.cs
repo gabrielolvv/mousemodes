@@ -229,9 +229,13 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Põe (ou tira) a conta do grupo. Abre o pedido de administrador do Windows. null se deu certo.</summary>
-        public static string Change(bool allow)
+        /// <summary>
+        /// Põe (ou tira) a conta do grupo. Abre o pedido de administrador do Windows. null se deu certo. alreadyMember:
+        /// ao pôr, a conta já estava no grupo (posta por um administrador ou pela política do PC, não pelo app).
+        /// </summary>
+        public static string Change(bool allow, out bool alreadyMember)
         {
+            alreadyMember = false;
             try
             {
                 string user;
@@ -246,7 +250,12 @@ namespace MouseModes
                 {
                     p.WaitForExit(30000);
                     if (!p.HasExited) return L.T("o Windows não respondeu a tempo", "Windows did not answer in time");
-                    // Já estava (ou já não estava) no grupo também conta como certo.
+                    // Já estava (ou já não estava) no grupo também conta como certo; ao pôr, avisa quem chamou.
+                    if (allow && p.ExitCode == AlreadyMemberExit)
+                    {
+                        alreadyMember = true;
+                        return null;
+                    }
                     return p.ExitCode == 0 ? null : L.T("o Windows recusou a mudança (código ", "Windows refused the change (code ") + p.ExitCode + ")";
                 }
             }
@@ -260,15 +269,20 @@ namespace MouseModes
             }
         }
 
+        /// <summary>Saída do comando de pôr quando a conta já estava no grupo (o app não pôs).</summary>
+        internal const int AlreadyMemberExit = 2;
+
         /// <summary>
-        /// O comando do PowerShell que põe (ou tira) a conta do grupo. Já estar (ou já não estar) no grupo sai com 0:
-        /// o -ErrorAction Stop transforma isso em MemberExists/MemberNotFound, que aqui contam como certo. Qualquer
-        /// outro erro continua saindo com 1.
+        /// O comando do PowerShell que põe (ou tira) a conta do grupo. O -ErrorAction Stop transforma "já está" e "já não
+        /// está" em MemberExists/MemberNotFound. Pôr: 0 se o app pôs, AlreadyMemberExit se já estava (então não foi o
+        /// app, e a desinstalação não deve tirar). Tirar: 0 se tirou ou já não estava. Qualquer outro erro sai com 1.
         /// </summary>
         internal static string Command(bool allow, string userSid)
         {
-            return "try { " + (allow ? "Add" : "Remove") + "-LocalGroupMember -SID " + PerformanceLogUsers + " -Member " + userSid +
-                   " -ErrorAction Stop } catch { if ($_.Exception.GetType().Name -in 'MemberExistsException','MemberNotFoundException') { exit 0 }; exit 1 }";
+            string cmdlet = allow ? "Add" : "Remove";
+            string expected = allow ? "'MemberExistsException') { exit " + AlreadyMemberExit + " }" : "'MemberNotFoundException') { exit 0 }";
+            return "try { " + cmdlet + "-LocalGroupMember -SID " + PerformanceLogUsers + " -Member " + userSid +
+                   " -ErrorAction Stop } catch { if ($_.Exception.GetType().Name -eq " + expected + "; exit 1 }";
         }
     }
 

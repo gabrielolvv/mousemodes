@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace MouseModes
 {
@@ -27,8 +28,14 @@ namespace MouseModes
         public int Pid;
         /// <summary>Desde quando ele passa a prioridade baixa adiante (FILETIME UTC).</summary>
         public long CalmedAt;
-        /// <summary>Uma checagem em que ele já não estava aberto (FILETIME UTC); 0 = visto aberto até agora.</summary>
+        /// <summary>Quando ele fechou (FILETIME UTC); 0 = visto aberto até agora.</summary>
         public long Gone;
+        /// <summary>
+        /// Aberto enquanto ele não fecha: com um handle aberto o Windows não reaproveita o PID, e o handle diz quando ele
+        /// fechou. Fechado assim que o Gone é marcado (ou no RestoreAll). null se o Windows não deu o handle: aí o Gone
+        /// vem da checagem que já não o viu aberto.
+        /// </summary>
+        public SafeProcessHandle Handle;
     }
 
     /// <summary>
@@ -90,6 +97,19 @@ namespace MouseModes
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr handle);
+
+        private const uint Synchronize = 0x00100000;
+        private const uint ProcessQueryLimitedInformation = 0x1000;
+        private const uint WaitObject0 = 0;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern SafeProcessHandle OpenProcess(uint access, bool inherit, int processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern uint WaitForSingleObject(SafeProcessHandle handle, uint milliseconds);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetProcessTimes(SafeProcessHandle handle, out long creation, out long exit, out long kernel, out long user);
 
         /// <summary>
         /// Nunca acalma (começo do nome): voz, música, transmissão e gravação, overlays, software do mouse e anti-cheat.
@@ -163,6 +183,7 @@ namespace MouseModes
             Dictionary<int, int> parents = null; // só é lido se aparecer um processo abaixo do normal
             long scanned = DateTime.UtcNow.ToFileTimeUtc(); // antes da foto: quem não estiver nela fechou antes disto
             if (since == 0) since = scanned;
+            MarkExited(history); // antes de julgar órfãos: quem fechou, com a hora exata
 
             // Entrou na lista de jogos depois de acalmado (Ajustes salvos no meio do Performance): volta ao normal.
             var nowGames = new List<int>();
@@ -230,7 +251,7 @@ namespace MouseModes
                     proc.PriorityClass = ProcessPriorityClass.BelowNormal;
                     // Registra antes do modo de eficiência: se ele falhar, a prioridade ainda é desfeita depois.
                     calmed[proc.Id] = entry;
-                    history.Add(new CalmedRecord { Pid = entry.Pid, CalmedAt = entry.CalmedAt });
+                    Remember(entry);
                     changed = true;
                     if (!names.Contains(name)) names.Add(name);
                     entry.Eco = TurnOnEco(proc);
@@ -248,8 +269,9 @@ namespace MouseModes
             }
 
             skipped.RemoveWhere(pid => !alive.Contains(pid));
+            // Sem handle, a única pista é o PID sumir da foto.
             foreach (CalmedRecord record in history)
-                if (record.Gone == 0 && !alive.Contains(record.Pid)) record.Gone = scanned;
+                if (record.Gone == 0 && record.Handle == null && !alive.Contains(record.Pid)) record.Gone = scanned;
             var dead = new List<int>();
             foreach (int pid in calmed.Keys) if (!alive.Contains(pid)) dead.Add(pid);
             foreach (int pid in dead) calmed.Remove(pid);
@@ -266,6 +288,78 @@ namespace MouseModes
                                                cores.Length + L.T(" de ", " of ") + CpuSets.Total + ")") +
                          " [" + string.Join(", ", names.ToArray()) + "]");
             }
+        }
+
+        /// <summary>
+        /// Guarda no histórico o processo que acabou de ser acalmado ou adotado, com um handle que segura o PID. Se ele já
+        /// está lá, aberto e com handle (voltou do primeiro plano e foi acalmado de novo), não abre outro.
+        /// </summary>
+        private void Remember(CalmedProcess entry)
+        {
+            foreach (CalmedRecord known in history)
+                if (known.Pid == entry.Pid && known.Gone == 0 && known.Handle != null) return;
+            var record = new CalmedRecord { Pid = entry.Pid, CalmedAt = entry.CalmedAt };
+            history.Add(record); // antes de abrir: daqui em diante o RestoreAll fecha o handle
+            record.Handle = OpenTracked(entry.Pid, entry.StartTime);
+        }
+
+        /// <summary>
+        /// Handle só para esperar e ler as horas do processo, se ele ainda for o que começou em <paramref name="started"/>
+        /// (FILETIME UTC). null se não deu para abrir ou se o PID já é de outro processo.
+        /// </summary>
+        internal static SafeProcessHandle OpenTracked(int pid, long started)
+        {
+            SafeProcessHandle handle = null;
+            try
+            {
+                handle = OpenProcess(Synchronize | ProcessQueryLimitedInformation, false, pid);
+                long creation, exit, kernel, user;
+                if (handle.IsInvalid || !GetProcessTimes(handle, out creation, out exit, out kernel, out user) || creation != started)
+                    return null;
+                SafeProcessHandle same = handle;
+                handle = null;
+                return same;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (handle != null) handle.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Marca o Gone de quem fechou, pela hora de saída que o Windows guarda no processo (ou agora, se não der para ler:
+        /// com o handle aberto o PID não foi reaproveitado até aqui), e fecha o handle.
+        /// </summary>
+        internal static void MarkExited(IList<CalmedRecord> history)
+        {
+            foreach (CalmedRecord record in history)
+            {
+                if (record.Handle == null || record.Gone != 0) continue;
+                long exitTime = 0;
+                try
+                {
+                    if (WaitForSingleObject(record.Handle, 0) != WaitObject0) continue; // ainda aberto
+                    long creation, kernel, user;
+                    if (!GetProcessTimes(record.Handle, out creation, out exitTime, out kernel, out user)) exitTime = 0;
+                }
+                catch
+                {
+                    exitTime = 0;
+                }
+                record.Gone = exitTime > 0 ? exitTime : DateTime.UtcNow.ToFileTimeUtc();
+                DropHandle(record);
+            }
+        }
+
+        private static void DropHandle(CalmedRecord record)
+        {
+            if (record.Handle == null) return;
+            record.Handle.Dispose();
+            record.Handle = null;
         }
 
         /// <summary>
@@ -390,6 +484,7 @@ namespace MouseModes
                 Log.Info(L.T("Segundo plano calmo desfeito em ", "Calm background undone on ") + count + L.T(" processo(s)", " process(es)"));
             calmed.Clear();
             skipped.Clear();
+            foreach (CalmedRecord record in history) DropHandle(record);
             history.Clear();
             reported = false;
             since = 0;

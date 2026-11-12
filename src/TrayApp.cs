@@ -1217,11 +1217,14 @@ namespace MouseModes
                 // O mouse volta na hora; plano e USB numa thread de fundo, com pouco tempo (o Windows não espera muito).
                 try { modes.Apply(Mode.DiaADia, L.T("Windows encerrando a sessão", "Windows is ending the session")); }
                 catch (Exception ex) { Log.Error(L.T("Voltar ao Dia a dia", "Go back to Daily"), ex); }
-                if (!modes.WaitForPower(4000))
+                // O Apply já gravou Dia a dia, mas plano e USB ainda estão voltando numa thread de fundo, e o Windows
+                // pode encerrar o processo durante a espera. Grava Performance antes de esperar: a próxima abertura
+                // aplica o Dia a dia de novo (inofensivo se já voltou). Só com o plano de volta grava Dia a dia.
+                cfg.LastMode = Mode.Performance;
+                SaveConfig();
+                if (modes.WaitForPower(4000))
                 {
-                    // O Apply já gravou Dia a dia, mas plano e USB podem não ter voltado antes de o Windows encerrar o
-                    // processo. Grava Performance: a próxima abertura aplica o Dia a dia de novo (inofensivo se já voltou).
-                    cfg.LastMode = Mode.Performance;
+                    cfg.LastMode = Mode.DiaADia;
                     SaveConfig();
                 }
                 try { powerMode.Restore(); }
@@ -1272,16 +1275,26 @@ namespace MouseModes
             Microsoft.Win32.SystemEvents.SessionEnded -= OnSessionEnded;
             recorder.Abort(); // partida em andamento: fecha a leitura dos quadros, sem relatório
 
+            bool backToDaily = false;
             if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
             {
                 quiet = true;
                 modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"));
+                // Como no fim de sessão: até o plano e o USB voltarem, o disco diz Performance (se o processo morrer
+                // na espera, a próxima abertura desfaz).
+                cfg.LastMode = Mode.Performance;
+                SaveConfig();
+                backToDaily = true;
             }
             foreground.Dispose();
             // Se continuar no Performance, sem o app ninguém troca o mouse de volta: deixa o do Performance.
             modes.SetGameFocused(true);
             // O plano de energia roda numa thread de fundo, que morre com o processo. O instalador espera até 20 s.
-            modes.WaitForPower(15000);
+            if (modes.WaitForPower(15000) && backToDaily)
+            {
+                cfg.LastMode = Mode.DiaADia;
+                SaveConfig();
+            }
             // Mesmo se o modo continuar Performance, os extras do jogo não podem ficar ativos sem o app.
             RestoreGameTimeTweaks();
             Log.Info(L.T("MouseModes encerrado", "MouseModes quit"));
