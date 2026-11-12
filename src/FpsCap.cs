@@ -126,37 +126,39 @@ namespace MouseModes
             {
                 bool needsAdmin;
                 string error = limiter.Write(c.Exe, c.Fps, out needsAdmin);
-                if (error == null) Confirm(c, limiter, applied, problems);
+                if (error == null) AddIfAny(problems, Confirm(c, limiter, applied));
                 else if (needsAdmin) pending.Add(c);
                 else problems.Add(c.Exe + ": " + error);
             }
             if (pending.Count == 0) return problems;
 
+            // Relê tudo mesmo se a cópia administradora falhou ou demorou: ela pode ter gravado parte (ler não pede
+            // administrador). O erro dela só vale para o que o driver não confirmar.
             string elevated = elevate(pending);
             foreach (FpsCapChange c in pending)
             {
-                if (elevated != null) problems.Add(c.Exe + ": " + elevated);
-                else Confirm(c, limiter, applied, problems);
+                string problem = Confirm(c, limiter, applied);
+                if (problem != null) problems.Add(elevated != null ? c.Exe + ": " + elevated : problem);
             }
             return problems;
         }
 
-        private static void Confirm(FpsCapChange c, IFpsLimiter limiter, List<string> applied, List<string> problems)
+        private static void AddIfAny(List<string> problems, string problem)
+        {
+            if (problem != null) problems.Add(problem);
+        }
+
+        /// <summary>Relê a mudança no driver; se bateu, entra em applied. null se confirmou; senão, o problema.</summary>
+        private static string Confirm(FpsCapChange c, IFpsLimiter limiter, List<string> applied)
         {
             int now;
             string error = limiter.Read(c.Exe, out now);
-            if (error != null)
-            {
-                problems.Add(c.Exe + ": " + error);
-                return;
-            }
+            if (error != null) return c.Exe + ": " + error;
             if (now != c.Fps)
-            {
-                problems.Add(c.Exe + L.T(": o driver ficou com ", ": the driver kept ") + (now == 0 ? L.T("nenhum limite", "no limit") : now + " FPS"));
-                return;
-            }
+                return c.Exe + L.T(": o driver ficou com ", ": the driver kept ") + (now == 0 ? L.T("nenhum limite", "no limit") : now + " FPS");
             applied.RemoveAll(a => string.Equals(KeyOf(a), c.Exe, StringComparison.OrdinalIgnoreCase));
             if (c.Fps > 0) applied.Add(Format(c.Exe, c.Fps));
+            return null;
         }
 
         internal static string Format(string exe, int fps)
@@ -281,7 +283,9 @@ namespace MouseModes
         // Posições dentro das estruturas.
         internal const int SettingIdOffset = 4 + UnicodeBytes;            // settingId
         internal const int SettingTypeOffset = SettingIdOffset + 4;       // settingType (0 = DWORD)
+        internal const int SettingLocationOffset = SettingIdOffset + 8;   // settingLocation (de onde veio o valor)
         internal const int CurrentValueOffset = SettingIdOffset + 20 + 4100; // depois do union do valor padrão
+        internal const uint CurrentProfileLocation = 0;                   // NVDRS_CURRENT_PROFILE_LOCATION
         internal const int AppNameOffset = 8;                             // depois de version e isPredefined
         internal const int ProfileNameOffset = 4;
 
@@ -376,12 +380,22 @@ namespace MouseModes
                     setting.WriteUInt32(0, SettingVersion);
                     s = getSetting(session, profile, FrameRateLimiterId, setting.Pointer);
                     if (s == SettingNotFound) return Ok;
-                    if (s == Ok) found = (int)setting.ReadUInt32(CurrentValueOffset);
+                    if (s == Ok) found = CapOf(setting);
                     return s;
                 }
             });
             fps = found;
             return status == Ok ? null : Describe(status);
+        }
+
+        /// <summary>
+        /// O limite que o próprio perfil do jogo tem. Um valor herdado do perfil global ou base (o "Taxa máxima de quadros"
+        /// geral do painel) não é do jogo: conta como 0, senão o app acharia que o limite dele já está gravado.
+        /// </summary>
+        internal static int CapOf(NativeBuffer setting)
+        {
+            if (setting.ReadUInt32(SettingLocationOffset) != CurrentProfileLocation) return 0;
+            return (int)setting.ReadUInt32(CurrentValueOffset);
         }
 
         public string Write(string exe, int fps, out bool needsAdmin)
@@ -483,8 +497,8 @@ namespace MouseModes
     {
         private const int FeatureFrameLimit = 2;   // CTL_3D_FEATURE_FRAME_LIMIT
         private const int ValueTypeInt32 = 2;      // CTL_PROPERTY_VALUE_TYPE_INT32
-        private const uint InsufficientPermissions = 0x40000006;
-        private const uint UnsupportedFeature = 0x4000000A;
+        internal const uint InsufficientPermissions = 0x40000006;
+        internal const uint UnsupportedFeature = 0x4000000A;
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct InitArgs
@@ -588,8 +602,12 @@ namespace MouseModes
                         Enable = (byte)(fps > 0 ? 1 : 0),
                         Value = fps
                     };
-                    status = x64 ? GetSet64(device, ref feature) : GetSet32(device, ref feature);
-                    if (status != 0) continue;
+                    uint s = x64 ? GetSet64(device, ref feature) : GetSet32(device, ref feature);
+                    if (s != 0)
+                    {
+                        status = MoreSignificant(status, s);
+                        continue;
+                    }
                     if (read != null) read(feature);
                     return 0;
                 }
@@ -600,6 +618,24 @@ namespace MouseModes
                 Marshal.FreeHGlobal(name);
                 if (x64) Close64(api); else Close32(api);
             }
+        }
+
+        /// <summary>
+        /// A falha que vale quando nenhuma placa aceitou: pedir administrador primeiro (Arc + UHD: a Arc pede, a UHD
+        /// diz "não suportado", e o pedido de administrador não pode se perder), depois os outros erros, por último
+        /// "não suportado".
+        /// </summary>
+        internal static uint MoreSignificant(uint current, uint next)
+        {
+            return Weight(next) > Weight(current) ? next : current;
+        }
+
+        private static int Weight(uint status)
+        {
+            if (status == 0) return 0;
+            if (status == UnsupportedFeature) return 1;
+            if (status == InsufficientPermissions) return 3;
+            return 2;
         }
 
         private static string Describe(uint status)
