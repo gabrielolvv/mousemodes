@@ -25,6 +25,7 @@ namespace MouseModes.Tests
             cfg.AppsToClose.Add("ProgramaInventado");
             cfg.GameProfiles.Add(new GameProfile { Process = "JogoUm", Profile = new MouseProfile { PointerSpeed = 7 } });
             cfg.RememberPlanCopy("e9a42b02-d5df-448d-aa00-03f14749eb61", "232e2748-0959-4183-a9e8-1b5372b4f906");
+            cfg.RememberGameExe("JogoUmCliente"); // executável visto aberto neste PC
             return cfg;
         }
 
@@ -38,12 +39,14 @@ namespace MouseModes.Tests
             Assert.Null(export.DailyPlanGuid);
             Assert.Null(export.NotificationBackup);
             Assert.Empty(export.PlanCopies);
+            Assert.Empty(export.GameExes);
             Assert.Equal(new[] { "JogoUm", "JogoDois" }, export.Games.ToArray());
             Assert.Equal(PowerPlanOption.DesempenhoMaximo, export.Performance.PowerPlan);
 
             // A original não muda.
             Assert.Equal(Mode.Performance, original.LastMode);
             Assert.NotNull(original.FindPlanCopy("e9a42b02-d5df-448d-aa00-03f14749eb61"));
+            Assert.Equal("JogoUmCliente", original.SeenGameExe("JogoUm"));
         }
 
         [Fact]
@@ -105,7 +108,7 @@ namespace MouseModes.Tests
             var expectedMachineOnly = new HashSet<string>
             {
                 "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-                "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded"
+                "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
             };
             Assert.Equal(expectedMachineOnly, new HashSet<string>(AppConfig.MachineOnly));
             foreach (string name in AppConfig.MachineOnly)

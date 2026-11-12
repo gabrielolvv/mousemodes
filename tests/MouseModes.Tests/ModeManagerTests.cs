@@ -96,6 +96,30 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void SyncDailyFromWindows_TakesTheWindowsMouseAndAppliesNothing()
+        {
+            // Os Ajustes chamam isto antes de abrir no Dia a dia: a página mostra o mouse de verdade.
+            MouseProfile windows = MouseSettings.Read();
+            var cfg = new AppConfig { Daily = new MouseProfile { PowerPlan = PowerPlanOption.AltoDesempenho }, Performance = new MouseProfile() };
+            cfg.Daily.PointerSpeed = windows.PointerSpeed == 3 ? 4 : 3;
+            cfg.Daily.EnhancePointerPrecision = !windows.EnhancePointerPrecision;
+            cfg.Daily.ScrollLines = windows.ScrollLines == 7 ? 8 : 7;
+            ModeManager modes = NewManager(cfg);
+            Mode? changed = null;
+            modes.ModeChanged += (mode, reason, warnings) => changed = mode;
+
+            modes.SyncDailyFromWindows();
+
+            Assert.Equal(windows.PointerSpeed, cfg.Daily.PointerSpeed);
+            Assert.Equal(windows.EnhancePointerPrecision, cfg.Daily.EnhancePointerPrecision);
+            Assert.Equal(windows.ScrollLines, cfg.Daily.ScrollLines);
+            Assert.Equal(PowerPlanOption.AltoDesempenho, cfg.Daily.PowerPlan); // o plano fica
+            Assert.Null(changed);
+            Assert.True(modes.WaitForPower(1000));
+            Assert.Empty(applied);
+        }
+
+        [Fact]
         public void Start_FirstTimeTakesTheUsbSettingFromWindows()
         {
             AppConfig cfg = AppConfig.CreateDefault(); // Dia a dia nasce com a suspensão ativada (padrão do app)

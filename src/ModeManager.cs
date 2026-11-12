@@ -156,8 +156,10 @@ namespace MouseModes
         /// <summary>
         /// Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia. O plano fica; o USB vem do Windows só
         /// na primeira vez neste PC (o valor original da pessoa); depois manda o que está nos Ajustes.
+        /// Também antes de abrir os Ajustes no Dia a dia: a página mostra o mouse de verdade, e salvar não desfaz o que a
+        /// pessoa mudou no Windows.
         /// </summary>
-        private void SyncDailyFromWindows()
+        internal void SyncDailyFromWindows()
         {
             SeedDailyUsbFromWindows();
             MouseProfile now = MouseSettings.Read();

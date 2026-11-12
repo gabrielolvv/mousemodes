@@ -108,6 +108,55 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Wanted_GoesToTheExeTheDetectorSawForAPrefix()
+        {
+            AppConfig cfg = Config("JogoPrefixo", 144, "cs2", 240);
+
+            Assert.True(cfg.RememberGameExe("JogoPrefixo-Win64-Shipping"));
+            Dictionary<string, int> wanted = FpsCap.Wanted(cfg, 165);
+
+            Assert.Equal(144, wanted["jogoprefixo-win64-shipping.exe"]);
+            Assert.False(wanted.ContainsKey("jogoprefixo.exe"));
+            Assert.Equal(240, wanted["cs2.exe"]); // ainda não visto: o nome da lista com ".exe"
+            Assert.Equal("cs2.exe", FpsCap.TargetExe(cfg, "cs2"));
+        }
+
+        [Fact]
+        public void RememberGameExe_KeepsOnePerGameAndDropsGamesThatLeftTheList()
+        {
+            AppConfig cfg = Config("JogoA", 0, "JogoAB", 0);
+
+            Assert.True(cfg.RememberGameExe("JogoABCliente"));    // começo dos dois nomes
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("JogoA"));
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("jogoab.exe"));
+            Assert.False(cfg.RememberGameExe("jogoabcliente"));   // o mesmo, só muda maiúscula: nada a gravar
+            Assert.False(cfg.RememberGameExe("OutroPrograma"));
+
+            Assert.True(cfg.RememberGameExe("JogoAOutro"));        // só do primeiro: troca o dele
+            Assert.Equal("JogoAOutro", cfg.SeenGameExe("JogoA"));
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("JogoAB"));
+            Assert.Equal(2, cfg.GameExes.Count);
+
+            cfg.Games.Remove("JogoAB");
+            Assert.True(cfg.RememberGameExe("OutroPrograma"));     // saiu da lista: sai daqui também
+            Assert.Null(cfg.SeenGameExe("JogoAB"));
+            Assert.Single(cfg.GameExes);
+        }
+
+        [Fact]
+        public void UsesAuto_OnlyForGamesStillInTheList()
+        {
+            AppConfig cfg = Config("cs2", 240);
+            Assert.False(FpsCap.UsesAuto(cfg));
+
+            cfg.GameProfiles.Add(new GameProfile { Process = "saiu-da-lista", Profile = new MouseProfile { FpsCap = FpsCap.Auto } });
+            Assert.False(FpsCap.UsesAuto(cfg));
+
+            cfg.GameProfiles[0].Profile.FpsCap = FpsCap.Auto;
+            Assert.True(FpsCap.UsesAuto(cfg));
+        }
+
+        [Fact]
         public void Plan_SetsWhatChangedAndClearsWhatLeft()
         {
             var wanted = new Dictionary<string, int> { { "cs2.exe", 141 }, { "r5apex.exe", 240 } };

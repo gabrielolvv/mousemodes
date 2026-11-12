@@ -188,6 +188,12 @@ namespace MouseModes
         /// </summary>
         public List<string> FpsCapsApplied { get; set; }
 
+        /// <summary>
+        /// Executável que o detector achou aberto para cada jogo da lista ("valorant|valorant-win64-shipping"): a lista
+        /// guarda o começo do nome, e o limite de FPS do driver precisa do nome exato. Só deste PC.
+        /// </summary>
+        public List<string> GameExes { get; set; }
+
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
 
@@ -232,7 +238,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded"
+            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -255,6 +261,7 @@ namespace MouseModes
             copy.FpsCapsApplied = new List<string>();
             copy.PowerModeBackup = null;
             copy.UsbSuspendSeeded = false;
+            copy.GameExes = new List<string>();
             return copy;
         }
 
@@ -296,6 +303,7 @@ namespace MouseModes
             PlanCopies = new List<PlanCopy>();
             CalmBackup = new List<CalmedProcess>();
             FpsCapsApplied = new List<string>();
+            GameExes = new List<string>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;
@@ -328,6 +336,45 @@ namespace MouseModes
         public GameProfile FindGameProfile(string name)
         {
             return GameProfiles.Find(g => string.Equals(GameDetector.Normalize(g.Process), name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>Processo que o detector achou aberto para este jogo da lista (sem ".exe"), ou null se ainda não viu.</summary>
+        public string SeenGameExe(string game)
+        {
+            string prefix = GameDetector.Normalize(game);
+            foreach (string line in GameExes)
+            {
+                int bar = line != null ? line.IndexOf('|') : -1;
+                if (bar > 0 && bar < line.Length - 1 && string.Equals(line.Substring(0, bar), prefix, StringComparison.OrdinalIgnoreCase))
+                    return line.Substring(bar + 1);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Guarda o processo aberto como o executável de cada jogo da lista que é começo do nome dele, e tira os jogos que
+        /// saíram da lista. true se mudou algo (para gravar o config).
+        /// </summary>
+        public bool RememberGameExe(string process)
+        {
+            if (string.IsNullOrEmpty(process)) return false;
+            bool changed = GameExes.RemoveAll(line =>
+            {
+                int bar = line != null ? line.IndexOf('|') : -1;
+                if (bar <= 0) return true;
+                string game = line.Substring(0, bar);
+                return !Games.Exists(g => string.Equals(GameDetector.Normalize(g), game, StringComparison.OrdinalIgnoreCase));
+            }) > 0;
+            foreach (string entry in Games)
+            {
+                string prefix = GameDetector.Normalize(entry);
+                if (prefix.Length == 0 || !process.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (string.Equals(SeenGameExe(prefix), process, StringComparison.OrdinalIgnoreCase)) continue;
+                GameExes.RemoveAll(line => line.StartsWith(prefix + "|", StringComparison.OrdinalIgnoreCase));
+                GameExes.Add(prefix + "|" + process);
+                changed = true;
+            }
+            return changed;
         }
 
         private static string Folder
@@ -414,6 +461,7 @@ namespace MouseModes
             if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
             if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
             if (loaded.PlanCopies == null) loaded.PlanCopies = new List<PlanCopy>();
+            if (loaded.GameExes == null) loaded.GameExes = new List<string>();
             loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
             return loaded;
         }

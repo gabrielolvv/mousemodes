@@ -82,6 +82,22 @@ namespace MouseModes
             return exe != null && ExeName.IsMatch(exe);
         }
 
+        /// <summary>
+        /// O executável que recebe o limite de um jogo da lista: o que o detector já achou aberto para ele (a lista guarda
+        /// só o começo do nome) ou, se ainda não viu, o próprio nome com ".exe".
+        /// </summary>
+        public static string TargetExe(AppConfig cfg, string game)
+        {
+            return ExeFor(cfg.SeenGameExe(game) ?? game);
+        }
+
+        /// <summary>Algum jogo da lista usa o limite AUTO (que muda com a taxa do monitor).</summary>
+        public static bool UsesAuto(AppConfig cfg)
+        {
+            return cfg.GameProfiles.Exists(gp => gp != null && gp.Profile != null && gp.Profile.FpsCap == Auto &&
+                                                 cfg.Games.Exists(g => string.Equals(g, gp.Process, StringComparison.OrdinalIgnoreCase)));
+        }
+
         /// <summary>Os limites pedidos na tela: jogos da lista com configurações próprias e um limite escolhido.</summary>
         public static Dictionary<string, int> Wanted(AppConfig cfg, int refreshHz)
         {
@@ -90,7 +106,7 @@ namespace MouseModes
             {
                 if (gp == null || gp.Profile == null || gp.Profile.FpsCap == 0) continue;
                 if (!cfg.Games.Exists(g => string.Equals(g, gp.Process, StringComparison.OrdinalIgnoreCase))) continue;
-                string exe = ExeFor(gp.Process);
+                string exe = TargetExe(cfg, gp.Process);
                 int fps = Resolve(gp.Profile.FpsCap, refreshHz);
                 if (fps > 0 && ValidExe(exe)) wanted[exe] = fps;
             }
