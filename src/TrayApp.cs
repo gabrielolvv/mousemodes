@@ -34,6 +34,11 @@ namespace MouseModes
         private readonly PowerModeKeeper powerMode;
         private bool batteryWarned; // já avisou que este jogo abriu na bateria
         private bool fpsSyncRunning, fpsSyncAgain;
+        private bool fpsSyncAgainAutomatic; // o pedido que esperou veio só de gatilhos automáticos (sem aviso de placa sem limitador)
+        private bool fpsExeLearned;         // o detector achou o executável de um jogo: grava o limite quando ele fechar
+        private bool fpsSyncDeferred;       // uma gravação automática esperou o jogo: tenta de novo quando ele fechar
+        private bool fpsAdminNoticeLogged;  // já anotou no log que a gravação automática espera o administrador
+        private readonly GameExeWatch gameExes = new GameExeWatch(); // processos de cada jogo vistos nesta execução
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -58,7 +63,8 @@ namespace MouseModes
         private bool lastBoostShown;
         private List<MonitorStatus> monitors = new List<MonitorStatus>();
         private bool monitorWarned;
-        private bool quitting;
+        private volatile bool quitting; // lido também pelas threads de fundo (PostToUi)
+        private bool sessionEnded;      // o Windows encerrou a sessão: nada de instalar versão nova agora
         private ReleaseInfo pendingRelease; // versão nova esperando o fim do Performance para avisar
         private ReleaseInfo readyRelease;   // versão nova já baixada e conferida, esperando a hora de instalar
         private string readyInstaller;
@@ -76,6 +82,8 @@ namespace MouseModes
         public TrayApp(bool startHidden, System.Threading.EventWaitHandle showSignal, System.Threading.EventWaitHandle quitSignal,
                        CommandSignals commands = null, string startCommand = null, bool updated = false)
         {
+            // O .exe que está rodando, para o pedido de administrador do limite de FPS conferir que é o mesmo no disco.
+            FpsCap.RememberRunningImage();
             cfg = AppConfig.LoadOrCreate();
             L.Init(cfg.Language); // antes de criar qualquer tela
             Log.Info("MouseModes " + typeof(TrayApp).Assembly.GetName().Version.ToString(3) + L.T(" iniciado", " started") + (startHidden ? L.T(" (com o Windows)", " (with Windows)") : "") + " — " + Application.ExecutablePath);
@@ -88,6 +96,9 @@ namespace MouseModes
             }
             BackgroundCalmer.Recover(cfg); // só faz algo se o app caiu com o segundo plano acalmado
             GameResolution.Recover(cfg);   // ou com a resolução de um jogo na tela
+            // Ou no meio de uma partida com o Caça-travadinhas: a sessão de leitura dos quadros fica aberta no Windows.
+            try { FrameProbe.StopLeftover(); }
+            catch (Exception ex) { Log.Error(L.T("Fechar a leitura de quadros que sobrou", "Close the leftover frame reading"), ex); }
             calmer = new BackgroundCalmer(cfg);
             resolution = new GameResolution(cfg);
             powerMode = new PowerModeKeeper(cfg);
@@ -96,12 +107,8 @@ namespace MouseModes
             modes = new ModeManager(cfg);
             modes.RunningGame = () => currentGame;
             modes.ModeChanged += OnModeChanged;
-            modes.PowerWarnings += warnings =>
-            {
-                if (quitting || !mainForm.IsHandleCreated || mainForm.IsDisposed) return;
-                mainForm.BeginInvoke((Action)(() =>
-                    ShowBalloon(L.T("Plano de energia", "Power plan"), string.Join("\n", warnings), ToolTipIcon.Warning)));
-            };
+            modes.PowerWarnings += warnings => PostToUi(() =>
+                ShowBalloon(L.T("Plano de energia", "Power plan"), string.Join("\n", warnings), ToolTipIcon.Warning));
             winKey = new WinKeyBlocker(() => cfg.Games);
 
             // Mouse do jogo só com o jogo na tela (opção): troca a cada mudança de janela em primeiro plano.
@@ -130,7 +137,7 @@ namespace MouseModes
             // --- Monitores: checa agora e sempre que a configuração de vídeo mudar ---
             RefreshMonitors();
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
-            Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding;
+            Microsoft.Win32.SystemEvents.SessionEnded += OnSessionEnded;
 
             // --- Menu da bandeja ---
             var openItem = new ToolStripMenuItem(L.T("Abrir MouseModes", "Open MouseModes"), null, (s, e) => ShowMain());
@@ -183,31 +190,20 @@ namespace MouseModes
             // --- Abrir de novo o .exe traz esta janela em vez de abrir outra cópia ---
             if (showSignal != null)
             {
-                showWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(showSignal, (state, timedOut) =>
-                {
-                    if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
-                        mainForm.BeginInvoke((Action)ShowMain);
-                }, null, -1, false);
+                showWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(showSignal, (state, timedOut) => PostToUi(ShowMain), null, -1, false);
             }
 
             // --- O instalador pede para sair (MouseModes.exe --quit) antes de atualizar/desinstalar ---
             if (quitSignal != null)
             {
                 quitWait = System.Threading.ThreadPool.RegisterWaitForSingleObject(quitSignal, (state, timedOut) =>
-                {
-                    if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
-                        mainForm.BeginInvoke((Action)(() => { Log.Info(L.T("Saída pedida pelo instalador", "Quit requested by the installer")); Quit(); }));
-                }, null, -1, true);
+                    PostToUi(() => { Log.Info(L.T("Saída pedida pelo instalador", "Quit requested by the installer")); Quit(); }), null, -1, true);
             }
 
             // --- MouseModes.exe --performance / --daily / --toggle (Stream Deck, atalho, Agendador) ---
             if (commands != null)
             {
-                commands.Listen(command =>
-                {
-                    if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
-                        mainForm.BeginInvoke((Action)(() => RunCommand(command)));
-                });
+                commands.Listen(command => PostToUi(() => RunCommand(command)));
             }
 
             // "Iniciar com o Windows" aponta para o exe; se ele mudou de lugar (ex.: instalado), corrige.
@@ -311,7 +307,8 @@ namespace MouseModes
 
         private void CheckRunningGame()
         {
-            string game = GameDetector.FindRunning(cfg.Games);
+            var gameProcesses = new List<RunningGame>();
+            string game = GameDetector.FindRunning(cfg.Games, gameProcesses);
             bool running = game != null;
 
             if (game != currentGame)
@@ -337,6 +334,22 @@ namespace MouseModes
             bool gameChanged = game != currentGame;
             if (!running) batteryWarned = false;
             else if (gameChanged) WarnIfOnBattery(game);
+
+            // Limite de FPS: a lista guarda o começo do nome; o driver precisa do executável exato que abriu. Um item pode
+            // pegar vários processos (FiveM.exe e FiveM_b3095_GTAProcess.exe): vale o maior, reavaliado só quando abre
+            // processo novo do jogo (o launcher que sobra depois do jogo fechar não toma o lugar dele).
+            if (!running) gameExes.Clear();
+            if (running && cfg.RememberGameExe(gameProcesses, gameExes))
+            {
+                SaveConfig();
+                fpsExeLearned = true;
+            }
+            else if (!running && (fpsExeLearned || fpsSyncDeferred))
+            {
+                fpsExeLearned = false; // o jogo fechou: grava agora, nunca no meio da partida
+                fpsSyncDeferred = false;
+                SyncFpsCaps(true);
+            }
             if (gameChanged || booster.AnyBoosted != lastBoostShown)
             {
                 currentGame = game;
@@ -445,24 +458,60 @@ namespace MouseModes
             bool stutters = frames != null && frames.StutterCount > 0;
             bool throttled = cpu != null && cpu.Limited;
             if ((report.Culprits.Count == 0 && !badNetwork && !stutters && !throttled) || !cfg.ShowNotifications) return;
-            string text = "";
-            if (frames != null) text = frames.Summary() + ".\n";
+            // Em ordem de importância: o que pesou em segundo plano (é o que dá para resolver), as travadinhas, a rede e o processador.
+            var body = new List<string>();
             if (report.Culprits.Count > 0)
             {
                 Culprit top = report.Culprits[0];
-                text = top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n";
+                body.Add(top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").");
             }
+            if (frames != null) body.Add(frames.Summary() + ".");
             if (badNetwork)
-                text += L.T("Rede: ", "Network: ") +
-                        (net.SpikeCount > 0
-                            ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
-                            : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
-                        NetSource(net) + ".\n";
+                body.Add(L.T("Rede: ", "Network: ") +
+                         (net.SpikeCount > 0
+                             ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
+                             : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
+                         NetSource(net) + ".");
             if (throttled)
-                text += L.T("Processador freado ", "CPU throttled for ") + CpuSpeedReport.Span(cpu.LimitedSeconds) +
-                        L.T(" (até ", " (down to ") + Math.Round(cpu.LowestLimit) + L.T("% da velocidade).\n", "% speed).\n");
-            ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
-                text + L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
+                body.Add(L.T("Processador freado ", "CPU throttled for ") + CpuSpeedReport.Span(cpu.LimitedSeconds) +
+                         L.T(" (até ", " (down to ") + Math.Round(cpu.LowestLimit) + L.T("% da velocidade).", "% speed)."));
+            ShowBalloonWithAction(FitBalloonTitle(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game),
+                MatchBalloonText(body, L.T("Clique para ver e resolver.", "Click to see and fix it.")), ToolTipIcon.Info, OpenReport);
+        }
+
+        /// <summary>Limites do Windows para o aviso da bandeja (sem o caractere nulo do fim): o resto é cortado.</summary>
+        internal const int BalloonTextMax = 255;
+        internal const int BalloonTitleMax = 63;
+
+        /// <summary>
+        /// Texto do aviso do fim da partida: até 3 linhas, na ordem recebida (a mais importante primeiro), e a chamada
+        /// para clicar sempre inteira no fim. Se passar do limite do Windows, saem as últimas linhas e, sobrando uma só
+        /// longa demais, ela termina em "…".
+        /// </summary>
+        internal static string MatchBalloonText(IList<string> lines, string action)
+        {
+            action = action ?? "";
+            var kept = new List<string>();
+            foreach (string line in lines)
+                if (!string.IsNullOrEmpty(line) && kept.Count < 3) kept.Add(line);
+
+            int room = BalloonTextMax - action.Length - 1; // o "\n" antes da chamada
+            string body = string.Join("\n", kept.ToArray());
+            while (kept.Count > 1 && body.Length > room)
+            {
+                kept.RemoveAt(kept.Count - 1);
+                body = string.Join("\n", kept.ToArray());
+            }
+            if (body.Length == 0 || room < 2) return action.Length > BalloonTextMax ? action.Substring(0, BalloonTextMax) : action;
+            if (body.Length > room) body = body.Substring(0, room - 1).TrimEnd() + "…";
+            return body + "\n" + action;
+        }
+
+        /// <summary>Título do aviso dentro do limite do Windows (nome de jogo longo termina em "…").</summary>
+        internal static string FitBalloonTitle(string title)
+        {
+            title = title ?? "";
+            return title.Length <= BalloonTitleMax ? title : title.Substring(0, BalloonTitleMax - 1).TrimEnd() + "…";
         }
 
         /// <summary>", vindos do Wi-Fi" para o aviso (vazio se não deu para saber).</summary>
@@ -583,15 +632,14 @@ namespace MouseModes
                 AppCloser.CloseAsync(cfg.AppsToClose, cfg.Games, cfg.ForceCloseApps, (closed, failed) =>
                 {
                     if (closed.Count == 0 && failed.Count == 0) return;
-                    if (!mainForm.IsHandleCreated || mainForm.IsDisposed) return;
-                    mainForm.BeginInvoke((Action)(() =>
+                    PostToUi(() =>
                     {
                         var lines = new List<string>();
                         if (closed.Count > 0) lines.Add(L.T("Fechados: ", "Closed: ") + string.Join(", ", closed.ToArray()));
                         if (failed.Count > 0) lines.Add(L.T("Não fecharam: ", "Did not close: ") + string.Join(", ", failed.ToArray()) + L.T(" (ative \"Forçar\" no Turbo)", " (turn on \"Force\" in Turbo)"));
                         ShowBalloon(L.T("Programas em segundo plano", "Background programs"), string.Join("\n", lines.ToArray()),
                             failed.Count > 0 ? ToolTipIcon.Warning : ToolTipIcon.Info);
-                    }));
+                    });
                 });
             }
 
@@ -613,51 +661,89 @@ namespace MouseModes
 
         private void OnDisplaySettingsChanged(object sender, EventArgs e)
         {
-            if (mainForm.IsHandleCreated && !mainForm.IsDisposed)
-                mainForm.BeginInvoke((Action)RefreshMonitors);
+            PostToUi(() =>
+            {
+                RefreshMonitors();
+                // O limite AUTO segue a taxa de verdade do monitor. Nunca no meio da partida: o próprio jogo troca a tela.
+                if (currentGame == null && FpsCap.UsesAuto(cfg)) SyncFpsCaps(true);
+            });
         }
 
         /// <summary>
-        /// Limite de FPS por jogo: grava no driver o que mudou na tela de jogos (ao salvar os Ajustes, nunca durante a
-        /// partida). O driver pode pedir administrador; isso roda fora da tela e o resultado vem num aviso.
+        /// Limite de FPS por jogo: grava no driver o que mudou na tela de jogos (ao salvar os Ajustes, ao mudar a taxa do
+        /// monitor ou ao achar o executável de um jogo; nunca durante a partida). O driver pode pedir administrador; isso
+        /// roda fora da tela e o resultado vem num aviso.
         /// </summary>
-        private void SyncFpsCaps()
+        /// <param name="automatic">Não foi a pessoa que salvou: sem aviso de placa sem limitador, sem mexer no AUTO
+        /// enquanto a taxa do monitor não puder ser lida, nunca com um jogo da lista aberto (ou abrindo) e nunca com
+        /// pedido de administrador — o que precisar dele fica para quando a pessoa salvar os Ajustes.</param>
+        private void SyncFpsCaps(bool automatic = false)
         {
             if (fpsSyncRunning)
             {
+                fpsSyncAgainAutomatic = fpsSyncAgain ? fpsSyncAgainAutomatic && automatic : automatic;
                 fpsSyncAgain = true;
                 return;
             }
-            List<FpsCapChange> changes = FpsCap.Plan(FpsCap.Wanted(cfg, FpsCap.PrimaryRefresh()), cfg.FpsCapsApplied);
+            int refresh = FpsCap.PrimaryRefresh();
+            // Taxa desconhecida agora (o monitor trocando de modo): o AUTO sairia do driver. Fica para o próximo gatilho.
+            if (automatic && refresh <= 0 && FpsCap.UsesAuto(cfg)) return;
+            List<FpsCapChange> changes = FpsCap.Plan(FpsCap.Wanted(cfg, refresh), cfg.FpsCapsApplied);
             if (changes.Count == 0) return;
+            if (!automatic) fpsAdminNoticeLogged = false; // a pessoa salvou: um próximo aviso automático volta ao log
+            // Olha os processos agora, não só o jogo da última checagem: um jogo pode estar abrindo neste momento.
+            if (automatic && GameDetector.FindRunning(cfg.Games) != null)
+            {
+                fpsSyncDeferred = true;
+                return;
+            }
             fpsSyncRunning = true;
             var applied = new List<string>(cfg.FpsCapsApplied);
+            Func<List<FpsCapChange>, string> elevate = automatic ? (Func<List<FpsCapChange>, string>)FpsCap.WithoutElevation : FpsCap.RunElevated;
             System.Threading.ThreadPool.QueueUserWorkItem(_ =>
             {
                 IFpsLimiter limiter = null;
                 List<string> problems;
+                var waiting = new List<FpsCapChange>(); // o que ficou esperando o administrador (só nas automáticas)
                 try
                 {
                     limiter = FpsCap.Detect();
-                    problems = limiter == null ? new List<string>() : FpsCap.Apply(changes, limiter, applied, FpsCap.RunElevated);
+                    problems = limiter == null ? new List<string>() : FpsCap.Apply(changes, limiter, applied, pending =>
+                    {
+                        if (automatic) waiting.AddRange(pending);
+                        return elevate(pending);
+                    });
                 }
                 catch (Exception ex)
                 {
                     problems = new List<string> { ex.Message };
                 }
-                if (mainForm.IsDisposed) return;
-                mainForm.BeginInvoke((Action)(() => FinishFpsSync(changes, limiter, applied, problems)));
+                PostToUi(() => FinishFpsSync(changes, limiter, applied, problems, automatic, waiting));
             });
         }
 
-        private void FinishFpsSync(List<FpsCapChange> changes, IFpsLimiter limiter, List<string> applied, List<string> problems)
+        private void FinishFpsSync(List<FpsCapChange> changes, IFpsLimiter limiter, List<string> applied, List<string> problems, bool automatic,
+                                   List<FpsCapChange> waiting)
         {
             fpsSyncRunning = false;
+            // Automática sem administrador: a mudança continua pendente (fora de applied) e vai na próxima vez que a pessoa
+            // salvar os Ajustes. Uma linha no log, sem aviso na tela (a taxa do monitor pode mudar muitas vezes).
+            var adminLater = problems.FindAll(p => waiting.Exists(c => p.StartsWith(c.Exe + ":", StringComparison.OrdinalIgnoreCase)));
+            List<string> shown = problems.FindAll(p => !adminLater.Contains(p));
+            if (adminLater.Count > 0)
+            {
+                if (!fpsAdminNoticeLogged)
+                {
+                    fpsAdminNoticeLogged = true;
+                    Log.Info(L.T("Limite de FPS esperando o administrador (grava ao salvar os Ajustes): ",
+                                 "FPS limit waiting for the administrator (saved when you save Settings): ") + string.Join("; ", adminLater.ToArray()));
+                }
+            }
             if (limiter == null)
             {
                 Log.Warn(L.T("Limite de FPS: esta placa de vídeo não tem limitador que o app consiga usar (só NVIDIA e Intel Arc)",
                              "FPS limit: this video card has no limiter the app can use (NVIDIA and Intel Arc only)"));
-                if (changes.Exists(c => c.Fps > 0))
+                if (!automatic && changes.Exists(c => c.Fps > 0))
                     ShowBalloon(L.T("Limite de FPS", "FPS limit"), L.T("Esta placa de vídeo não tem um limitador que o MouseModes consiga usar (só NVIDIA e Intel Arc).",
                                                                        "This video card has no limiter MouseModes can use (NVIDIA and Intel Arc only)."), ToolTipIcon.Warning);
             }
@@ -673,17 +759,18 @@ namespace MouseModes
                     done.Add(line);
                     Log.Info(L.T("Limite de FPS no driver ", "FPS limit in the driver ") + limiter.Name + ": " + line);
                 }
-                foreach (string p in problems) Log.Warn(L.T("Limite de FPS não gravado: ", "FPS limit not saved: ") + p);
+                foreach (string p in shown) Log.Warn(L.T("Limite de FPS não gravado: ", "FPS limit not saved: ") + p);
                 var text = new List<string>(done);
-                text.AddRange(problems);
+                text.AddRange(shown);
                 if (done.Count > 0) text.Add(L.T("Vale a partir da próxima vez que o jogo abrir.", "It applies the next time the game opens."));
-                ShowBalloon(problems.Count == 0 ? L.T("Limite de FPS gravado (", "FPS limit saved (") + limiter.Name + ")" : L.T("Limite de FPS", "FPS limit"),
-                            string.Join("\n", text), problems.Count == 0 ? ToolTipIcon.Info : ToolTipIcon.Warning);
+                if (text.Count > 0) // só o que espera o administrador: já está no log
+                    ShowBalloon(shown.Count == 0 ? L.T("Limite de FPS gravado (", "FPS limit saved (") + limiter.Name + ")" : L.T("Limite de FPS", "FPS limit"),
+                                string.Join("\n", text), shown.Count == 0 ? ToolTipIcon.Info : ToolTipIcon.Warning);
             }
             if (fpsSyncAgain)
             {
                 fpsSyncAgain = false;
-                SyncFpsCaps();
+                SyncFpsCaps(fpsSyncAgainAutomatic);
             }
         }
 
@@ -697,13 +784,14 @@ namespace MouseModes
         private void FixMonitors()
         {
             var results = new List<string>();
-            bool allOk = true;
+            bool allOk = true, anyOk = false;
             foreach (MonitorStatus m in Displays.Scan())
             {
                 if (!m.BelowMax) continue;
                 string msg;
                 bool ok = Displays.SetMaxRefresh(m, out msg);
                 allOk &= ok;
+                anyOk |= ok;
                 string line = m.Label + ": " + (ok ? m.CurrentHz + " → " + m.MaxHz + " Hz" : L.T("não ajustado", "not changed")) + (msg != null ? " (" + msg + ")" : "");
                 results.Add(line);
                 if (ok) Log.Info(L.T("Monitor ajustado — ", "Monitor adjusted — ") + line); else Log.Warn("Monitor — " + line);
@@ -712,6 +800,8 @@ namespace MouseModes
             if (results.Count > 0)
                 ShowBalloon(allOk ? L.T("Monitor ajustado", "Monitor adjusted") : L.T("Ajuste do monitor", "Monitor adjustment"), string.Join("\n", results),
                     allOk ? ToolTipIcon.Info : ToolTipIcon.Warning);
+            // Taxa nova: o limite AUTO acompanha (fora da partida).
+            if (anyOk && currentGame == null && FpsCap.UsesAuto(cfg)) SyncFpsCaps(true);
         }
 
         // ---------------- Janelas ----------------
@@ -724,15 +814,26 @@ namespace MouseModes
                 return;
             }
 
+            // No Dia a dia, a página mostra o mouse de agora do Windows (não o guardado na última troca de modo).
+            if (modes.Current == Mode.DiaADia) modes.SyncDailyFromWindows();
             settingsForm = new SettingsForm(cfg);
+            settingsForm.Saving += () =>
+            {
+                // E de novo ao salvar: o que a pessoa mudou no Windows com a janela aberta não volta atrás.
+                if (modes.Current == Mode.DiaADia) modes.SyncDailyFromWindows();
+            };
             settingsForm.Saved += () =>
             {
+                bool autoTurnedOn = cfg.AutoSwitch && !autoItem.Checked; // o menu ainda mostra a de antes de salvar
                 autoItem.Checked = cfg.AutoSwitch;
                 mainForm.ShowAuto(cfg.AutoSwitch);
                 // Registra de novo sempre: o atalho pode ter mudado (opção fixa ou livre) ou ter ficado livre agora.
                 if (!hotkey.Register(cfg.Hotkey, cfg.CustomHotkey)) WarnHotkey(L.T("Atalho em uso", "Hotkey in use"));
                 mainForm.ShowHotkey(hotkey.ActiveCaps);
-                gameWasRunning = false;
+                // Só reavalia o jogo aberto se a troca automática acabou de ser ligada (como no menu). Senão o jogo que já
+                // estava aberto não conta como "abriu agora": a escolha manual do Dia a dia continua valendo, e um jogo que
+                // saiu da lista conta como fechado (o Performance que ele ligou sozinho sai).
+                if (autoTurnedOn) gameWasRunning = false;
                 modes.Apply(modes.Current, L.T("Configurações salvas", "Settings saved"));
                 RefreshMonitors();
                 CheckGames();
@@ -925,17 +1026,7 @@ namespace MouseModes
             var worker = new System.Threading.Thread(() =>
             {
                 ReleaseInfo latest = UpdateChecker.FetchLatest();
-                bool posted = false;
-                try
-                {
-                    if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
-                    {
-                        mainForm.BeginInvoke((Action)(() => UpdateChecked(latest, manual)));
-                        posted = true;
-                    }
-                }
-                catch (InvalidOperationException) { } // app fechando
-                if (!posted) checkingUpdate = false;
+                if (!PostToUi(() => UpdateChecked(latest, manual))) checkingUpdate = false;
             });
             worker.IsBackground = true;
             worker.Start();
@@ -997,12 +1088,7 @@ namespace MouseModes
             var worker = new System.Threading.Thread(() =>
             {
                 string installer = Updater.Download(release);
-                try
-                {
-                    if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
-                        mainForm.BeginInvoke((Action)(() => UpdateDownloaded(release, installer, manual)));
-                }
-                catch (InvalidOperationException) { } // app fechando
+                PostToUi(() => UpdateDownloaded(release, installer, manual));
             });
             worker.IsBackground = true;
             worker.Start();
@@ -1031,7 +1117,7 @@ namespace MouseModes
         /// </summary>
         private void InstallReadyUpdate(bool manual)
         {
-            if (readyInstaller == null || quitting) return;
+            if (readyInstaller == null || quitting || sessionEnded) return;
             if (modes.Current == Mode.Performance || currentGame != null)
             {
                 // Avisa uma vez, e nunca no meio do jogo: quem deixa o Performance ligado por dias fica sabendo.
@@ -1109,11 +1195,57 @@ namespace MouseModes
             iconHandle = newHandle;
         }
 
-        /// <summary>Windows desligando ou saindo da conta: desfaz o que não pode ficar para trás.</summary>
-        private void OnSessionEnding(object sender, Microsoft.Win32.SessionEndingEventArgs e)
+        /// <summary>
+        /// Windows desligando ou saindo da conta, de verdade (SessionEnded: um desligamento cancelado não chega aqui, e o
+        /// jogo segue com tudo como estava). Desfaz o que não pode ficar para trás; com "Voltar ao Dia a dia ao sair",
+        /// também o modo, como o Sair. Cada parte isolada: o processo pode ser encerrado logo depois.
+        /// </summary>
+        private void OnSessionEnded(object sender, Microsoft.Win32.SessionEndedEventArgs e)
         {
+            if (quitting || sessionEnded) return;
+            sessionEnded = true;
             Log.Info(L.T("Windows encerrando a sessão", "Windows is ending the session"));
-            RestoreGameTimeTweaks();
+            gameTimer.Stop();   // nada de voltar ao Performance com o jogo ainda fechando
+            updateTimer.Stop();
+
+            // Primeiro o que fica no Windows (plano, USB, modo de energia); o Raio-X, que só lê, fecha por último.
+            if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
+            {
+                quiet = true;
+                // O mouse volta na hora; plano e USB numa thread de fundo, com pouco tempo (o Windows não espera muito).
+                // Sem gravar o Dia a dia: plano e USB ainda voltam numa thread de fundo, e o Windows pode encerrar o
+                // processo na espera. O disco continua dizendo Performance (a próxima abertura aplica o Dia a dia de
+                // novo, inofensivo se já voltou); só com o plano de volta grava Dia a dia.
+                try { modes.Apply(Mode.DiaADia, L.T("Windows encerrando a sessão", "Windows is ending the session"), false); }
+                catch (Exception ex) { Log.Error(L.T("Voltar ao Dia a dia", "Go back to Daily"), ex); }
+                if (modes.WaitForPower(4000))
+                {
+                    cfg.LastMode = Mode.DiaADia;
+                    SaveConfig();
+                }
+                try { powerMode.Restore(); }
+                catch (Exception ex) { Log.Error(L.T("Devolver o modo de energia", "Restore the power mode"), ex); }
+            }
+            try { RestoreGameTimeTweaks(); }
+            catch (Exception ex) { Log.Error(L.T("Desfazer os extras do jogo", "Undo the game extras"), ex); }
+            SaveConfig();
+            try { recorder.Abort(); } // fecha a leitura dos quadros, sem relatório (a próxima abertura fecha a que sobrar)
+            catch (Exception ex) { Log.Error(L.T("Encerrar o Raio-X da partida", "Stop the match X-ray"), ex); }
+        }
+
+        /// <summary>
+        /// Passa para a thread da tela o que veio de uma thread de fundo. Com o app fechando, ou a janela sem handle ou já
+        /// descartada, não roda (false).
+        /// </summary>
+        private bool PostToUi(Action action)
+        {
+            if (quitting || !mainForm.IsHandleCreated || mainForm.IsDisposed) return false;
+            try
+            {
+                mainForm.BeginInvoke(action);
+                return true;
+            }
+            catch (InvalidOperationException) { return false; } // inclui ObjectDisposedException: a janela fechou no meio
         }
 
         private void RestoreGameTimeTweaks()
@@ -1136,18 +1268,27 @@ namespace MouseModes
             if (showWait != null) showWait.Unregister(null);
             if (quitWait != null) quitWait.Unregister(null);
             Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
-            Microsoft.Win32.SystemEvents.SessionEnding -= OnSessionEnding;
+            Microsoft.Win32.SystemEvents.SessionEnded -= OnSessionEnded;
+            recorder.Abort(); // partida em andamento: fecha a leitura dos quadros, sem relatório
 
+            bool backToDaily = false;
             if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
             {
                 quiet = true;
-                modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"));
+                // Como no fim de sessão: até o plano e o USB voltarem, o disco diz Performance (se o processo morrer
+                // na espera, a próxima abertura desfaz).
+                modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"), false);
+                backToDaily = true;
             }
             foreground.Dispose();
             // Se continuar no Performance, sem o app ninguém troca o mouse de volta: deixa o do Performance.
             modes.SetGameFocused(true);
             // O plano de energia roda numa thread de fundo, que morre com o processo. O instalador espera até 20 s.
-            modes.WaitForPower(15000);
+            if (modes.WaitForPower(15000) && backToDaily)
+            {
+                cfg.LastMode = Mode.DiaADia;
+                SaveConfig();
+            }
             // Mesmo se o modo continuar Performance, os extras do jogo não podem ficar ativos sem o app.
             RestoreGameTimeTweaks();
             Log.Info(L.T("MouseModes encerrado", "MouseModes quit"));

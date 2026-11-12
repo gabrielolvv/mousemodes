@@ -269,6 +269,8 @@ namespace MouseModes.Tests
                 {
                     var cfg = new AppConfig();
                     var calmer = NewCalmer(cfg, temp, launcher);
+                    // O ping fica na pasta do Windows, que nunca conta como jogo: aqui ele faz o papel de um jogo de verdade.
+                    calmer.IsGame = (proc, name, list) => GameBooster.Matches(name, list);
                     var games = new List<string> { "ping" };
                     DateTime began = DateTime.Now;
                     calmer.Calm(games, null);
@@ -288,6 +290,144 @@ namespace MouseModes.Tests
                 {
                     if (game != null) Stop(game);
                     Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
+        public void Calm_AdoptsAProgramWhoseLauncherChainAlreadyClosed()
+        {
+            // Como o Update.exe --processStart do Squirrel ou um cmd /c start acalmados: abre o programa e fecha na hora.
+            // O programa não é jogo, mas herdou a prioridade baixa e precisa voltar ao normal no fim do Performance.
+            // A prova de que é nosso: quem o abriu foi acalmado (o registro fica mesmo depois de ele fechar).
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher("start /b ping -n 120 127.0.0.1"))
+            {
+                Process program = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    DateTime began = DateTime.Now;
+                    calmer.Calm(NoGames, null);
+
+                    program = WaitForPing(started => started >= began, launcher.Id);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(program));
+                    WaitForOrphan(program);
+                    calmer.Calm(NoGames, null); // vê o launcher fechado: ele sai da lista dos acalmados
+
+                    int launcherId = launcher.Id, programId = program.Id;
+                    calmer.Scope = id => id == launcherId || id == programId;
+                    calmer.Calm(NoGames, null);
+                    CalmedProcess adopted = cfg.CalmBackup.Find(e => e.Pid == programId);
+                    Assert.NotNull(adopted);
+                    Assert.Equal(ProcessPriorityClass.Normal, adopted.Priority);
+                    Assert.Equal(adopted.StartTime, adopted.CalmedAt);
+
+                    calmer.RestoreAll();
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(program));
+                }
+                finally
+                {
+                    if (program != null) Stop(program);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)] // o ping bate com a lista de jogos, mas fica na pasta do Windows: não é jogo
+        public void Calm_LeavesAnOrphanAloneWhenWhoOpenedItWasNeverCalmed(bool inGameList)
+        {
+            // Uma tarefa agendada nasce abaixo do normal e o processo que a abriu já fechou: nada a ver com o calmante.
+            using (var temp = new TempFolder())
+            using (Process calmedPing = StartPing())
+            using (Process task = StartLauncher("start /b ping -n 120 127.0.0.1"))
+            {
+                Process program = null;
+                try
+                {
+                    task.PriorityClass = ProcessPriorityClass.BelowNormal; // como o Agendador de Tarefas faz
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, calmedPing);
+                    DateTime began = DateTime.Now;
+                    calmer.Calm(NoGames, null);
+                    Assert.True(calmer.Active); // tem algo acalmado neste Performance
+
+                    program = WaitForPing(started => started >= began, task.Id);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(program));
+                    WaitForOrphan(program);
+
+                    int calmedId = calmedPing.Id, taskId = task.Id, programId = program.Id;
+                    calmer.Scope = id => id == calmedId || id == taskId || id == programId;
+                    calmer.Calm(inGameList ? new List<string> { "ping" } : NoGames, null);
+
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(program));
+                    Assert.Null(cfg.CalmBackup.Find(e => e.Pid == programId));
+                    calmer.RestoreAll();
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(program)); // não era nosso: fica como estava
+                }
+                finally
+                {
+                    if (program != null) Stop(program);
+                    Stop(task);
+                    Stop(calmedPing);
+                }
+            }
+        }
+
+        [Fact]
+        public void LaunchedByCalmed_NeedsTheSameProcessAlreadyCalmedWhenTheOrphanStarted()
+        {
+            var history = new List<CalmedRecord>
+            {
+                new CalmedRecord { Pid = 100, CalmedAt = 1000 },             // ainda aberto
+                new CalmedRecord { Pid = 200, CalmedAt = 1000, Gone = 5000 } // visto fechado na checagem de 5000
+            };
+
+            Assert.True(BackgroundCalmer.LaunchedByCalmed(history, 100, 1500));
+            Assert.True(BackgroundCalmer.LaunchedByCalmed(history, 200, 4000));
+            Assert.False(BackgroundCalmer.LaunchedByCalmed(history, 300, 1500));  // quem abriu nunca foi acalmado
+            Assert.False(BackgroundCalmer.LaunchedByCalmed(history, 100, 900));   // nasceu antes de o pai ser acalmado
+            Assert.False(BackgroundCalmer.LaunchedByCalmed(history, 200, 6000));  // o PID 200 já era de outro processo
+            Assert.False(BackgroundCalmer.LaunchedByCalmed(new List<CalmedRecord>(), 100, 1500));
+        }
+
+        [Fact]
+        public void MarkExited_UsesTheHandleForTheExactExitTimeAndThenClosesIt()
+        {
+            // O handle segura o PID (o Windows não o reaproveita enquanto ele está aberto) e diz quando o processo
+            // fechou. Só abre handles e lê horas: nenhum processo muda de prioridade.
+            using (Process ping = StartPing())
+            {
+                try
+                {
+                    long started = ping.StartTime.ToFileTimeUtc();
+                    Assert.Null(BackgroundCalmer.OpenTracked(ping.Id, started + 1)); // outro processo com o mesmo PID
+                    var record = new CalmedRecord { Pid = ping.Id, CalmedAt = started, Handle = BackgroundCalmer.OpenTracked(ping.Id, started) };
+                    Assert.NotNull(record.Handle);
+                    var withoutHandle = new CalmedRecord { Pid = 1, CalmedAt = started }; // fica para a regra do PID na foto
+                    var history = new List<CalmedRecord> { record, withoutHandle };
+
+                    BackgroundCalmer.MarkExited(history);
+                    Assert.Equal(0, record.Gone); // ainda aberto
+                    Assert.NotNull(record.Handle);
+
+                    Stop(ping);
+                    Assert.True(ping.WaitForExit(30000));
+                    long exited = ping.ExitTime.ToFileTimeUtc();
+                    BackgroundCalmer.MarkExited(history);
+                    Assert.Equal(exited, record.Gone);
+                    Assert.Null(record.Handle); // fechado: o PID pode voltar a ser usado, e o Gone já separa os dois
+                    Assert.Equal(0, withoutHandle.Gone);
+                    // Quem nasceu depois da saída, com o mesmo PID, não é filho dele.
+                    Assert.False(BackgroundCalmer.LaunchedByCalmed(history, ping.Id, exited + 1));
+                    Assert.True(BackgroundCalmer.LaunchedByCalmed(history, ping.Id, exited - 1));
+                }
+                finally
+                {
+                    Stop(ping);
                 }
             }
         }
@@ -500,6 +640,20 @@ namespace MouseModes.Tests
                 System.Threading.Thread.Sleep(100);
             }
             throw new TimeoutException("o launcher do teste não abriu o ping em " + LauncherWait.TotalSeconds + " s");
+        }
+
+        /// <summary>Espera o processo que abriu este fechar (o cmd do meio fecha logo depois de abrir o ping).</summary>
+        private static void WaitForOrphan(Process proc)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed < LauncherWait)
+            {
+                Dictionary<int, int> parents = BackgroundCalmer.ParentIds();
+                int parent;
+                if (parents.TryGetValue(proc.Id, out parent) && !parents.ContainsKey(parent)) return;
+                System.Threading.Thread.Sleep(100);
+            }
+            throw new TimeoutException("o cmd do meio não fechou em " + LauncherWait.TotalSeconds + " s");
         }
 
         private static ProcessPriorityClass PriorityOf(Process proc)

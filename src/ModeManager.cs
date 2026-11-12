@@ -18,6 +18,10 @@ namespace MouseModes
         /// <summary>Quem aplica plano e USB. Interno e trocável só para testar a fila sem mexer no PC.</summary>
         internal Action<MouseProfile, List<string>, string> PowerApplier;
 
+        /// <summary>Quem lê o plano ativo e a suspensão seletiva de USB do Windows (só leitura). Trocáveis nos testes.</summary>
+        internal Func<string> ActivePlanReader = PowerSettings.ActivePlanGuid;
+        internal Func<int?> UsbSuspendReader = PowerSettings.UsbSelectiveSuspendAC;
+
         public Mode Current { get; private set; }
 
         /// <summary>Perfil efetivamente aplicado (pode ser o perfil próprio de um jogo).</summary>
@@ -77,6 +81,16 @@ namespace MouseModes
 
         public void Apply(Mode mode, string reason)
         {
+            Apply(mode, reason, true);
+        }
+
+        /// <param name="saveMode">
+        /// false: não grava o modo novo no config. Para sair do app ou do Windows: quem chama grava o Dia a dia só depois
+        /// de o plano e o USB voltarem (WaitForPower); até lá o disco continua dizendo Performance, e a próxima abertura
+        /// desfaz se o processo morrer no meio.
+        /// </param>
+        public void Apply(Mode mode, string reason, bool saveMode)
+        {
             // Saindo do Dia a dia: o perfil passa a ser o mouse como está agora no Windows,
             // inclusive o que a pessoa mudou fora do app. É isso que volta depois.
             if (mode == Mode.Performance && Current == Mode.DiaADia)
@@ -118,8 +132,11 @@ namespace MouseModes
             CurrentProfile = profile;
             CurrentGameProfile = gameProfile;
             DailyMouseInUse = false; // o perfil acabou de ser aplicado inteiro
-            cfg.LastMode = mode;
-            SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
+            if (saveMode)
+            {
+                cfg.LastMode = mode;
+                SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
+            }
 
             Log.Info(L.T("Modo ", "Mode ") + (mode == Mode.Performance ? "Performance" : L.T("Dia a dia", "Daily")) +
                      (gameProfile != null ? L.T(" (perfil de ", " (profile of ") + gameProfile + ")" : "") + " — " + reason);
@@ -149,9 +166,15 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia (energia e USB ficam).</summary>
-        private void SyncDailyFromWindows()
+        /// <summary>
+        /// Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia. O plano fica; o USB vem do Windows só
+        /// na primeira vez neste PC (o valor original da pessoa); depois manda o que está nos Ajustes.
+        /// Também antes de abrir os Ajustes no Dia a dia: a página mostra o mouse de verdade, e salvar não desfaz o que a
+        /// pessoa mudou no Windows.
+        /// </summary>
+        internal void SyncDailyFromWindows()
         {
+            SeedDailyUsbFromWindows();
             MouseProfile now = MouseSettings.Read();
             MouseProfile d = cfg.Daily;
             if (now.PointerSpeed == d.PointerSpeed &&
@@ -160,10 +183,34 @@ namespace MouseModes
 
             Log.Info(L.T("Dia a dia atualizado com o mouse do Windows: velocidade ", "Daily updated from the Windows mouse: speed ") + d.PointerSpeed + " → " + now.PointerSpeed +
                      L.T(", aceleração ", ", acceleration ") + OnOff(d.EnhancePointerPrecision) + " → " + OnOff(now.EnhancePointerPrecision) +
-                     L.T(", rolagem ", ", scroll ") + d.ScrollLines + " → " + now.ScrollLines);
+                     L.T(", rolagem ", ", scroll ") + MouseSettings.DescribeScroll(d.ScrollLines) + " → " + MouseSettings.DescribeScroll(now.ScrollLines));
             d.PointerSpeed = now.PointerSpeed;
             d.EnhancePointerPrecision = now.EnhancePointerPrecision;
             d.ScrollLines = now.ScrollLines;
+        }
+
+        /// <summary>
+        /// Primeira vez neste PC: o Dia a dia começa com a suspensão seletiva de USB como o plano ativo tem agora (na tomada),
+        /// e não com o padrão do app, que desfaria quem já a tinha desligado. Se não der para ler, tenta na próxima vez.
+        /// </summary>
+        private void SeedDailyUsbFromWindows()
+        {
+            if (cfg.UsbSuspendSeeded) return;
+            int? value;
+            try { value = UsbSuspendReader(); }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Ler a suspensão seletiva de USB", "Read USB selective suspend"), ex);
+                return;
+            }
+            if (value != 0 && value != 1) return; // 0 = desativada, 1 = ativada; outra coisa (ou null) não dá para usar
+
+            bool disabled = value == 0;
+            cfg.UsbSuspendSeeded = true;
+            if (cfg.Daily.DisableUsbSelectiveSuspend == disabled) return;
+            cfg.Daily.DisableUsbSelectiveSuspend = disabled;
+            Log.Info(L.T("Dia a dia com o USB do Windows: suspensão seletiva ", "Daily set to the Windows USB setting: selective suspend ") +
+                     (disabled ? L.T("desativada", "disabled") : L.T("ativada", "enabled")));
         }
 
         /// <summary>
@@ -226,18 +273,28 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Com o Dia a dia em "ANTERIOR", guarda o plano de energia ativo antes de o Performance trocar.</summary>
-        private void RememberDailyPlan()
+        /// <summary>
+        /// Guarda o plano de energia ativo antes de o Performance trocar. Sempre, e não só com o Dia a dia em "ANTERIOR":
+        /// a pessoa pode mudar o Dia a dia para "ANTERIOR" no meio do Performance, e a volta é decidida ao sair.
+        /// Roda na thread da tela: só lê pelo powrprof (sem powercfg) e não espera a thread do plano de energia.
+        /// </summary>
+        internal void RememberDailyPlan()
         {
-            if (cfg.Daily.PowerPlan != PowerPlanOption.NaoAlterar) return;
-            // Com uma troca de plano em andamento (ex.: voltando ao anterior), o ativo agora não é o "de antes".
-            // Espera ela acabar; só acontece quando os modos trocam em sequência rápida.
-            if (!powerIdle.WaitOne(3000))
+            // Com uma troca de plano ainda na fila ou rodando (o jogo reaberto logo depois de fechar), o ativo agora pode
+            // ser o do Performance anterior, e o pedido do Dia a dia ainda na fila vai ser trocado pelo do Performance
+            // (só o último roda). O Dia a dia não chegou a valer: o plano "de antes" continua o guardado da última vez.
+            if (!powerIdle.WaitOne(0))
             {
                 Log.Info(L.T("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes", "Power plan still changing; keeping the Daily plan saved before"));
                 return;
             }
-            string guid = PowerSettings.ActivePlanGuid();
+            string guid;
+            try { guid = ValidGuid(ActivePlanReader()); }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Ler o plano de energia ativo", "Read the active power plan"), ex);
+                return;
+            }
             if (guid == null || guid == cfg.DailyPlanGuid) return;
             cfg.DailyPlanGuid = guid;
             Log.Info(L.T("Plano de energia do Dia a dia guardado: ", "Daily power plan saved: ") + guid);

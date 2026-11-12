@@ -101,17 +101,6 @@ namespace MouseModes
             FinishLayout();
         }
 
-        /// <summary>Relatório maior que a tela (muitos programas e a rede, com a escala do Windows alta): rola.</summary>
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
-            Rectangle area = Screen.FromControl(this).WorkingArea;
-            if (Height <= area.Height - 20) return;
-            AutoScroll = true;
-            Height = area.Height - 20;
-            Top = area.Top + 10;
-        }
-
         /// <summary>Caça-travadinhas: FPS, 1% low e as piores travadinhas com o que havia na hora. Devolve o y seguinte.</summary>
         private int AddFrames(MatchReport report, int y)
         {

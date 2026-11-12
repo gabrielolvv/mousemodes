@@ -11,13 +11,20 @@ namespace MouseModes.Tests
         {
             public Guid? Mode = PowerModeKeeper.BestEfficiency;
             public bool Accept = true;
+            public bool Unreadable; // Get() devolve null
             public readonly List<string> Calls = new List<string>();
 
             public bool OnAC { get; set; }
 
             public FakePowerMode() { OnAC = true; }
 
-            public Guid? Get() { return Mode; }
+            public int Gets; // quantas vezes leu o modo
+
+            public Guid? Get()
+            {
+                Gets++;
+                return Unreadable ? null : Mode;
+            }
 
             public bool Set(Guid mode)
             {
@@ -134,6 +141,64 @@ namespace MouseModes.Tests
             New(cfg, windows).Restore();
 
             Assert.Equal(PowerModeKeeper.BetterPerformance, windows.Mode);
+            Assert.Null(cfg.PowerModeBackup);
+        }
+
+        [Fact]
+        public void Restore_KeepsTheBackupWhenWindowsCannotBeRead()
+        {
+            var cfg = new AppConfig { PowerModeBackup = PowerModeKeeper.BestEfficiency.ToString() };
+            var windows = new FakePowerMode { Mode = PowerModeKeeper.BestPerformance, Unreadable = true };
+            PowerModeKeeper keeper = New(cfg, windows);
+
+            Assert.False(keeper.Restore());
+            Assert.NotNull(cfg.PowerModeBackup); // tenta de novo depois
+            Assert.Empty(windows.Calls);
+
+            windows.Unreadable = false;
+            Assert.True(keeper.Restore());
+            Assert.Equal(PowerModeKeeper.BestEfficiency, windows.Mode);
+            Assert.Null(cfg.PowerModeBackup);
+        }
+
+        [Fact]
+        public void Restore_KeepsTheBackupWhenWindowsRefusesAndDoesNotRetryEvery3Seconds()
+        {
+            var cfg = new AppConfig();
+            var windows = new FakePowerMode();
+            PowerModeKeeper keeper = New(cfg, windows);
+            keeper.Ensure(true);
+
+            windows.Accept = false;
+            keeper.Ensure(false);
+            keeper.Ensure(false); // a cada 3 s: não insiste
+            Assert.Equal(2, windows.Calls.Count); // ida e uma tentativa de volta
+            Assert.Equal(PowerModeKeeper.BestEfficiency.ToString(), cfg.PowerModeBackup);
+
+            windows.Accept = true;
+            keeper.Ensure(true);  // próxima partida: o modo ainda está em Melhor desempenho, nada a trocar
+            keeper.Ensure(false); // e ao sair tenta devolver de novo
+            Assert.Equal(PowerModeKeeper.BestEfficiency, windows.Mode);
+            Assert.Null(cfg.PowerModeBackup);
+        }
+
+        [Fact]
+        public void Restore_OnBatteryNeitherReadsNorTouchesTheBatteryMode()
+        {
+            // Na bateria o Windows lê e grava o modo da bateria; o backup é o da tomada (inclusive na desinstalação).
+            var cfg = new AppConfig { PowerModeBackup = PowerModeKeeper.BestEfficiency.ToString() };
+            var windows = new FakePowerMode { Mode = PowerModeKeeper.BestPerformance, OnAC = false };
+            PowerModeKeeper keeper = New(cfg, windows);
+
+            Assert.False(keeper.Restore());
+            Assert.Equal(0, windows.Gets);
+            Assert.Empty(windows.Calls);
+            Assert.Equal(PowerModeKeeper.BestPerformance, windows.Mode);
+            Assert.NotNull(cfg.PowerModeBackup);
+
+            windows.OnAC = true;
+            Assert.True(keeper.Restore());
+            Assert.Equal(PowerModeKeeper.BestEfficiency, windows.Mode);
             Assert.Null(cfg.PowerModeBackup);
         }
 

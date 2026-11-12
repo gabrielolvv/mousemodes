@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -206,13 +207,108 @@ namespace MouseModes
             return plans;
         }
 
-        /// <summary>GUID do plano de energia ativo agora, ou null se não deu para ler.</summary>
+        /// <summary>
+        /// GUID do plano de energia ativo agora, ou null se não deu para ler. Só lê, pelo powrprof: rápido o bastante para a
+        /// thread da tela (sem abrir o powercfg).
+        /// </summary>
         public static string ActivePlanGuid()
         {
-            string output;
-            if (!Run("/getactivescheme", out output)) return null;
-            Match m = GuidRegex.Match(output);
-            return m.Success ? m.Value.ToLowerInvariant() : null;
+            Guid? active = ActiveScheme();
+            return active != null ? active.Value.ToString() : null;
+        }
+
+        /// <summary>O plano ativo pelo PowerGetActiveScheme (o GUID devolvido é liberado com LocalFree), ou null.</summary>
+        private static Guid? ActiveScheme()
+        {
+            try
+            {
+                IntPtr active;
+                if (PowerGetActiveScheme(IntPtr.Zero, out active) != 0 || active == IntPtr.Zero) return null;
+                try { return (Guid)Marshal.PtrToStructure(active, typeof(Guid)); }
+                finally { LocalFree(active); }
+            }
+            catch (DllNotFoundException) { return null; }
+            catch (EntryPointNotFoundException) { return null; }
+        }
+
+        /// <summary>
+        /// Desinstalação: apaga as cópias de planos que o app criou, menos a que estiver ativa (o Windows não apaga o plano
+        /// ativo, e a pessoa ficaria sem ele). Sem saber qual é o ativo, não apaga nenhuma.
+        /// </summary>
+        public static void DeletePlanCopies(AppConfig cfg)
+        {
+            string active = ActivePlanGuid();
+            if (active == null)
+            {
+                Log.Warn(L.T("Desinstalação: plano ativo não lido; cópias de planos do app ficam", "Uninstall: active plan not read; the app's plan copies stay"));
+                return;
+            }
+            List<PlanCopy> copies = cfg.PlanCopiesSnapshot();
+            foreach (PlanCopy copy in PlanCopiesToDelete(copies, active))
+            {
+                string guid = ModeManager.ValidGuid(copy.Guid);
+                if (Run("/delete " + guid))
+                {
+                    cfg.RememberPlanCopy(copy.Template, null);
+                    Log.Info(L.T("Desinstalação: cópia de plano apagada (", "Uninstall: plan copy deleted (") + guid + ")");
+                }
+                else
+                {
+                    Log.Warn(L.T("Desinstalação: cópia de plano não apagada (", "Uninstall: plan copy not deleted (") + guid + ")");
+                }
+            }
+            foreach (PlanCopy copy in copies)
+            {
+                if (copy != null && ModeManager.ValidGuid(copy.Guid) == active)
+                    Log.Info(L.T("Desinstalação: a cópia de plano ativa fica (", "Uninstall: the active plan copy stays (") + active + ")");
+            }
+        }
+
+        /// <summary>Cópias (com GUID válido) que podem ser apagadas: todas menos a do plano ativo.</summary>
+        internal static List<PlanCopy> PlanCopiesToDelete(IEnumerable<PlanCopy> copies, string activePlan)
+        {
+            string active = ModeManager.ValidGuid(activePlan);
+            var result = new List<PlanCopy>();
+            if (active == null) return result; // sem saber o ativo, não apaga nada
+            var seen = new HashSet<string>();
+            foreach (PlanCopy copy in copies)
+            {
+                string guid = copy != null ? ModeManager.ValidGuid(copy.Guid) : null;
+                if (guid == null || guid == active || !seen.Add(guid)) continue;
+                result.Add(copy);
+            }
+            return result;
+        }
+
+        [DllImport("powrprof.dll")]
+        private static extern uint PowerGetActiveScheme(IntPtr userRootPowerKey, out IntPtr activePolicyGuid);
+
+        [DllImport("powrprof.dll")]
+        private static extern uint PowerReadACValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupGuid,
+            ref Guid settingGuid, out uint acValueIndex);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr LocalFree(IntPtr mem);
+
+        /// <summary>
+        /// Suspensão seletiva de USB do plano ativo, na tomada (0 = desativada, 1 = ativada), ou null se não deu para ler.
+        /// Só lê, pelo powrprof: sem abrir o powercfg nem depender do idioma da saída dele.
+        /// </summary>
+        public static int? UsbSelectiveSuspendAC()
+        {
+            try
+            {
+                Guid? active = ActiveScheme();
+                if (active == null) return null;
+                Guid scheme = active.Value;
+                Guid subgroup = new Guid(UsbSubgroupGuid);
+                Guid setting = new Guid(UsbSelectiveSuspendGuid);
+                uint value;
+                if (PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref setting, out value) != 0) return null;
+                return (int)value;
+            }
+            catch (DllNotFoundException) { return null; }
+            catch (EntryPointNotFoundException) { return null; }
         }
 
         /// <summary>Nome do plano de energia ativo agora (para o Diagnóstico).</summary>

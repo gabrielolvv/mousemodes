@@ -20,7 +20,7 @@ namespace MouseModes
 
             Controls.Add(new SectionLabel { Text = L.T("Sistema", "System"), Location = new Point(20, 58), Size = new Size(580, 20) });
             systemInfo = Note(L.T("carregando...", "loading..."), 20, 80, 580, 92, Theme.Muted, 8.5f);
-            systemInfo.Font = new Font("Consolas", 8.5f);
+            systemInfo.Font = Theme.Mono(8.5f);
             Controls.Add(systemInfo);
 
             Controls.Add(new SectionLabel { Text = L.T("Windows para jogos", "Windows for games"), Location = new Point(20, 178), Size = new Size(580, 20) });
@@ -41,7 +41,7 @@ namespace MouseModes
                 ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.None,
                 WordWrap = false,
-                Font = new Font("Consolas", 8.5f)
+                Font = Theme.Mono(8.5f)
             };
             // Registro mais baixo que antes: com a seção nova, a janela ainda cabe numa tela de 768 px com a barra de tarefas.
             Controls.Add(new FieldHost(text) { Location = new Point(20, y + 24), Size = new Size(580, 210), Accent = Theme.DailyB });
@@ -124,7 +124,7 @@ namespace MouseModes
             {
                 MouseProfile now = MouseSettings.Read();
                 return L.T("Mouse agora: velocidade ", "Mouse now: speed ") + now.PointerSpeed + L.T("/20, aceleração ", "/20, acceleration ") +
-                       (now.EnhancePointerPrecision ? L.T("ligada", "on") : L.T("desligada", "off")) + L.T(", rolagem ", ", scroll ") + now.ScrollLines;
+                       (now.EnhancePointerPrecision ? L.T("ligada", "on") : L.T("desligada", "off")) + L.T(", rolagem ", ", scroll ") + MouseSettings.DescribeScroll(now.ScrollLines);
             }, "Mouse"));
             sb.AppendLine(Safe(() =>
             {

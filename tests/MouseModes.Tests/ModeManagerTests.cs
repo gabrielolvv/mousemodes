@@ -15,6 +15,8 @@ namespace MouseModes.Tests
         private readonly TempFolder dir = new TempFolder(); // também desvia o log
         private readonly List<string> applied = new List<string>();
         private int delayMs = 300;
+        private int? usbSuspend; // o que o "Windows" responde sobre a suspensão seletiva de USB (null = não deu para ler)
+        private string activePlan = "232e2748-0959-4183-a9e8-1b5372b4f906";
 
         public void Dispose()
         {
@@ -34,6 +36,8 @@ namespace MouseModes.Tests
             Type owner = modes.PowerApplier.Method.DeclaringType;
             Assert.True(owner == typeof(ModeManagerTests) || owner.DeclaringType == typeof(ModeManagerTests),
                 "aplicador de mentira não instalado: " + owner);
+            modes.UsbSuspendReader = () => usbSuspend;
+            modes.ActivePlanReader = () => activePlan;
             return modes;
         }
 
@@ -89,6 +93,126 @@ namespace MouseModes.Tests
             Assert.Equal(MouseSettings.Read().PointerSpeed, cfg.Daily.PointerSpeed); // o perfil seguiu o Windows
             Assert.True(modes.WaitForPower(1000));
             Assert.Empty(applied); // nenhum plano de energia foi pedido
+        }
+
+        [Fact]
+        public void SyncDailyFromWindows_TakesTheWindowsMouseAndAppliesNothing()
+        {
+            // Os Ajustes chamam isto antes de abrir no Dia a dia: a página mostra o mouse de verdade.
+            MouseProfile windows = MouseSettings.Read();
+            var cfg = new AppConfig { Daily = new MouseProfile { PowerPlan = PowerPlanOption.AltoDesempenho }, Performance = new MouseProfile() };
+            cfg.Daily.PointerSpeed = windows.PointerSpeed == 3 ? 4 : 3;
+            cfg.Daily.EnhancePointerPrecision = !windows.EnhancePointerPrecision;
+            cfg.Daily.ScrollLines = windows.ScrollLines == 7 ? 8 : 7;
+            ModeManager modes = NewManager(cfg);
+            Mode? changed = null;
+            modes.ModeChanged += (mode, reason, warnings) => changed = mode;
+
+            modes.SyncDailyFromWindows();
+
+            Assert.Equal(windows.PointerSpeed, cfg.Daily.PointerSpeed);
+            Assert.Equal(windows.EnhancePointerPrecision, cfg.Daily.EnhancePointerPrecision);
+            Assert.Equal(windows.ScrollLines, cfg.Daily.ScrollLines);
+            Assert.Equal(PowerPlanOption.AltoDesempenho, cfg.Daily.PowerPlan); // o plano fica
+            Assert.Null(changed);
+            Assert.True(modes.WaitForPower(1000));
+            Assert.Empty(applied);
+        }
+
+        [Fact]
+        public void Start_FirstTimeTakesTheUsbSettingFromWindows()
+        {
+            AppConfig cfg = AppConfig.CreateDefault(); // Dia a dia nasce com a suspensão ativada (padrão do app)
+            usbSuspend = 0; // a pessoa já tinha desativado no Windows
+            ModeManager modes = NewManager(cfg);
+
+            modes.Start();
+
+            Assert.True(cfg.Daily.DisableUsbSelectiveSuspend);
+            Assert.True(cfg.UsbSuspendSeeded);
+            Assert.True(modes.WaitForPower(1000));
+            Assert.Empty(applied); // só leu: nada foi gravado no Windows
+        }
+
+        [Fact]
+        public void Start_AfterTheFirstTimeTheSettingsWin()
+        {
+            AppConfig cfg = AppConfig.CreateDefault();
+            cfg.UsbSuspendSeeded = true; // já leu antes; depois a pessoa ligou a suspensão nos Ajustes
+            usbSuspend = 0;              // o Windows ainda tem o valor do Performance, por exemplo
+
+            NewManager(cfg).Start();
+
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+        }
+
+        [Fact]
+        public void Start_TriesAgainWhenTheUsbSettingCannotBeRead()
+        {
+            AppConfig cfg = AppConfig.CreateDefault();
+            usbSuspend = null;
+
+            NewManager(cfg).Start();
+            Assert.False(cfg.UsbSuspendSeeded);
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+
+            usbSuspend = 1;
+            NewManager(cfg).Start();
+            Assert.True(cfg.UsbSuspendSeeded);
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+        }
+
+        [Theory]
+        [InlineData(PowerPlanOption.NaoAlterar)]
+        [InlineData(PowerPlanOption.Equilibrado)]
+        [InlineData(PowerPlanOption.AltoDesempenho)]
+        public void RememberDailyPlan_SavesTheActivePlanWhateverTheDailyOption(PowerPlanOption daily)
+        {
+            // Mesmo sem "ANTERIOR" agora: a pessoa pode escolher "ANTERIOR" no meio do Performance.
+            var cfg = new AppConfig { Daily = new MouseProfile { PowerPlan = daily }, Performance = new MouseProfile() };
+
+            NewManager(cfg).RememberDailyPlan();
+
+            Assert.Equal(activePlan, cfg.DailyPlanGuid);
+        }
+
+        [Fact]
+        public void RememberDailyPlan_DoesNotWaitForAPlanChangeStillRunning()
+        {
+            // Jogo reaberto logo depois de fechar: a volta ao Dia a dia ainda está na fila. A tela não espera, e o plano
+            // ativo agora (ainda o do Performance) não vira o "de antes".
+            var cfg = new AppConfig { DailyPlanGuid = "381b4222-f694-41f0-9685-ff5bb260df2e" };
+            ModeManager modes = NewManager(cfg);
+            delayMs = 1500;
+            int reads = 0;
+            modes.ActivePlanReader = () => { reads++; return activePlan; };
+            modes.QueuePower(Plan(PowerPlanOption.NaoAlterar), "381b4222-f694-41f0-9685-ff5bb260df2e");
+
+            var clock = Stopwatch.StartNew();
+            modes.RememberDailyPlan();
+            Assert.True(clock.ElapsedMilliseconds < 500, "a tela não pode esperar o plano de energia: " + clock.ElapsedMilliseconds + " ms");
+
+            Assert.Equal(0, reads);
+            Assert.Equal("381b4222-f694-41f0-9685-ff5bb260df2e", cfg.DailyPlanGuid);
+            Assert.True(modes.WaitForPower(5000));
+
+            modes.RememberDailyPlan(); // fila vazia: lê e guarda o ativo
+            Assert.Equal(1, reads);
+            Assert.Equal(activePlan, cfg.DailyPlanGuid);
+        }
+
+        [Fact]
+        public void RememberDailyPlan_IgnoresAnUnreadablePlan()
+        {
+            var cfg = new AppConfig { DailyPlanGuid = "381b4222-f694-41f0-9685-ff5bb260df2e" };
+            ModeManager modes = NewManager(cfg);
+
+            modes.ActivePlanReader = () => null;
+            modes.RememberDailyPlan();
+            modes.ActivePlanReader = () => { throw new InvalidOperationException("powrprof de mentira"); };
+            modes.RememberDailyPlan();
+
+            Assert.Equal("381b4222-f694-41f0-9685-ff5bb260df2e", cfg.DailyPlanGuid);
         }
 
         [Fact]

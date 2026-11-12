@@ -33,7 +33,7 @@ namespace MouseModes
             this.save = save;
             this.measureDpi = measureDpi;
             CloseOnEscape = true;
-            ClientSize = new Size(480, 630);
+            ClientSize = new Size(480, 640);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
@@ -73,10 +73,11 @@ namespace MouseModes
                 y += 30;
             }
 
-            hint = Note("", 20, 512, 440, 54, Theme.Faint, 8.5f);
+            // 4 linhas: com o "DPI NOVO" diferente, o texto em português passa de 3 linhas (e a 150% ainda mais).
+            hint = Note("", 20, 512, 440, 64, Theme.Faint, 8.5f);
             Controls.Add(hint);
 
-            var measure = new NeonButton { Text = L.T("Medir o DPI real", "Measure the real DPI"), Glyph = GlyphKind.Mouse, Location = new Point(20, 570), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var measure = new NeonButton { Text = L.T("Medir o DPI real", "Measure the real DPI"), Glyph = GlyphKind.Mouse, Location = new Point(20, 580), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             measure.Click += (s, e) => { if (this.measureDpi != null) this.measureDpi(); };
             Controls.Add(measure);
             // Volta da medição do DPI real: a volta passa a usar o valor medido.

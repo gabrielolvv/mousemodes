@@ -41,6 +41,8 @@ namespace MouseModes
         private readonly HotkeyBox hotkeyBox;
 
         public event Action Saved;
+        /// <summary>Salvar apertado, antes de as páginas gravarem no config.</summary>
+        public event Action Saving;
         public event Action DiagnosticsRequested;
         public event Action RestoreDefaultsRequested;
 
@@ -258,7 +260,8 @@ namespace MouseModes
         private void ChangeFramePermission()
         {
             bool allow = !(FramePermission.Allowed || cfg.FramePermissionAsked);
-            string error = FramePermission.Change(allow);
+            bool alreadyMember;
+            string error = FramePermission.Change(allow, out alreadyMember);
             if (error != null)
             {
                 Log.Warn(L.T("Caça-travadinhas: permissão não mudou (", "Stutter finder: permission not changed (") + error + ")");
@@ -266,8 +269,13 @@ namespace MouseModes
                 return;
             }
             cfg.FramePermissionAsked = allow;
+            // Só o Change muda; o Asked some quando a permissão passa a valer, este fica. Só marca quando foi o app que pôs:
+            // se a conta já estava no grupo (administrador, política do PC), a desinstalação não tira.
+            if (!allow) cfg.FramePermissionGranted = false;
+            else if (!alreadyMember) cfg.FramePermissionGranted = true;
             try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); } // vale mesmo com Cancelar
-            Log.Info(allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
+            Log.Info(allow && alreadyMember ? L.T("Caça-travadinhas: a conta já estava no grupo Performance Log Users", "Stutter finder: the account was already in Performance Log Users")
+                   : allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
                            : L.T("Caça-travadinhas: conta tirada do grupo Performance Log Users", "Stutter finder: account removed from Performance Log Users"));
             ShowFramePermission();
             if (allow)
@@ -449,6 +457,11 @@ namespace MouseModes
 
         private void SaveAndClose()
         {
+            // Antes de gravar as páginas: no Dia a dia, quem abriu a janela traz o mouse de agora do Windows para o perfil
+            // (a página grava por cima só o que a pessoa mudou).
+            var saving = Saving;
+            if (saving != null) saving();
+
             perfPanel.SaveTo(cfg.Performance);
             dailyPanel.SaveTo(cfg.Daily);
             gamesPanel.SaveTo(cfg);
@@ -483,7 +496,6 @@ namespace MouseModes
             try
             {
                 cfg.Save();
-                Startup.SetEnabled(startWithWindows.Switch.Checked);
             }
             catch (Exception ex)
             {
@@ -492,6 +504,19 @@ namespace MouseModes
                 return;
             }
             Log.Info(L.T("Configurações salvas", "Settings saved"));
+
+            // O config já foi salvo: uma falha aqui não pode impedir o app de usar o que foi salvo (Saved).
+            try
+            {
+                Startup.SetEnabled(startWithWindows.Switch.Checked);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Iniciar com o Windows", "Start with Windows"), ex);
+                ConfirmDialog.Inform(this, L.T("Iniciar com o Windows", "Start with Windows"),
+                    L.T("As configurações foram salvas, mas não deu para mudar o \"Iniciar com o Windows\": ",
+                        "Settings were saved, but \"Start with Windows\" could not be changed: ") + ex.Message);
+            }
 
             var handler = Saved;
             if (handler != null) handler();
@@ -531,6 +556,7 @@ namespace MouseModes
         private IFpsLimiter limiter;
         private bool limiterChecked;
         private Entry current;
+        private readonly bool autoLoaded; // troca automática ao abrir: a da bandeja, mudada depois, não é desfeita
 
         public GamesPanel(AppConfig cfg, SettingsForm owner)
         {
@@ -547,6 +573,7 @@ namespace MouseModes
             autoSwitch = new ToggleRow { Title = L.T("Troca automática", "Automatic switch"), Subtitle = L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), Location = new Point(0, 4), Size = new Size(440, 52) };
             autoSwitch.SetAccents(a, b);
             autoSwitch.Switch.SetChecked(cfg.AutoSwitch, false);
+            autoLoaded = cfg.AutoSwitch;
 
             var listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 64), Size = new Size(440, 20) };
             list = new ListBox
@@ -684,6 +711,41 @@ namespace MouseModes
             ShowFpsTarget();
         }
 
+        /// <summary>
+        /// O executável que aparece ao lado do limite: o que vai receber o limite (FpsCap.TargetExe). Sem o jogo ter
+        /// sido visto aberto é um palpite (o nome da lista com ".exe"), marcado com "?". Só pede para abrir o jogo quando
+        /// há limite escolhido e o item é com certeza um começo de nome (ClearlyPrefix): aí o palpite certamente erra.
+        /// </summary>
+        internal static string FpsTargetText(AppConfig cfg, string game, int choice)
+        {
+            string exe = FpsCap.TargetExe(cfg, game);
+            if (cfg.SeenGameExe(game) != null) return exe;
+            if (choice != 0 && ClearlyPrefix(game)) return L.T("abra o jogo uma vez", "open the game once");
+            return exe + "?";
+        }
+
+        /// <summary>
+        /// O item da lista termina num separador ("FiveM_", "Jogo-"): nenhum executável de jogo termina assim, então é
+        /// só o começo do nome. Fora isso não dá para saber ("cs2" é o nome inteiro, "FiveM" é começo de
+        /// "FiveM_b3095_GTAProcess"), e o palpite com ".exe" fica valendo.
+        /// </summary>
+        internal static bool ClearlyPrefix(string game)
+        {
+            string name = GameDetector.Normalize(game);
+            return name.Length > 0 && "-_.".IndexOf(name[name.Length - 1]) >= 0;
+        }
+
+        /// <summary>
+        /// Versões do texto ao lado do limite, da mais longa para a mais curta (SectionLabel.RightTextOptions): sem
+        /// espaço, perde primeiro a placa e depois a taxa; o executável (e o "?" do palpite) fica sempre inteiro.
+        /// </summary>
+        internal static string[] FpsLabelTexts(string card, int choice, int rate, string target)
+        {
+            if (choice == 0) return new[] { card + " · " + target, target };
+            string fps = rate > 0 ? rate + " FPS" : L.T("taxa desconhecida", "unknown rate");
+            return new[] { fps + " · " + card + " · " + target, fps + " · " + target, target };
+        }
+
         /// <summary>Ao lado do título do limite: para qual executável e placa ele vai (ou que a placa não tem limitador).</summary>
         private void ShowFpsTarget()
         {
@@ -694,16 +756,11 @@ namespace MouseModes
                 limiter = FpsCap.Detect();
             }
             int choice = FpsCap.Options[Math.Max(0, fps.SelectedIndex)];
+            string target = FpsTargetText(cfg, current.Name, choice);
             if (limiter == null)
                 fpsLabel.RightText = L.T("esta placa não tem limitador", "this card has no limiter");
-            else if (choice == 0)
-                fpsLabel.RightText = limiter.Name + " · " + FpsCap.ExeFor(current.Name);
             else
-            {
-                int value = FpsCap.Resolve(choice, FpsCap.PrimaryRefresh());
-                fpsLabel.RightText = (value > 0 ? value + " FPS" : L.T("taxa desconhecida", "unknown rate")) + " · " +
-                                     limiter.Name + " · " + FpsCap.ExeFor(current.Name);
-            }
+                fpsLabel.RightTextOptions = FpsLabelTexts(limiter.Name, choice, choice == 0 ? 0 : FpsCap.Resolve(choice, FpsCap.PrimaryRefresh()), target);
             fpsLabel.RightColor = limiter == null ? Theme.Faint : Theme.PerfB;
             fpsLabel.Invalidate();
         }
@@ -744,7 +801,8 @@ namespace MouseModes
         public void SaveTo(AppConfig target)
         {
             CommitEditor();
-            target.AutoSwitch = autoSwitch.Switch.Checked;
+            // Só se a pessoa mexeu aqui: a troca automática pode ter sido ligada ou desligada pela bandeja com a janela aberta.
+            if (autoSwitch.Switch.Checked != autoLoaded) target.AutoSwitch = autoSwitch.Switch.Checked;
             target.Games = entries.ConvertAll(e => e.Name);
             target.GameProfiles = new List<GameProfile>();
             foreach (Entry e in entries)
@@ -843,6 +901,8 @@ namespace MouseModes
         private readonly SectionLabel scrollLabel;
         private readonly Segmented plan;
         private readonly ToggleRow usb;
+        private bool pageScroll; // "uma tela por vez" do Windows: continua assim até a pessoa mexer na régua
+        private MouseProfile loaded; // o que a página mostrou ao abrir: o SaveTo grava só o que mudou
 
         /// <param name="keepPlanLabel">
         /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "ANTERIOR": volta ao plano de antes do Performance.
@@ -867,6 +927,7 @@ namespace MouseModes
 
             scrollLabel = new SectionLabel { Text = L.T("Linhas por giro da roda", "Lines per wheel notch"), Location = new Point(0, 176), Size = new Size(440, 20), RightColor = b };
             scroll = new NeonSlider { Minimum = 1, Maximum = 20, Location = new Point(-4, 198), Size = new Size(448, 36), AccentA = a, AccentB = b };
+            scroll.ValueChanged += () => pageScroll = false; // antes do UpdateLabels: o texto já sai com as linhas
             scroll.ValueChanged += UpdateLabels;
 
             var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 252), Size = new Size(440, 20) };
@@ -917,29 +978,40 @@ namespace MouseModes
             speedNote.Text = v == 10
                 ? L.T("1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)", "1:1 — the pointer moves exactly what the sensor reads (recommended for games)")
                 : v > 10 ? L.T("Multiplica o movimento: pode pular pixels", "Multiplies movement: may skip pixels") : L.T("Reduz o movimento do sensor", "Reduces the sensor movement");
-            scrollLabel.RightText = scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
+            scrollLabel.RightText = pageScroll ? L.T("uma tela", "one screen")
+                : scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
             speedLabel.Invalidate();
             scrollLabel.Invalidate();
         }
 
         public void LoadProfile(MouseProfile p)
         {
+            loaded = p.Clone();
             speed.Value = Math.Max(1, Math.Min(20, p.PointerSpeed));
             precision.Switch.SetChecked(p.EnhancePointerPrecision, false);
+            bool page = p.ScrollLines == MouseProfile.PageScroll;
             scroll.Maximum = Math.Max(20, p.ScrollLines);
-            scroll.Value = Math.Max(1, p.ScrollLines);
+            scroll.Value = page ? scroll.Maximum : Math.Max(1, p.ScrollLines);
+            pageScroll = page; // depois do Value: a troca de valor acima apagaria a marca
             plan.SelectedIndex = (int)p.PowerPlan;
             usb.Switch.SetChecked(p.DisableUsbSelectiveSuspend, false);
             UpdateLabels();
         }
 
+        /// <summary>
+        /// Grava só o que a pessoa mudou nesta página desde o LoadProfile. O Dia a dia pode ser atualizado com o mouse do
+        /// Windows enquanto a janela está aberta (um jogo entrou no Performance): o resto não volta ao valor antigo.
+        /// </summary>
         public void SaveTo(MouseProfile p)
         {
-            p.PointerSpeed = speed.Value;
-            p.EnhancePointerPrecision = precision.Switch.Checked;
-            p.ScrollLines = scroll.Value;
-            p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
-            p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
+            MouseProfile was = loaded ?? p.Clone();
+            int scrollLines = pageScroll ? MouseProfile.PageScroll : scroll.Value;
+            var chosenPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
+            if (speed.Value != was.PointerSpeed) p.PointerSpeed = speed.Value;
+            if (precision.Switch.Checked != was.EnhancePointerPrecision) p.EnhancePointerPrecision = precision.Switch.Checked;
+            if (scrollLines != was.ScrollLines) p.ScrollLines = scrollLines;
+            if (chosenPlan != was.PowerPlan) p.PowerPlan = chosenPlan;
+            if (usb.Switch.Checked != was.DisableUsbSelectiveSuspend) p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
         }
     }
 

@@ -40,6 +40,12 @@ namespace MouseModes.Tests
             {
                 foreach (FpsCapChange c in changes) Driver[c.Exe] = c.Fps;
             }
+
+            /// <summary>A cópia administradora que gravou só parte antes de falhar (ou de passar do tempo).</summary>
+            public void WriteAsAdmin(FpsCapChange change)
+            {
+                Driver[change.Exe] = change.Fps;
+            }
         }
 
         private static AppConfig Config(params object[] gameAndCap)
@@ -99,6 +105,55 @@ namespace MouseModes.Tests
             Assert.Equal(2, wanted.Count);
             Assert.Equal(162, wanted["cs2.exe"]);
             Assert.Equal(240, wanted["r5apex.exe"]);
+        }
+
+        [Fact]
+        public void Wanted_GoesToTheExeTheDetectorSawForAPrefix()
+        {
+            AppConfig cfg = Config("JogoPrefixo", 144, "cs2", 240);
+
+            Assert.True(cfg.RememberGameExe("JogoPrefixo-Win64-Shipping"));
+            Dictionary<string, int> wanted = FpsCap.Wanted(cfg, 165);
+
+            Assert.Equal(144, wanted["jogoprefixo-win64-shipping.exe"]);
+            Assert.False(wanted.ContainsKey("jogoprefixo.exe"));
+            Assert.Equal(240, wanted["cs2.exe"]); // ainda não visto: o nome da lista com ".exe"
+            Assert.Equal("cs2.exe", FpsCap.TargetExe(cfg, "cs2"));
+        }
+
+        [Fact]
+        public void RememberGameExe_KeepsOnePerGameAndDropsGamesThatLeftTheList()
+        {
+            AppConfig cfg = Config("JogoA", 0, "JogoAB", 0);
+
+            Assert.True(cfg.RememberGameExe("JogoABCliente"));    // começo dos dois nomes
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("JogoA"));
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("jogoab.exe"));
+            Assert.False(cfg.RememberGameExe("jogoabcliente"));   // o mesmo, só muda maiúscula: nada a gravar
+            Assert.False(cfg.RememberGameExe("OutroPrograma"));
+
+            Assert.True(cfg.RememberGameExe("JogoAOutro"));        // só do primeiro: troca o dele
+            Assert.Equal("JogoAOutro", cfg.SeenGameExe("JogoA"));
+            Assert.Equal("JogoABCliente", cfg.SeenGameExe("JogoAB"));
+            Assert.Equal(2, cfg.GameExes.Count);
+
+            cfg.Games.Remove("JogoAB");
+            Assert.True(cfg.RememberGameExe("OutroPrograma"));     // saiu da lista: sai daqui também
+            Assert.Null(cfg.SeenGameExe("JogoAB"));
+            Assert.Single(cfg.GameExes);
+        }
+
+        [Fact]
+        public void UsesAuto_OnlyForGamesStillInTheList()
+        {
+            AppConfig cfg = Config("cs2", 240);
+            Assert.False(FpsCap.UsesAuto(cfg));
+
+            cfg.GameProfiles.Add(new GameProfile { Process = "saiu-da-lista", Profile = new MouseProfile { FpsCap = FpsCap.Auto } });
+            Assert.False(FpsCap.UsesAuto(cfg));
+
+            cfg.GameProfiles[0].Profile.FpsCap = FpsCap.Auto;
+            Assert.True(FpsCap.UsesAuto(cfg));
         }
 
         [Fact]
@@ -170,6 +225,31 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Apply_KeepsWhatTheAdministratorCopyWroteEvenWhenItFailed()
+        {
+            var driver = new FakeLimiter { AskAdmin = true };
+            driver.Driver["valorant.exe"] = 144;
+            var applied = new List<string> { "valorant.exe=144" };
+            var changes = new List<FpsCapChange>
+            {
+                new FpsCapChange { Exe = "cs2.exe", Fps = 141 },
+                new FpsCapChange { Exe = "r5apex.exe", Fps = 240 },
+                new FpsCapChange { Exe = "valorant.exe", Fps = 0 }
+            };
+
+            // Gravou cs2.exe e tirou o do valorant.exe, mas não chegou ao r5apex.exe antes de passar do tempo.
+            List<string> problems = FpsCap.Apply(changes, driver, applied, pending =>
+            {
+                driver.WriteAsAdmin(pending[0]);
+                driver.WriteAsAdmin(pending[2]);
+                return "o driver não respondeu a tempo";
+            });
+
+            Assert.Equal(new[] { "r5apex.exe: o driver não respondeu a tempo" }, problems.ToArray());
+            Assert.Equal(new[] { "cs2.exe=141" }, applied.ToArray());
+        }
+
+        [Fact]
         public void ParseHelperArgs_RejectsAnythingThatIsNotAPlainExeAndFps()
         {
             List<FpsCapChange> ok = FpsCap.ParseHelperArgs(new[] { FpsCap.HelperArg, "cs2.exe=141", "valorant.exe=0" });
@@ -190,8 +270,40 @@ namespace MouseModes.Tests
             Assert.Equal(0x0004500Cu, NvidiaLimiter.ApplicationVersion);
             Assert.Equal(0x00011014u, NvidiaLimiter.ProfileVersion);
             Assert.Equal(4100, NvidiaLimiter.SettingIdOffset);
+            Assert.Equal(4108, NvidiaLimiter.SettingLocationOffset);
             Assert.Equal(8220, NvidiaLimiter.CurrentValueOffset);
             Assert.True(NvidiaLimiter.CurrentValueOffset + 4100 == NvidiaLimiter.SettingSize);
+        }
+
+        [Theory]
+        [InlineData(0u, 141)] // NVDRS_CURRENT_PROFILE_LOCATION: o limite é do perfil do jogo
+        [InlineData(1u, 0)]   // NVDRS_GLOBAL_PROFILE_LOCATION: herdado do "Taxa máxima de quadros" geral
+        [InlineData(2u, 0)]   // NVDRS_BASE_PROFILE_LOCATION
+        public void NvidiaCap_OnlyCountsTheGamesOwnProfile(uint location, int expected)
+        {
+            using (var setting = new NativeBuffer(NvidiaLimiter.SettingSize))
+            {
+                setting.WriteUInt32(NvidiaLimiter.SettingLocationOffset, location);
+                setting.WriteUInt32(NvidiaLimiter.CurrentValueOffset, 141);
+                Assert.Equal(expected, NvidiaLimiter.CapOf(setting));
+            }
+        }
+
+        [Fact]
+        public void IntelDevices_KeepTheMostSignificantFailure()
+        {
+            const uint other = 0x40000001; // outro erro da IGCL
+            uint status = IntelLimiter.UnsupportedFeature; // nenhuma placa respondeu ainda
+
+            // Arc pede administrador, a UHD diz "não suportado": o pedido de administrador não pode se perder.
+            status = IntelLimiter.MoreSignificant(status, IntelLimiter.InsufficientPermissions);
+            status = IntelLimiter.MoreSignificant(status, IntelLimiter.UnsupportedFeature);
+            Assert.Equal(IntelLimiter.InsufficientPermissions, status);
+            Assert.Equal(IntelLimiter.InsufficientPermissions, IntelLimiter.MoreSignificant(IntelLimiter.InsufficientPermissions, other));
+
+            Assert.Equal(other, IntelLimiter.MoreSignificant(IntelLimiter.UnsupportedFeature, other));
+            Assert.Equal(other, IntelLimiter.MoreSignificant(other, IntelLimiter.UnsupportedFeature));
+            Assert.Equal(IntelLimiter.UnsupportedFeature, IntelLimiter.MoreSignificant(IntelLimiter.UnsupportedFeature, IntelLimiter.UnsupportedFeature));
         }
 
         [Fact]
@@ -213,6 +325,85 @@ namespace MouseModes.Tests
             }
             using (var cut = NativeBuffer.Unicode("um-nome-bem-longo.exe", 8))
                 Assert.Equal("um-", Marshal.PtrToStringUni(cut.Pointer)); // 3 letras + o zero final
+        }
+
+        [Fact]
+        public void Apply_WithoutElevationLeavesWhatNeedsTheAdministratorPending()
+        {
+            var driver = new FakeLimiter { AskAdmin = true };
+            var applied = new List<string>();
+            var changes = new List<FpsCapChange> { new FpsCapChange { Exe = "cs2.exe", Fps = 141 } };
+
+            List<string> problems = FpsCap.Apply(changes, driver, applied, FpsCap.WithoutElevation);
+
+            Assert.Equal(new[] { "cs2.exe: " + FpsCap.WithoutElevation(changes) }, problems.ToArray());
+            Assert.Empty(applied); // fica para o próximo Salvar dos Ajustes
+            Assert.False(driver.Driver.ContainsKey("cs2.exe"));
+            Assert.Empty(FpsCap.Plan(new Dictionary<string, int>(), applied)); // e não vira um "tirar o limite"
+            Assert.Single(FpsCap.Plan(new Dictionary<string, int> { { "cs2.exe", 141 } }, applied));
+        }
+
+        [Fact]
+        public void OpenIfSame_OnlyOpensTheFileWithTheSameContentAndLocksIt()
+        {
+            using (var temp = new TempFolder())
+            {
+                string exe = temp.Text("app.exe", "o executável que está rodando");
+                byte[] running = FpsCap.HashOf(exe);
+
+                using (System.IO.FileStream same = FpsCap.OpenIfSame(exe, running))
+                {
+                    Assert.NotNull(same);
+                    // Aberto: ninguém troca, grava nem renomeia o arquivo até o pedido de administrador sair.
+                    Assert.Throws<System.IO.IOException>(() => System.IO.File.WriteAllText(exe, "outro"));
+                    Assert.Throws<System.IO.IOException>(() => System.IO.File.Move(exe, temp.File("antigo.exe")));
+                }
+
+                System.IO.File.WriteAllText(exe, "outro programa no lugar");
+                Assert.Null(FpsCap.OpenIfSame(exe, running));
+                Assert.Null(FpsCap.OpenIfSame(exe, null));
+                Assert.Null(FpsCap.OpenIfSame(temp.File("nao-existe.exe"), running));
+                // Depois da recusa o arquivo não fica preso.
+                System.IO.File.WriteAllText(exe, "o executável que está rodando");
+                using (System.IO.FileStream back = FpsCap.OpenIfSame(exe, running)) Assert.NotNull(back);
+            }
+        }
+
+        [Fact]
+        public void UnsafeFileNextTo_FindsWhatWouldLoadCodeIntoTheAdministratorCopy()
+        {
+            using (var temp = new TempFolder())
+            {
+                string folder = temp.File("app");
+                temp.Text(@"app\MouseModes.exe", "o app");
+                temp.Text(@"app\Desinstalar.exe", "o desinstalador");
+                temp.Text(@"app\leia.txt", "nada a ver");
+                Assert.Null(FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+
+                // AppDomainManager pelo .config, redirecionamento de DLL pelo .local (arquivo ou pasta), DLL ao lado.
+                foreach (string name in new[] { "MouseModes.exe.config", "MouseModes.exe.local", "version.dll", "QUALQUER.DLL",
+                                                "MouseModes.exe.manifest", "outro.manifest" })
+                {
+                    string path = temp.Text(@"app\" + name, "x");
+                    Assert.Equal(path, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"), StringComparer.OrdinalIgnoreCase);
+                    System.IO.File.Delete(path);
+                }
+                string localDir = temp.File(@"app\MouseModes.exe.local");
+                System.IO.Directory.CreateDirectory(localDir);
+                Assert.Equal(localDir, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                System.IO.Directory.Delete(localDir);
+
+                // Subpasta: assemblies privados lado a lado.
+                string sub = temp.File(@"app\MouseModes");
+                System.IO.Directory.CreateDirectory(sub);
+                Assert.Equal(sub, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                System.IO.Directory.Delete(sub);
+
+                // O nome vem do .exe que está rodando: o .config de outro .exe não conta.
+                temp.Text(@"app\Outro.exe.config", "x");
+                Assert.Null(FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                Assert.NotNull(FpsCap.UnsafeFileNextTo(folder, "Outro.exe"));
+            }
         }
     }
 }

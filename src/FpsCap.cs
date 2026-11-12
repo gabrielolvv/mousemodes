@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -82,6 +84,22 @@ namespace MouseModes
             return exe != null && ExeName.IsMatch(exe);
         }
 
+        /// <summary>
+        /// O executável que recebe o limite de um jogo da lista: o que o detector já achou aberto para ele (a lista guarda
+        /// só o começo do nome) ou, se ainda não viu, o próprio nome com ".exe".
+        /// </summary>
+        public static string TargetExe(AppConfig cfg, string game)
+        {
+            return ExeFor(cfg.SeenGameExe(game) ?? game);
+        }
+
+        /// <summary>Algum jogo da lista usa o limite AUTO (que muda com a taxa do monitor).</summary>
+        public static bool UsesAuto(AppConfig cfg)
+        {
+            return cfg.GameProfiles.Exists(gp => gp != null && gp.Profile != null && gp.Profile.FpsCap == Auto &&
+                                                 cfg.Games.Exists(g => string.Equals(g, gp.Process, StringComparison.OrdinalIgnoreCase)));
+        }
+
         /// <summary>Os limites pedidos na tela: jogos da lista com configurações próprias e um limite escolhido.</summary>
         public static Dictionary<string, int> Wanted(AppConfig cfg, int refreshHz)
         {
@@ -90,7 +108,7 @@ namespace MouseModes
             {
                 if (gp == null || gp.Profile == null || gp.Profile.FpsCap == 0) continue;
                 if (!cfg.Games.Exists(g => string.Equals(g, gp.Process, StringComparison.OrdinalIgnoreCase))) continue;
-                string exe = ExeFor(gp.Process);
+                string exe = TargetExe(cfg, gp.Process);
                 int fps = Resolve(gp.Profile.FpsCap, refreshHz);
                 if (fps > 0 && ValidExe(exe)) wanted[exe] = fps;
             }
@@ -126,37 +144,39 @@ namespace MouseModes
             {
                 bool needsAdmin;
                 string error = limiter.Write(c.Exe, c.Fps, out needsAdmin);
-                if (error == null) Confirm(c, limiter, applied, problems);
+                if (error == null) AddIfAny(problems, Confirm(c, limiter, applied));
                 else if (needsAdmin) pending.Add(c);
                 else problems.Add(c.Exe + ": " + error);
             }
             if (pending.Count == 0) return problems;
 
+            // Relê tudo mesmo se a cópia administradora falhou ou demorou: ela pode ter gravado parte (ler não pede
+            // administrador). O erro dela só vale para o que o driver não confirmar.
             string elevated = elevate(pending);
             foreach (FpsCapChange c in pending)
             {
-                if (elevated != null) problems.Add(c.Exe + ": " + elevated);
-                else Confirm(c, limiter, applied, problems);
+                string problem = Confirm(c, limiter, applied);
+                if (problem != null) problems.Add(elevated != null ? c.Exe + ": " + elevated : problem);
             }
             return problems;
         }
 
-        private static void Confirm(FpsCapChange c, IFpsLimiter limiter, List<string> applied, List<string> problems)
+        private static void AddIfAny(List<string> problems, string problem)
+        {
+            if (problem != null) problems.Add(problem);
+        }
+
+        /// <summary>Relê a mudança no driver; se bateu, entra em applied. null se confirmou; senão, o problema.</summary>
+        private static string Confirm(FpsCapChange c, IFpsLimiter limiter, List<string> applied)
         {
             int now;
             string error = limiter.Read(c.Exe, out now);
-            if (error != null)
-            {
-                problems.Add(c.Exe + ": " + error);
-                return;
-            }
+            if (error != null) return c.Exe + ": " + error;
             if (now != c.Fps)
-            {
-                problems.Add(c.Exe + L.T(": o driver ficou com ", ": the driver kept ") + (now == 0 ? L.T("nenhum limite", "no limit") : now + " FPS"));
-                return;
-            }
+                return c.Exe + L.T(": o driver ficou com ", ": the driver kept ") + (now == 0 ? L.T("nenhum limite", "no limit") : now + " FPS");
             applied.RemoveAll(a => string.Equals(KeyOf(a), c.Exe, StringComparison.OrdinalIgnoreCase));
             if (c.Fps > 0) applied.Add(Format(c.Exe, c.Fps));
+            return null;
         }
 
         internal static string Format(string exe, int fps)
@@ -207,7 +227,92 @@ namespace MouseModes
             return (IFpsLimiter)NvidiaLimiter.TryCreate() ?? IntelLimiter.TryCreate();
         }
 
-        /// <summary>Roda esta mesma cópia como administrador só para gravar as mudanças. null se deu certo.</summary>
+        /// <summary>
+        /// Para as gravações automáticas (jogo fechou, taxa do monitor mudou): nunca abre o pedido de administrador sem a
+        /// pessoa ter feito nada. O que o driver só aceita como administrador fica para quando ela salvar os Ajustes.
+        /// </summary>
+        public static string WithoutElevation(List<FpsCapChange> changes)
+        {
+            return L.T("o driver pede administrador; grava quando você salvar os Ajustes",
+                       "the driver asks for the administrator; it is saved when you save Settings");
+        }
+
+        /// <summary>SHA-256 do .exe como estava ao abrir o app (o que está rodando).</summary>
+        private static byte[] runningImage;
+
+        /// <summary>
+        /// Guarda o SHA-256 do .exe que está rodando. Chamado no começo do Main, antes de qualquer pedido de administrador
+        /// (abertura normal e desinstalação): ler depois daria tempo de o .exe ser trocado no disco.
+        /// </summary>
+        public static void RememberRunningImage()
+        {
+            if (runningImage != null) return;
+            try { runningImage = HashOf(System.Windows.Forms.Application.ExecutablePath); }
+            catch (Exception ex) { Log.Error(L.T("Ler o executável do app", "Read the app executable"), ex); }
+        }
+
+        internal static byte[] HashOf(string path)
+        {
+            using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (SHA256 sha = SHA256.Create())
+                return sha.ComputeHash(file);
+        }
+
+        /// <summary>
+        /// Abre o arquivo travado contra escrita, troca e renomeação (FileShare.Read) e confere o SHA-256. Devolve o arquivo
+        /// aberto se for o esperado (quem chamou fecha depois de usar); null se for outro ou não der para ler.
+        /// </summary>
+        internal static FileStream OpenIfSame(string path, byte[] expected)
+        {
+            if (expected == null) return null;
+            FileStream file = null;
+            try
+            {
+                file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                byte[] now;
+                using (SHA256 sha = SHA256.Create()) now = sha.ComputeHash(file);
+                if (now.Length != expected.Length) return null;
+                for (int i = 0; i < now.Length; i++)
+                    if (now[i] != expected[i]) return null;
+                FileStream same = file;
+                file = null;
+                return same;
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (file != null) file.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// Arquivo na pasta do .exe que faria o Windows ou o .NET carregar código de fora na cópia administradora:
+        /// MouseModes.exe.config (AppDomainManager), MouseModes.exe.local (redirecionamento de DLL), um .manifest (o
+        /// manifesto externo pode apontar assemblies lado a lado), qualquer .dll ou qualquer subpasta (assemblies
+        /// privados). O instalador só põe MouseModes.exe e Desinstalar.exe ali. null se não há nenhum.
+        /// É proteção a mais, não completa: a pasta é gravável pela conta, e um .config posto depois desta conferência e
+        /// antes de a cópia abrir ainda seria lido pelo .NET. A conferência se repete na própria cópia (RunHelper).
+        /// </summary>
+        internal static string UnsafeFileNextTo(string folder, string exeName)
+        {
+            foreach (string name in new[] { exeName + ".config", exeName + ".local" })
+            {
+                string path = Path.Combine(folder, name);
+                if (File.Exists(path) || Directory.Exists(path)) return path;
+            }
+            foreach (string pattern in new[] { "*.dll", "*.manifest" })
+                foreach (string file in Directory.EnumerateFiles(folder, pattern)) return file;
+            foreach (string sub in Directory.EnumerateDirectories(folder)) return sub;
+            return null;
+        }
+
+        /// <summary>
+        /// Roda esta mesma cópia como administrador só para gravar as mudanças. null se deu certo. Só a partir de um pedido
+        /// da pessoa (salvar os Ajustes, desinstalar): as gravações automáticas usam WithoutElevation.
+        /// </summary>
         public static string RunElevated(List<FpsCapChange> changes)
         {
             var args = new StringBuilder(HelperArg);
@@ -216,15 +321,47 @@ namespace MouseModes
                 if (!ValidExe(c.Exe)) return L.T("nome de executável inválido", "invalid executable name");
                 args.Append(" \"").Append(Format(c.Exe, c.Fps)).Append('"');
             }
+            // A pasta do app pode ser gravável pela conta: outro programa poderia trocar o .exe antes do pedido. Só pede
+            // administrador para o mesmo .exe que está rodando, travado contra troca até o Windows abrir a cópia.
+            // Sem o SHA-256 lido na abertura não há com o que comparar: não pede.
+            if (runningImage == null)
+            {
+                Log.Warn(L.T("Limite de FPS: o executável não foi lido ao abrir o app; pedido de administrador cancelado",
+                             "FPS limit: the executable was not read when the app started; administrator request cancelled"));
+                return L.T("não deu para conferir o executável do app; feche e abra o MouseModes de novo",
+                           "could not check the app executable; close and reopen MouseModes");
+            }
+            string exe = System.Windows.Forms.Application.ExecutablePath;
+            string unsafeFile;
+            try { unsafeFile = UnsafeFileNextTo(Path.GetDirectoryName(exe), Path.GetFileName(exe)); }
+            catch (Exception ex) { unsafeFile = ex.Message; } // sem ler a pasta, também não pede
+            if (unsafeFile != null)
+            {
+                Log.Warn(L.T("Limite de FPS: arquivo estranho na pasta do app; pedido de administrador cancelado — ",
+                             "FPS limit: unexpected file in the app folder; administrator request cancelled — ") + unsafeFile);
+                return L.T("há um arquivo estranho na pasta do app (", "there is an unexpected file in the app folder (") + unsafeFile +
+                       L.T("); reinstale o MouseModes", "); reinstall MouseModes");
+            }
+            FileStream image = OpenIfSame(exe, runningImage);
+            if (image == null)
+            {
+                Log.Warn(L.T("Limite de FPS: o executável no disco não é o que está rodando; pedido de administrador cancelado — ",
+                             "FPS limit: the executable on disk is not the one running; administrator request cancelled — ") + exe);
+                return L.T("o executável do app mudou no disco; feche e abra o MouseModes de novo",
+                           "the app executable changed on disk; close and reopen MouseModes");
+            }
             try
             {
-                var info = new ProcessStartInfo(System.Windows.Forms.Application.ExecutablePath, args.ToString())
+                var info = new ProcessStartInfo(exe, args.ToString())
                 {
                     UseShellExecute = true,
                     Verb = "runas",
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                using (Process p = Process.Start(info))
+                Process p;
+                try { p = Process.Start(info); }
+                finally { image.Dispose(); } // a cópia já abriu (ou foi recusada): o arquivo pode ser liberado
+                using (p)
                 {
                     p.WaitForExit(60000);
                     if (!p.HasExited) return L.T("o driver não respondeu a tempo", "the driver did not answer in time");
@@ -246,6 +383,13 @@ namespace MouseModes
         {
             List<FpsCapChange> changes = ParseHelperArgs(args);
             if (changes == null) return 2;
+            // Já como administrador: confere de novo a pasta, caso algo tenha aparecido durante o pedido do Windows.
+            string exe = System.Windows.Forms.Application.ExecutablePath;
+            try
+            {
+                if (UnsafeFileNextTo(Path.GetDirectoryName(exe), Path.GetFileName(exe)) != null) return 2;
+            }
+            catch { return 2; }
             IFpsLimiter limiter = Detect();
             if (limiter == null) return 2;
             int result = 0;
@@ -281,7 +425,9 @@ namespace MouseModes
         // Posições dentro das estruturas.
         internal const int SettingIdOffset = 4 + UnicodeBytes;            // settingId
         internal const int SettingTypeOffset = SettingIdOffset + 4;       // settingType (0 = DWORD)
+        internal const int SettingLocationOffset = SettingIdOffset + 8;   // settingLocation (de onde veio o valor)
         internal const int CurrentValueOffset = SettingIdOffset + 20 + 4100; // depois do union do valor padrão
+        internal const uint CurrentProfileLocation = 0;                   // NVDRS_CURRENT_PROFILE_LOCATION
         internal const int AppNameOffset = 8;                             // depois de version e isPredefined
         internal const int ProfileNameOffset = 4;
 
@@ -376,12 +522,22 @@ namespace MouseModes
                     setting.WriteUInt32(0, SettingVersion);
                     s = getSetting(session, profile, FrameRateLimiterId, setting.Pointer);
                     if (s == SettingNotFound) return Ok;
-                    if (s == Ok) found = (int)setting.ReadUInt32(CurrentValueOffset);
+                    if (s == Ok) found = CapOf(setting);
                     return s;
                 }
             });
             fps = found;
             return status == Ok ? null : Describe(status);
+        }
+
+        /// <summary>
+        /// O limite que o próprio perfil do jogo tem. Um valor herdado do perfil global ou base (o "Taxa máxima de quadros"
+        /// geral do painel) não é do jogo: conta como 0, senão o app acharia que o limite dele já está gravado.
+        /// </summary>
+        internal static int CapOf(NativeBuffer setting)
+        {
+            if (setting.ReadUInt32(SettingLocationOffset) != CurrentProfileLocation) return 0;
+            return (int)setting.ReadUInt32(CurrentValueOffset);
         }
 
         public string Write(string exe, int fps, out bool needsAdmin)
@@ -483,8 +639,8 @@ namespace MouseModes
     {
         private const int FeatureFrameLimit = 2;   // CTL_3D_FEATURE_FRAME_LIMIT
         private const int ValueTypeInt32 = 2;      // CTL_PROPERTY_VALUE_TYPE_INT32
-        private const uint InsufficientPermissions = 0x40000006;
-        private const uint UnsupportedFeature = 0x4000000A;
+        internal const uint InsufficientPermissions = 0x40000006;
+        internal const uint UnsupportedFeature = 0x4000000A;
 
         [StructLayout(LayoutKind.Sequential)]
         internal struct InitArgs
@@ -588,8 +744,12 @@ namespace MouseModes
                         Enable = (byte)(fps > 0 ? 1 : 0),
                         Value = fps
                     };
-                    status = x64 ? GetSet64(device, ref feature) : GetSet32(device, ref feature);
-                    if (status != 0) continue;
+                    uint s = x64 ? GetSet64(device, ref feature) : GetSet32(device, ref feature);
+                    if (s != 0)
+                    {
+                        status = MoreSignificant(status, s);
+                        continue;
+                    }
                     if (read != null) read(feature);
                     return 0;
                 }
@@ -600,6 +760,24 @@ namespace MouseModes
                 Marshal.FreeHGlobal(name);
                 if (x64) Close64(api); else Close32(api);
             }
+        }
+
+        /// <summary>
+        /// A falha que vale quando nenhuma placa aceitou: pedir administrador primeiro (Arc + UHD: a Arc pede, a UHD
+        /// diz "não suportado", e o pedido de administrador não pode se perder), depois os outros erros, por último
+        /// "não suportado".
+        /// </summary>
+        internal static uint MoreSignificant(uint current, uint next)
+        {
+            return Weight(next) > Weight(current) ? next : current;
+        }
+
+        private static int Weight(uint status)
+        {
+            if (status == 0) return 0;
+            if (status == UnsupportedFeature) return 1;
+            if (status == InsufficientPermissions) return 3;
+            return 2;
         }
 
         private static string Describe(uint status)

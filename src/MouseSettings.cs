@@ -14,6 +14,9 @@ namespace MouseModes
         private const uint SPI_GETMOUSESPEED = 0x0070;
         private const uint SPI_SETMOUSESPEED = 0x0071;
 
+        // "Uma tela por vez" no Painel de Controle: o Windows guarda 0xFFFFFFFF no lugar das linhas.
+        private const uint WHEEL_PAGESCROLL = 0xFFFFFFFF;
+
         private const uint SPIF_UPDATEINIFILE = 0x01;
         private const uint SPIF_SENDCHANGE = 0x02;
 
@@ -39,8 +42,11 @@ namespace MouseModes
                 p.EnhancePointerPrecision = accel[2] != 0;
 
             int lines = 3;
-            if (SpiRefInt(SPI_GETWHEELSCROLLLINES, 0, ref lines, 0) && lines >= 1 && lines <= 100)
-                p.ScrollLines = lines;
+            if (SpiRefInt(SPI_GETWHEELSCROLLLINES, 0, ref lines, 0))
+            {
+                int? read = ScrollFromWindows(lines);
+                if (read != null) p.ScrollLines = read.Value;
+            }
 
             return p;
         }
@@ -65,8 +71,30 @@ namespace MouseModes
             int[] accel = p.EnhancePointerPrecision ? new[] { 6, 10, 1 } : new[] { 0, 0, 0 };
             Check(SpiArray(SPI_SETMOUSE, 0, accel, flags), L.T("a precisão do ponteiro", "the pointer precision"));
 
-            int lines = Math.Max(1, Math.Min(100, p.ScrollLines));
-            Check(SpiPtr(SPI_SETWHEELSCROLLLINES, (uint)lines, IntPtr.Zero, flags), L.T("as linhas de rolagem", "the scroll lines"));
+            Check(SpiPtr(SPI_SETWHEELSCROLLLINES, ScrollToWindows(p.ScrollLines), IntPtr.Zero, flags), L.T("as linhas de rolagem", "the scroll lines"));
+        }
+
+        /// <summary>
+        /// Linhas lidas do Windows → ScrollLines do perfil. "Uma tela por vez" vira MouseProfile.PageScroll;
+        /// fora de 1–100 (ou a tela por vez) é null: fica o valor que o perfil já tinha.
+        /// </summary>
+        internal static int? ScrollFromWindows(int raw)
+        {
+            if (unchecked((uint)raw) == WHEEL_PAGESCROLL) return MouseProfile.PageScroll;
+            return raw >= 1 && raw <= 100 ? raw : (int?)null;
+        }
+
+        /// <summary>ScrollLines do perfil → o que o Windows grava. A tela por vez continua tela por vez.</summary>
+        internal static uint ScrollToWindows(int lines)
+        {
+            if (lines == MouseProfile.PageScroll) return WHEEL_PAGESCROLL;
+            return (uint)Math.Max(1, Math.Min(100, lines));
+        }
+
+        /// <summary>Texto da rolagem para o log e o Diagnóstico ("3" ou "uma tela").</summary>
+        public static string DescribeScroll(int lines)
+        {
+            return lines == MouseProfile.PageScroll ? L.T("uma tela", "one screen") : lines.ToString();
         }
 
         private static void Check(bool ok, string what)

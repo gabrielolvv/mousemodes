@@ -28,7 +28,11 @@ namespace MouseModes
         /// <summary>"Aprimorar precisão do ponteiro" = aceleração do mouse do Windows.</summary>
         public bool EnhancePointerPrecision { get; set; }
 
+        /// <summary>Linhas por giro da roda (1–100), ou PageScroll para "uma tela por vez" do Windows.</summary>
         public int ScrollLines { get; set; }
+
+        /// <summary>ScrollLines do "uma tela por vez" do Windows (WHEEL_PAGESCROLL).</summary>
+        public const int PageScroll = -1;
 
         public PowerPlanOption PowerPlan { get; set; }
 
@@ -163,6 +167,12 @@ namespace MouseModes
         /// </summary>
         public bool FramePermissionAsked { get; set; }
 
+        /// <summary>
+        /// O app pôs esta conta no grupo "Performance Log Users" (e ainda não tirou): a desinstalação tira. Se a conta já
+        /// estava no grupo por outro motivo, o app não mexe. Só deste PC.
+        /// </summary>
+        public bool FramePermissionGranted { get; set; }
+
         /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
         public bool ResolutionChanged { get; set; }
 
@@ -173,10 +183,22 @@ namespace MouseModes
         public string PowerModeBackup { get; set; }
 
         /// <summary>
+        /// O Dia a dia já recebeu a suspensão seletiva de USB que este PC tinha antes do app (lida uma vez só). Depois
+        /// disso vale o que está nos Ajustes. Só deste PC.
+        /// </summary>
+        public bool UsbSuspendSeeded { get; set; }
+
+        /// <summary>
         /// Limites de FPS que o app gravou no driver deste PC e confirmou ("cs2.exe=141"): para saber o que mudar ou tirar
         /// quando a tela muda. Só deste PC.
         /// </summary>
         public List<string> FpsCapsApplied { get; set; }
+
+        /// <summary>
+        /// Executável que o detector achou aberto para cada jogo da lista ("valorant|valorant-win64-shipping"): a lista
+        /// guarda o começo do nome, e o limite de FPS do driver precisa do nome exato. Só deste PC.
+        /// </summary>
+        public List<string> GameExes { get; set; }
 
         /// <summary>Configurações próprias de alguns jogos (os demais usam o perfil Performance).</summary>
         public List<GameProfile> GameProfiles { get; set; }
@@ -222,7 +244,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup"
+            "ResolutionChanged", "FramePermissionAsked", "FramePermissionGranted", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -242,8 +264,11 @@ namespace MouseModes
             copy.NotifiedVersion = null;
             copy.ResolutionChanged = false;
             copy.FramePermissionAsked = false;
+            copy.FramePermissionGranted = false;
             copy.FpsCapsApplied = new List<string>();
             copy.PowerModeBackup = null;
+            copy.UsbSuspendSeeded = false;
+            copy.GameExes = new List<string>();
             return copy;
         }
 
@@ -268,6 +293,12 @@ namespace MouseModes
             if (Hotkey < 0 || Hotkey >= HotkeyWindow.Choices.Length) Hotkey = 0;
         }
 
+        /// <summary>Cópia da lista de cópias de planos, para percorrer sem a thread do plano de energia mexer junto.</summary>
+        public List<PlanCopy> PlanCopiesSnapshot()
+        {
+            lock (planCopiesGate) return new List<PlanCopy>(PlanCopies);
+        }
+
         public void RememberPlanCopy(string template, string guid)
         {
             lock (planCopiesGate)
@@ -285,6 +316,7 @@ namespace MouseModes
             PlanCopies = new List<PlanCopy>();
             CalmBackup = new List<CalmedProcess>();
             FpsCapsApplied = new List<string>();
+            GameExes = new List<string>();
             AutoSwitch = true;
             RestoreDailyOnExit = true;
             ShowNotifications = true;
@@ -319,6 +351,64 @@ namespace MouseModes
             return GameProfiles.Find(g => string.Equals(GameDetector.Normalize(g.Process), name, StringComparison.OrdinalIgnoreCase));
         }
 
+        /// <summary>Processo que o detector achou aberto para este jogo da lista (sem ".exe"), ou null se ainda não viu.</summary>
+        public string SeenGameExe(string game)
+        {
+            string prefix = GameDetector.Normalize(game);
+            foreach (string line in GameExes)
+            {
+                int bar = line != null ? line.IndexOf('|') : -1;
+                if (bar > 0 && bar < line.Length - 1 && string.Equals(line.Substring(0, bar), prefix, StringComparison.OrdinalIgnoreCase))
+                    return line.Substring(bar + 1);
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Guarda o processo aberto como o executável de cada jogo da lista que é começo do nome dele, e tira os jogos que
+        /// saíram da lista. true se mudou algo (para gravar o config).
+        /// </summary>
+        public bool RememberGameExe(string process)
+        {
+            if (string.IsNullOrEmpty(process)) return false;
+            return RememberGameExe(new List<RunningGame> { new RunningGame(process, 0, 0) });
+        }
+
+        /// <summary>
+        /// Como RememberGameExe(process), com todos os processos de jogo abertos: quando um item da lista pega vários
+        /// (FiveM.exe e FiveM_b3095_GTAProcess.exe), fica o que usa mais memória — o jogo, não o launcher. Com
+        /// <paramref name="watch"/> (a checagem periódica), só troca quando ela deixa (GameExeWatch.Pick).
+        /// </summary>
+        public bool RememberGameExe(IList<RunningGame> running, GameExeWatch watch = null)
+        {
+            if (running == null || running.Count == 0) return false;
+            bool changed = GameExes.RemoveAll(line =>
+            {
+                int bar = line != null ? line.IndexOf('|') : -1;
+                if (bar <= 0) return true;
+                string game = line.Substring(0, bar);
+                return !Games.Exists(g => string.Equals(GameDetector.Normalize(g), game, StringComparison.OrdinalIgnoreCase));
+            }) > 0;
+            foreach (string entry in Games)
+            {
+                string prefix = GameDetector.Normalize(entry);
+                if (prefix.Length == 0) continue;
+                string process;
+                if (watch != null)
+                {
+                    RunningGame pick = watch.Pick(prefix, running, SeenGameExe(prefix));
+                    process = pick != null ? pick.Name : null;
+                }
+                else process = GameDetector.Biggest(prefix, running);
+                if (process == null) continue;
+                if (string.Equals(SeenGameExe(prefix), process, StringComparison.OrdinalIgnoreCase)) continue;
+                GameExes.RemoveAll(line => line.StartsWith(prefix + "|", StringComparison.OrdinalIgnoreCase));
+                GameExes.Add(prefix + "|" + process);
+                changed = true;
+            }
+            return changed;
+        }
+
         private static string Folder
         {
             get
@@ -349,30 +439,43 @@ namespace MouseModes
                 }
                 catch (Exception ex)
                 {
-                    // Arquivo corrompido: guarda uma cópia e recomeça do padrão.
-                    Log.Error(L.T("Configuração ilegível; cópia guardada em ", "Unreadable settings; copy saved as ") + Path.GetFileName(path) + L.T(".bak e padrão recriado", ".bak and defaults recreated"), ex);
+                    // Arquivo corrompido: guarda uma cópia; o .tmp de um Save interrompido ainda pode salvar o estado
+                    // (inclusive o que desfaz um travamento). Sem ele, recomeça do padrão.
+                    Log.Error(L.T("Configuração ilegível; cópia guardada em ", "Unreadable settings; copy saved as ") + Path.GetFileName(path) + ".bak", ex);
                     try { File.Copy(path, path + ".bak", true); } catch { }
+                    AppConfig fromTmp = TryRecover(tmp, path);
+                    if (fromTmp != null) return fromTmp;
+                    Log.Warn(L.T("Configuração padrão recriada", "Default settings recreated"));
                 }
             }
             else if (File.Exists(tmp))
             {
                 // Versões antigas apagavam o config antes de mover o .tmp: se caíram no meio, o .tmp é o config.
-                try
-                {
-                    AppConfig recovered = Load(tmp);
-                    recovered.SaveTo(path);
-                    Log.Warn(L.T("Configuração recuperada de ", "Settings recovered from ") + Path.GetFileName(tmp));
-                    return recovered;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(L.T("Recuperar ", "Recover ") + Path.GetFileName(tmp), ex);
-                }
+                AppConfig fromTmp = TryRecover(tmp, path);
+                if (fromTmp != null) return fromTmp;
             }
 
             var created = CreateDefault();
             created.SaveTo(path);
             return created;
+        }
+
+        /// <summary>Lê o .tmp deixado por um Save que não terminou e grava como o config. null se não existe ou não dá para ler.</summary>
+        private static AppConfig TryRecover(string tmp, string path)
+        {
+            if (!File.Exists(tmp)) return null;
+            try
+            {
+                AppConfig recovered = Load(tmp);
+                recovered.SaveTo(path);
+                Log.Warn(L.T("Configuração recuperada de ", "Settings recovered from ") + Path.GetFileName(tmp));
+                return recovered;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Recuperar ", "Recover ") + Path.GetFileName(tmp), ex);
+                return null;
+            }
         }
 
         private static AppConfig Load(string path)
@@ -390,6 +493,7 @@ namespace MouseModes
             if (loaded.AppsToClose == null) loaded.AppsToClose = new List<string>();
             if (loaded.GameProfiles == null) loaded.GameProfiles = new List<GameProfile>();
             if (loaded.PlanCopies == null) loaded.PlanCopies = new List<PlanCopy>();
+            if (loaded.GameExes == null) loaded.GameExes = new List<string>();
             loaded.GameProfiles.RemoveAll(g => g == null || g.Profile == null || string.IsNullOrEmpty(g.Process));
             return loaded;
         }

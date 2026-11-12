@@ -332,7 +332,8 @@ namespace MouseModes
             // Luz diagonal da cor do modo no canto superior esquerdo
             using (GraphicsPath clip = Theme.Rounded(card, radius))
             {
-                Region old = g.Clip;
+                // Save/Restore em vez de guardar o g.Clip: aquele Region nunca era liberado, a cada quadro (~33 ms).
+                GraphicsState state = g.Save();
                 g.SetClip(clip, CombineMode.Intersect);
                 var lightRect = new RectangleF(card.X, card.Y, card.Width * 0.8f, card.Height);
                 using (LinearGradientBrush lb = Theme.Gradient(lightRect, Theme.Alpha(AccentA, 46), Theme.Alpha(AccentA, 0), 20f))
@@ -344,7 +345,7 @@ namespace MouseModes
                     for (float gx = card.X; gx < card.Right; gx += 22) g.DrawLine(gridPen, gx, card.Y, gx, card.Bottom);
                     for (float gy = card.Y; gy < card.Bottom; gy += 22) g.DrawLine(gridPen, card.X, gy, card.Right, gy);
                 }
-                g.Clip = old;
+                g.Restore(state);
             }
 
             using (LinearGradientBrush border = Theme.Gradient(card, Theme.Alpha(AccentA, 220), Theme.Alpha(AccentB, 90), 30f))
@@ -597,21 +598,30 @@ namespace MouseModes
 
             float textW = Width - Switch.Width - 48;
             bool hasSub = !string.IsNullOrEmpty(Subtitle);
-            float titleY = hasSub ? Height / 2f - 19 : Height / 2f - 10;
-            Theme.DrawText(g, Title, Theme.UiSemibold(10f), Theme.Text, new RectangleF(16, titleY, textW, 22), wrap: false);
+            Font titleFont = Theme.UiSemibold(10f), subFont = Theme.Ui(8.5f);
+            // Altura das linhas pela fonte: a 100% dá os 22 e 18 px de sempre; com a escala do Windows alta, cresce
+            // junto com o texto e não corta as letras que descem (g, p, q).
+            float titleH = Math.Max(22f, (float)Math.Ceiling(titleFont.GetHeight(g)));
+            float subH = Math.Max(18f, (float)Math.Ceiling(subFont.GetHeight(g)));
+            float titleY = hasSub
+                ? Height / 2f - 19 - (titleH - 22 + subH - 18) / 2f
+                : Height / 2f - titleH / 2f + 1;
+            Theme.DrawText(g, Title, titleFont, Theme.Text, new RectangleF(16, titleY, textW, titleH), wrap: false);
 
             if (hasSub)
             {
+                float subY = titleY + titleH - 1;
                 float subX = 17;
                 if (DotColor != Color.Empty)
                 {
+                    float dotY = subY + subH / 2f - 4; // centro da linha do subtítulo
                     using (var halo = new SolidBrush(Theme.Alpha(DotColor, (int)(40 + 60 * DotPulse))))
-                        g.FillEllipse(halo, subX - 3, Height / 2f + 4, 13, 13);
+                        g.FillEllipse(halo, subX - 3, dotY - 3, 13, 13);
                     using (var dot = new SolidBrush(DotColor))
-                        g.FillEllipse(dot, subX, Height / 2f + 7, 7, 7);
+                        g.FillEllipse(dot, subX, dotY, 7, 7);
                     subX += 14;
                 }
-                Theme.DrawText(g, Subtitle, Theme.Ui(8.5f), Theme.Muted, new RectangleF(subX, Height / 2f + 2, textW - subX + 16, 18), wrap: false);
+                Theme.DrawText(g, Subtitle, subFont, Theme.Muted, new RectangleF(subX, subY, textW - subX + 16, subH), wrap: false);
             }
         }
     }
@@ -743,7 +753,30 @@ namespace MouseModes
     /// <summary>Título de seção em caixa alta, com texto opcional à direita.</summary>
     public class SectionLabel : GControl
     {
-        public string RightText { get; set; }
+        private string rightText;
+        private string[] rightTextOptions;
+
+        /// <summary>Texto da direita. Gravar aqui descarta as alternativas de RightTextOptions.</summary>
+        public string RightText
+        {
+            get { return rightText; }
+            set { rightText = value; rightTextOptions = null; }
+        }
+
+        /// <summary>
+        /// Versões do texto da direita, da mais longa para a mais curta: desenha a primeira que cabe ao lado do título;
+        /// só a última termina em "…" quando nem ela cabe. Gravar aqui põe a primeira em RightText.
+        /// </summary>
+        public string[] RightTextOptions
+        {
+            get { return rightTextOptions; }
+            set
+            {
+                rightTextOptions = value != null && value.Length > 0 ? value : null;
+                rightText = rightTextOptions != null ? rightTextOptions[0] : "";
+            }
+        }
+
         public Color RightColor { get; set; }
 
         public SectionLabel()
@@ -764,9 +797,34 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = Begin(e);
-            Theme.DrawSpaced(g, (Text ?? "").ToUpperInvariant(), Theme.Ui(7.5f, FontStyle.Bold), Theme.Muted, 0, 3, 1.8f);
-            if (!string.IsNullOrEmpty(RightText))
-                Theme.DrawText(g, RightText, Theme.Display(10f), RightColor, new RectangleF(0, 0, Width, Height), StringAlignment.Far, StringAlignment.Center, false);
+            string title = (Text ?? "").ToUpperInvariant();
+            Font titleFont = Theme.Ui(7.5f, FontStyle.Bold);
+            Theme.DrawSpaced(g, title, titleFont, Theme.Muted, 0, 3, 1.8f);
+            if (string.IsNullOrEmpty(RightText)) return;
+            // Só no espaço que sobra à direita do título: texto longo termina em "…" em vez de passar por cima dele.
+            float left = title.Length > 0 ? Theme.MeasureSpaced(g, title, titleFont, 1.8f).Width + 8 : 0;
+            if (left >= Width) return;
+            Font font = Theme.Display(10f);
+            string text = RightText;
+            if (rightTextOptions != null && rightTextOptions.Length > 1)
+            {
+                // A versão mais completa que cabe inteira: o "…" nunca come o fim (o executável e o "?" do palpite).
+                var widths = new float[rightTextOptions.Length];
+                using (var format = new StringFormat { FormatFlags = StringFormatFlags.NoWrap })
+                    for (int i = 0; i < widths.Length; i++)
+                        widths[i] = g.MeasureString(rightTextOptions[i] ?? "", font, PointF.Empty, format).Width;
+                text = rightTextOptions[FirstThatFits(widths, Width - left)];
+            }
+            Theme.DrawText(g, text, font, RightColor, new RectangleF(left, 0, Width - left, Height), StringAlignment.Far, StringAlignment.Center, false);
+        }
+
+        /// <summary>Índice da primeira largura (da mais longa para a mais curta) que cabe no espaço; nenhuma cabe: a última.</summary>
+        internal static int FirstThatFits(float[] widths, float space)
+        {
+            if (widths == null || widths.Length == 0) return 0;
+            for (int i = 0; i < widths.Length - 1; i++)
+                if (widths[i] <= space) return i;
+            return widths.Length - 1;
         }
     }
 

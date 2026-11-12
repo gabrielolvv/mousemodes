@@ -99,6 +99,73 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void StartVerified_ChecksAgainAndKeepsTheFileLockedUntilItStarts()
+        {
+            string exe = typeof(Updater).Assembly.Location;
+            using (var temp = new TempFolder())
+            {
+                string copy = temp.File("MouseModes-Setup.exe");
+                File.Copy(exe, copy);
+                string hash = Updater.Sha256Of(copy);
+                string started = null;
+
+                // Nada roda de verdade: o "start" só confere que o arquivo está preso enquanto o processo começa.
+                string problem = Updater.StartVerified(copy, hash, UpdateChecker.Current, path =>
+                {
+                    started = path;
+                    Assert.Throws<IOException>(() => File.OpenWrite(path).Dispose());
+                    Assert.Throws<IOException>(() => File.Move(path, path + ".old"));
+                    Assert.Throws<IOException>(() => File.Delete(path));
+                });
+
+                Assert.Null(problem);
+                Assert.Equal(copy, started);
+            }
+        }
+
+        [Fact]
+        public void StartVerified_RefusesAnInstallerSwappedAfterTheDownload()
+        {
+            string exe = typeof(Updater).Assembly.Location;
+            using (var temp = new TempFolder())
+            {
+                string copy = temp.File("MouseModes-Setup.exe");
+                File.Copy(exe, copy);
+                string hash = Updater.Sha256Of(copy);
+                using (FileStream stream = File.OpenWrite(copy))
+                {
+                    stream.Seek(-1, SeekOrigin.End);
+                    stream.WriteByte(0x5A); // trocado depois do download
+                }
+                bool started = false;
+
+                string problem = Updater.StartVerified(copy, hash, UpdateChecker.Current, path => started = true);
+
+                Assert.Equal("SHA-256 diferente do publicado na Release", problem);
+                Assert.False(started);
+            }
+        }
+
+        [Fact]
+        public void Install_RefusesAnInstallerItDidNotDownload()
+        {
+            using (var temp = new TempFolder())
+            {
+                // Bytes que não são um executável: se a conferência do caminho regredir, o Windows recusa rodar isto (o
+                // teste falha sem abrir nada, nem o app de verdade).
+                string other = temp.File("MouseModes-Setup.exe");
+                var bytes = new byte[64 * 1024];
+                new Random(42).NextBytes(bytes);
+                bytes[0] = (byte)'#';
+                File.WriteAllBytes(other, bytes);
+                Updater.Remember(null, null, null);
+
+                Assert.False(Updater.Install(other));
+                Assert.True(File.Exists(other));
+            }
+        }
+
+        [Fact]
         public void Verify_RefusesFilesThatAreNotTheInstaller()
         {
             using (var temp = new TempFolder())

@@ -33,6 +33,7 @@ namespace MouseModes
         private readonly Action save;
         private readonly IPowerMode windows;
         private bool failed; // o Windows não deixou: não tenta de novo a cada 3 s até sair do Performance
+        private bool restoreFailed; // a volta falhou: não tenta de novo a cada 3 s (o backup fica para a próxima abertura)
 
         public PowerModeKeeper(AppConfig cfg, Action save = null, IPowerMode windows = null)
         {
@@ -60,6 +61,7 @@ namespace MouseModes
             bool onAC = windows.OnAC;
             if (wantBest && onAC)
             {
+                restoreFailed = false; // nova partida: ao sair, tenta devolver de novo
                 if (cfg.PowerModeBackup != null || failed) return;
                 Guid? now = windows.Get();
                 if (now == null)
@@ -82,22 +84,54 @@ namespace MouseModes
 
             if (!wantBest) failed = false;
             // Na bateria o Windows usa o modo da bateria: o da tomada volta quando a tomada voltar.
-            if (cfg.PowerModeBackup == null || !onAC) return;
-            Restore();
+            if (cfg.PowerModeBackup == null || !onAC || restoreFailed) return;
+            if (!Restore()) restoreFailed = true;
         }
 
-        /// <summary>Devolve o modo de energia de antes, se o app trocou e o PC está na tomada.</summary>
-        public void Restore()
+        /// <summary>
+        /// Devolve o modo de energia de antes, se o app trocou e o PC está na tomada. O backup só some quando o modo voltou
+        /// ou quando a pessoa já trocou por conta própria; se o Windows não deixou ler ou trocar, fica guardado para tentar
+        /// de novo. false = ainda falta devolver.
+        /// </summary>
+        /// <remarks>
+        /// Na bateria nem lê nem troca: lá o Windows lê e grava o modo da bateria, e o backup é o da tomada. Mexer agora
+        /// trocaria o modo da bateria da pessoa e deixaria o da tomada em Melhor desempenho.
+        /// </remarks>
+        public bool Restore()
         {
-            if (cfg.PowerModeBackup == null || !windows.OnAC) return;
+            if (cfg.PowerModeBackup == null) return true;
+            if (!windows.OnAC) return false;
             Guid previous;
-            if (Guid.TryParse(cfg.PowerModeBackup, out previous))
+            if (!Guid.TryParse(cfg.PowerModeBackup, out previous))
             {
-                // Se a pessoa mudou o modo durante o jogo, fica o que ela escolheu.
-                Guid? now = windows.Get();
-                if (now == BestPerformance && windows.Set(previous))
-                    Log.Info(L.T("Modo de energia de volta: ", "Power mode back to ") + Name(previous));
+                Forget(); // editado à mão: não há o que devolver
+                return true;
             }
+
+            Guid? now = windows.Get();
+            if (now == null)
+            {
+                Log.Warn(L.T("Modo de energia não lido; a volta para ", "Power mode not read; going back to ") + Name(previous) + L.T(" fica para depois", " is left for later"));
+                return false;
+            }
+            // Se a pessoa mudou o modo durante o jogo, fica o que ela escolheu.
+            if (now.Value != BestPerformance)
+            {
+                Forget();
+                return true;
+            }
+            if (!windows.Set(previous))
+            {
+                Log.Warn(L.T("O Windows não aceitou voltar o modo de energia para ", "Windows did not accept going back to the power mode ") + Name(previous));
+                return false;
+            }
+            Log.Info(L.T("Modo de energia de volta: ", "Power mode back to ") + Name(previous));
+            Forget();
+            return true;
+        }
+
+        private void Forget()
+        {
             cfg.PowerModeBackup = null;
             Save();
         }

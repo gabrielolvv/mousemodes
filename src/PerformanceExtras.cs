@@ -24,8 +24,10 @@ namespace MouseModes
                 try
                 {
                     if (boosted.ContainsKey(proc.Id) || denied.Contains(proc.Id)) continue;
-                    name = proc.ProcessName;
-                    if (!Matches(name, games)) continue;
+                    string procName = proc.ProcessName;
+                    // Um item curto ("Game") também pega GameBarPresenceWriter e outros do Windows: esses nunca sobem.
+                    if (!GameDetector.IsListedGame(proc, procName, games)) continue;
+                    name = procName;
                     ProcessPriorityClass original = proc.PriorityClass;
                     // Só mexe em quem está no normal ou abaixo; não rebaixa nada.
                     if (original == ProcessPriorityClass.Normal ||

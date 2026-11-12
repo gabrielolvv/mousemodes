@@ -11,6 +11,31 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
 - **CPU during the match** (X-ray): average speed compared with nominal and the stretches when the CPU was throttled
   by heat, a power limit or the battery. Stutters in those stretches get that cause.
 
+### Fixes
+
+- **Stutter finder**: the time of each stutter was wrong (the frame clock was read in the wrong unit), so the loading
+  screen was counted and no stutter got a cause. Time and causes are now right, and only the game's frames are kept in
+  memory.
+- **Shutting down or signing out in Performance** puts Windows back to Daily (mouse, plan, USB and power mode), and if
+  Windows ends the app midway, the next start finishes undoing it. Cancelling the shutdown no longer leaves the
+  Windows key and notifications without the Performance setting.
+- **Saving Settings** no longer undoes mouse changes made in Windows, no longer goes back to Performance when you
+  chose Daily with the game open, and no longer undoes the Automatic switch changed from the tray.
+- **Uninstalling** removes the FPS limit written to the driver, restores the power mode and resolution, deletes the
+  power plan copies the app created and removes the Stutter finder permission the app granted.
+- **FPS limit**: AUTO follows the monitor refresh rate when it changes; it goes to the executable the game really uses
+  (FiveM, Valorant, Fortnite); it never asks for the administrator by itself; and the app only asks for the
+  administrator for the same file that is running, with the graphics card libraries loaded only from the Windows
+  folder.
+- **Windows preserved**: "one screen at a time" scrolling, USB suspend and the previous power plan come back as they
+  were; games with a generic name ("Game.exe") no longer make Windows processes look like a game; and the Windows key
+  no longer gets stuck when bringing the game to the front with Win+number.
+- **Calm background** gives back the priority of programs opened by a calmed program through an intermediate one that
+  already closed.
+- **Self-update** checks the installer again right before running it.
+- **Screens on high-scale laptops**: windows that do not fit scroll without hiding buttons, and option text no longer
+  gets cut.
+
 ## 1.11.0
 
 ### New

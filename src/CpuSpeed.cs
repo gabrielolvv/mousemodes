@@ -12,14 +12,16 @@ namespace MouseModes
         public float Limit;        // "% Performance Limit": abaixo de 100 = o firmware está segurando (calor, bateria)
         public float Busy;         // "% Processor Time": quanto o processador está ocupado
         public bool OnBattery;
+        public double Seconds;     // quanto tempo a leitura cobre (desde a anterior); 0 = o intervalo padrão do Analyze
 
-        public CpuSpeedSample(double at, float performance, float limit, float busy, bool onBattery)
+        public CpuSpeedSample(double at, float performance, float limit, float busy, bool onBattery, double seconds = 0)
         {
             At = at;
             Performance = performance;
             Limit = limit;
             Busy = busy;
             OnBattery = onBattery;
+            Seconds = seconds;
         }
     }
 
@@ -111,17 +113,22 @@ namespace MouseModes
 
         public const int MaxWorst = 3;
 
-        /// <param name="interval">Tempo entre leituras (s): cada leitura freada conta por esse tempo.</param>
+        /// <param name="interval">
+        /// Tempo entre leituras (s) para as leituras sem o próprio (Seconds = 0): cada leitura freada conta pelo tempo que cobre.
+        /// </param>
         public static CpuSpeedReport Analyze(IList<CpuSpeedSample> samples, double interval = 3)
         {
             if (samples == null || samples.Count < MinSamples) return null;
             double total = 0;
+            double measured = 0;
             float lowest = 100;
             var all = new List<CpuSlowdown>();
             CpuSlowdown open = null;
             foreach (CpuSpeedSample s in samples)
             {
                 total += s.Performance;
+                double span = s.Seconds > 0 ? s.Seconds : interval;
+                measured += span;
                 float? speed = Throttled(s);
                 if (speed == null)
                 {
@@ -134,7 +141,7 @@ namespace MouseModes
                     open = new CpuSlowdown { At = s.At, LowestLimit = speed.Value, OnBattery = s.OnBattery };
                     all.Add(open);
                 }
-                open.Seconds += interval;
+                open.Seconds += span;
                 if (speed.Value < open.LowestLimit) open.LowestLimit = speed.Value;
                 open.OnBattery |= s.OnBattery;
             }
@@ -149,7 +156,7 @@ namespace MouseModes
             return new CpuSpeedReport
             {
                 AveragePerformance = total / samples.Count,
-                MeasuredSeconds = samples.Count * interval,
+                MeasuredSeconds = measured,
                 LimitedSeconds = limited,
                 LowestLimit = all.Count > 0 ? lowest : 100,
                 Worst = worst,

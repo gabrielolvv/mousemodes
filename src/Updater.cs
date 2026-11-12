@@ -16,7 +16,8 @@ namespace MouseModes
     /// Segurança: os links são montados aqui a partir da tag, só por HTTPS e só deste repositório; cada
     /// redirecionamento é conferido (github.com e os servidores de arquivos do GitHub). Antes de rodar, o arquivo
     /// precisa bater com o SHA-256 publicado na Release, ser um executável e dizer que é o instalador do MouseModes
-    /// da versão esperada. A confiança é a mesma de baixar à mão pela página da Release.
+    /// da versão esperada; a conferência se repete na hora de rodar, com o arquivo preso. A confiança é a mesma de
+    /// baixar à mão pela página da Release.
     /// </summary>
     public static class Updater
     {
@@ -170,6 +171,7 @@ namespace MouseModes
                     return Refuse(release, problem);
                 }
                 Log.Info(L.T("Versão ", "Version ") + release.Tag + L.T(" baixada e conferida (SHA-256 ", " downloaded and checked (SHA-256 ") + expected + ")");
+                Remember(path, expected, release.Version);
                 return path;
             }
             catch (Exception ex)
@@ -178,13 +180,36 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Roda o instalador em silêncio. Ele mesmo fecha este app e abre a versão nova no fim.</summary>
+        /// <summary>
+        /// Roda o instalador em silêncio. Ele mesmo fecha este app e abre a versão nova no fim.
+        /// Só roda o que o Download baixou e conferiu, e confere de novo na hora (hash e versão): o arquivo ficou numa
+        /// pasta do usuário, às vezes por dias, esperando o fim do Performance.
+        /// </summary>
         public static bool Install(string installer)
         {
+            string sha256;
+            Version version;
+            lock (VerifiedGate)
+            {
+                if (verifiedPath == null || !string.Equals(verifiedPath, installer, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warn(L.T("Instalador não rodado: não foi o baixado e conferido agora há pouco", "Installer not run: it is not the one just downloaded and checked"));
+                    return false;
+                }
+                sha256 = verifiedSha256;
+                version = verifiedVersion;
+            }
             try
             {
-                Process.Start(new ProcessStartInfo(installer, "/S /RELAUNCH") { UseShellExecute = false });
-                return true;
+                string problem = StartVerified(installer, sha256, version, path =>
+                {
+                    using (Process.Start(new ProcessStartInfo(path, "/S /RELAUNCH") { UseShellExecute = false })) { }
+                });
+                if (problem == null) return true;
+                Log.Warn(L.T("Instalador não rodado: mudou desde o download (", "Installer not run: it changed since the download (") + problem +
+                         L.T("). Dá para baixar à mão pela página da Release.", "). You can download it by hand from the Release page."));
+                Clean();
+                return false;
             }
             catch (Exception ex)
             {
@@ -193,9 +218,41 @@ namespace MouseModes
             }
         }
 
+        private static readonly object VerifiedGate = new object();
+        private static string verifiedPath, verifiedSha256;
+        private static Version verifiedVersion;
+
+        /// <summary>Guarda o que o Download conferiu, para o Install conferir de novo antes de rodar.</summary>
+        internal static void Remember(string path, string sha256, Version version)
+        {
+            lock (VerifiedGate)
+            {
+                verifiedPath = path;
+                verifiedSha256 = sha256;
+                verifiedVersion = version;
+            }
+        }
+
+        /// <summary>
+        /// Abre o instalador sem deixar ninguém gravar, renomear nem apagar (FileShare.Read), confere de novo e só então
+        /// chama start, com o arquivo ainda preso: não dá para trocar entre a conferência e o início. null se rodou;
+        /// senão, o motivo (e start não é chamado).
+        /// </summary>
+        internal static string StartVerified(string installer, string expectedSha256, Version expectedVersion, Action<string> start)
+        {
+            using (new FileStream(installer, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                string problem = Verify(installer, expectedSha256, expectedVersion);
+                if (problem != null) return problem;
+                start(installer);
+                return null;
+            }
+        }
+
         /// <summary>Apaga o que sobrou de um download (depois de atualizar ou de uma tentativa que falhou).</summary>
         public static void Clean()
         {
+            Remember(null, null, null);
             try { if (Directory.Exists(Folder)) Directory.Delete(Folder, true); } catch { }
         }
 
