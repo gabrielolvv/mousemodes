@@ -246,6 +246,7 @@ namespace MouseModes
         private string framesError;
         private CpuSpeedProbe cpuSpeed;
         private List<CpuSpeedSample> speedSamples;
+        private DateTime lastSpeedRead;
         private DateTime started;
         private IList<string> games = new List<string>();
         private string game;
@@ -276,6 +277,8 @@ namespace MouseModes
             if (cpuSpeed != null) cpuSpeed.Dispose();
             cpuSpeed = CpuSpeedProbe.TryOpen();
             speedSamples = new List<CpuSpeedSample>();
+            lastSpeedRead = now; // o TryOpen já fez a primeira coleta
+
             probe = MeasureNetwork ? new NetworkProbe(now) : null;
             frames = null;
             framesError = null;
@@ -297,10 +300,57 @@ namespace MouseModes
             this.games = games;
             DateTime now = DateTime.UtcNow;
             stats.Add(now, Read(games));
-            float performance, limit, busy;
-            if (cpuSpeed != null && cpuSpeed.Read(out performance, out limit, out busy))
-                speedSamples.Add(new CpuSpeedSample((now - started).TotalSeconds, performance, limit, busy, !PowerSource.OnAC));
-            if (frames != null) frames.RefreshNames(); // o nome de quem entregou quadros, enquanto ainda está aberto
+            double? seconds = SpeedInterval(now, lastSpeedRead);
+            if (cpuSpeed != null && seconds != null)
+            {
+                lastSpeedRead = now;
+                float performance, limit, busy;
+                if (cpuSpeed.Read(out performance, out limit, out busy))
+                    speedSamples.Add(new CpuSpeedSample((now - started).TotalSeconds, performance, limit, busy, !PowerSource.OnAC, seconds.Value));
+            }
+            // O nome de quem entregou quadros, enquanto ainda está aberto; quem não é jogo para de ser guardado.
+            if (frames != null) frames.RefreshNames(games);
+        }
+
+        /// <summary>
+        /// Tempo (s) desde a leitura anterior da velocidade, se já deu para ler de novo; null se foi há menos de
+        /// MatchStats.MinInterval (checagem fora do ritmo: Ajustes salvos, troca automática ligada).
+        /// </summary>
+        internal static double? SpeedInterval(DateTime now, DateTime lastRead)
+        {
+            TimeSpan since = now - lastRead;
+            return since < MatchStats.MinInterval ? (double?)null : since.TotalSeconds;
+        }
+
+        /// <summary>Quantas leituras de velocidade a partida tem até agora (para os testes).</summary>
+        internal int SpeedSampleCount { get { return speedSamples != null ? speedSamples.Count : 0; } }
+
+        /// <summary>
+        /// Abandona a partida sem relatório: fecha a leitura dos quadros, o ping e a leitura da velocidade e joga fora o
+        /// que foi medido. Sem partida em andamento não faz nada; pode ser chamado mais de uma vez.
+        /// </summary>
+        public void Abort()
+        {
+            if (stats == null) return;
+            stats = null;
+            if (cpuSpeed != null)
+            {
+                cpuSpeed.Dispose();
+                cpuSpeed = null;
+            }
+            speedSamples = null;
+            if (probe != null)
+            {
+                bool wifi, vpn;
+                probe.Stop(out wifi, out vpn);
+                probe = null;
+            }
+            if (frames != null)
+            {
+                frames.Stop();
+                frames = null;
+            }
+            framesError = null;
         }
 
         /// <summary>Fecha a partida. null se ela foi curta demais para dizer algo.</summary>

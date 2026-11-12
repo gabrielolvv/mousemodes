@@ -236,9 +236,7 @@ namespace MouseModes
             {
                 string user;
                 using (WindowsIdentity me = WindowsIdentity.GetCurrent()) user = me.User.Value;
-                string command = (allow ? "Add" : "Remove") + "-LocalGroupMember -SID " + PerformanceLogUsers + " -Member " + user +
-                                 " -ErrorAction Stop";
-                var info = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"" + command + "\"")
+                var info = new ProcessStartInfo("powershell.exe", "-NoProfile -NonInteractive -WindowStyle Hidden -Command \"" + Command(allow, user) + "\"")
                 {
                     UseShellExecute = true,
                     Verb = "runas",
@@ -261,6 +259,17 @@ namespace MouseModes
                 return ex.Message;
             }
         }
+
+        /// <summary>
+        /// O comando do PowerShell que põe (ou tira) a conta do grupo. Já estar (ou já não estar) no grupo sai com 0:
+        /// o -ErrorAction Stop transforma isso em MemberExists/MemberNotFound, que aqui contam como certo. Qualquer
+        /// outro erro continua saindo com 1.
+        /// </summary>
+        internal static string Command(bool allow, string userSid)
+        {
+            return "try { " + (allow ? "Add" : "Remove") + "-LocalGroupMember -SID " + PerformanceLogUsers + " -Member " + userSid +
+                   " -ErrorAction Stop } catch { if ($_.Exception.GetType().Name -in 'MemberExistsException','MemberNotFoundException') { exit 0 }; exit 1 }";
+        }
     }
 
     /// <summary>
@@ -282,7 +291,13 @@ namespace MouseModes
         private const uint WnodeFlagTracedGuid = 0x00020000;
         private const uint EventTraceRealTimeMode = 0x00000100;
         private const uint ProcessTraceModeRealTime = 0x00000100;
+        /// <summary>Sem isso o Windows converte o TimeStamp para data e hora (FILETIME); com ele fica no relógio QPC da sessão.</summary>
+        private const uint ProcessTraceModeRawTimestamp = 0x00001000;
         private const uint ProcessTraceModeEventRecord = 0x10000000;
+        /// <summary>Quanto esperar a thread de leitura terminar depois de fechar a sessão.</summary>
+        private const int ReaderJoinMs = 3000;
+        /// <summary>Quadro fora disto (antes do começo ou mais de um dia depois) é relógio errado, não jogo: fica de fora.</summary>
+        internal const double MaxSampleSeconds = 24 * 60 * 60;
         private const uint EventTraceControlStop = 1;
         private const uint EventControlCodeEnableProvider = 1;
         private const byte TraceLevelInformation = 4;
@@ -436,17 +451,31 @@ namespace MouseModes
         private readonly Dictionary<int, List<FrameSample>> byProcess = new Dictionary<int, List<FrameSample>>();
         private readonly Dictionary<int, long> lastPresent = new Dictionary<int, long>();
         private readonly Dictionary<int, string> names = new Dictionary<int, string>();
+        /// <summary>Processos que já têm nome e não são da lista de jogos: os quadros deles não são guardados.</summary>
+        private readonly HashSet<int> ignored = new HashSet<int>();
+        private readonly Func<int, string> nameOf;
         private readonly long qpcStart;
         private readonly double qpcPerSecond = Stopwatch.Frequency;
         private readonly EventRecordCallback callback; // guardado aqui: o Windows chama de volta enquanto a sessão existir
         private ulong session;
         private ulong trace = InvalidTraceHandle;
         private Thread reader;
+        private bool stopped;
 
-        private FrameProbe()
+        private FrameProbe() : this(ProcessName) { }
+
+        /// <param name="nameOf">Nome do processo pelo PID (null se já fechou); os testes passam um inventado.</param>
+        internal FrameProbe(Func<int, string> nameOf)
         {
+            this.nameOf = nameOf;
             qpcStart = Stopwatch.GetTimestamp();
             callback = OnEvent;
+        }
+
+        private static string ProcessName(int pid)
+        {
+            try { using (Process p = Process.GetProcessById(pid)) return p.ProcessName; }
+            catch { return null; } // já fechou: fica sem nome e não conta como jogo
         }
 
         /// <summary>Liga a leitura dos quadros. null se o Windows não deixar (sem a permissão) ou não der; o motivo vai em error.</summary>
@@ -465,7 +494,7 @@ namespace MouseModes
             if (code == ErrorAlreadyExists)
             {
                 // Sobrou de um app que caiu no meio da partida: fecha a antiga e abre de novo.
-                StopSession(0);
+                StopLeftover();
                 code = StartSession();
             }
             if (code == ErrorAccessDenied) return L.T("sem permissão para ler os quadros", "no permission to read frames");
@@ -478,7 +507,8 @@ namespace MouseModes
             var logfile = new EventTraceLogfile
             {
                 LoggerName = SessionName,
-                ProcessTraceMode = ProcessTraceModeRealTime | ProcessTraceModeEventRecord,
+                // Carimbo cru: com o ClientContext = 1 da sessão, o TimeStamp chega no relógio QPC, o mesmo do Stopwatch.
+                ProcessTraceMode = ProcessTraceModeRealTime | ProcessTraceModeRawTimestamp | ProcessTraceModeEventRecord,
                 EventRecordCallback = callback
             };
             trace = OpenTrace(ref logfile);
@@ -486,7 +516,11 @@ namespace MouseModes
                 return L.T("o Windows não abriu a leitura dos quadros (código ", "Windows did not open frame reading (code ") + Marshal.GetLastWin32Error() + ")";
 
             ulong handle = trace;
-            reader = new Thread(() => ProcessTrace(new[] { handle }, 1, IntPtr.Zero, IntPtr.Zero))
+            reader = new Thread(() =>
+            {
+                ProcessTrace(new[] { handle }, 1, IntPtr.Zero, IntPtr.Zero);
+                GC.KeepAlive(callback); // o Windows chama o callback até o ProcessTrace voltar
+            })
             {
                 IsBackground = true,
                 Name = "MouseModes frame X-ray"
@@ -495,17 +529,41 @@ namespace MouseModes
             return null;
         }
 
-        /// <summary>Para de ler e devolve os quadros de cada processo (só os que entregaram quadros).</summary>
+        /// <summary>
+        /// Para de ler e devolve os quadros de cada processo (só os que entregaram quadros). Depois disso nada mais é
+        /// acrescentado às listas devolvidas, mesmo que o Windows ainda entregue um evento atrasado.
+        /// </summary>
         public Dictionary<int, List<FrameSample>> Stop()
         {
-            StopSession(session);
+            lock (gate) stopped = true;
+            if (session != 0) StopSession(session);
             session = 0;
             if (trace != InvalidTraceHandle)
             {
                 CloseTrace(trace);
                 trace = InvalidTraceHandle;
             }
+            // Espera (pouco) a thread de leitura sair do ProcessTrace: só então o callback pode ser liberado.
+            if (reader != null && reader != Thread.CurrentThread) reader.Join(ReaderJoinMs);
+            reader = null;
+            GC.KeepAlive(callback);
             lock (gate) return new Dictionary<int, List<FrameSample>>(byProcess);
+        }
+
+        /// <summary>
+        /// Fecha uma sessão "MouseModes Frame X-ray" que tenha sobrado (o app caiu no meio de uma partida), pelo nome.
+        /// Não ter sessão aberta ou não ter permissão para fechá-la não é erro: não faz nada.
+        /// </summary>
+        internal static void StopLeftover()
+        {
+            try
+            {
+                StopSession(0);
+            }
+            catch
+            {
+                // Sem o advapi32 (não acontece no Windows): não há sessão para fechar.
+            }
         }
 
         /// <summary>Nome dos processos que entregaram quadros (lido aos poucos, enquanto eles ainda estão abertos).</summary>
@@ -518,8 +576,11 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Lê o nome de quem começou a entregar quadros desde a última vez.</summary>
-        public void RefreshNames()
+        /// <summary>
+        /// Lê o nome de quem começou a entregar quadros desde a última vez. Com a lista de jogos, quem ganhou nome e não é
+        /// jogo (Discord, navegador, a área de trabalho) deixa de ter os quadros guardados até o fim da partida.
+        /// </summary>
+        public void RefreshNames(IList<string> games = null)
         {
             var pending = new List<int>();
             lock (gate)
@@ -527,10 +588,18 @@ namespace MouseModes
                     if (!names.ContainsKey(pid)) pending.Add(pid);
             foreach (int pid in pending)
             {
-                string name = null;
-                try { using (Process p = Process.GetProcessById(pid)) name = p.ProcessName; }
-                catch { } // já fechou: fica sem nome e não conta como jogo
-                lock (gate) if (name != null) names[pid] = name;
+                string name = nameOf(pid);
+                if (name == null) continue;
+                lock (gate)
+                {
+                    names[pid] = name;
+                    if (games != null && !GameBooster.Matches(name, games))
+                    {
+                        byProcess.Remove(pid);
+                        lastPresent.Remove(pid);
+                        ignored.Add(pid);
+                    }
+                }
             }
         }
 
@@ -599,20 +668,36 @@ namespace MouseModes
             }
         }
 
-        private void Add(int pid, long stamp)
+        /// <summary>Um Present do processo, com o carimbo no relógio QPC.</summary>
+        internal void Add(int pid, long stamp)
         {
             lock (gate)
             {
+                if (stopped || ignored.Contains(pid)) return;
                 long before;
-                if (lastPresent.TryGetValue(pid, out before) && stamp > before)
+                FrameSample sample;
+                if (lastPresent.TryGetValue(pid, out before) && ToSample(stamp, before, qpcStart, qpcPerSecond, out sample))
                 {
                     List<FrameSample> list;
                     if (!byProcess.TryGetValue(pid, out list)) byProcess[pid] = list = new List<FrameSample>();
-                    if (list.Count < MaxFramesPerProcess)
-                        list.Add(new FrameSample((stamp - qpcStart) / qpcPerSecond, (float)((stamp - before) * 1000.0 / qpcPerSecond)));
+                    if (list.Count < MaxFramesPerProcess) list.Add(sample);
                 }
                 lastPresent[pid] = stamp;
             }
+        }
+
+        /// <summary>
+        /// O quadro entre dois Presents (carimbos QPC): quando ficou pronto, em s desde start, e quanto levou, em ms.
+        /// false se não andou para frente ou se caiu fora da partida (relógio errado): melhor sem o quadro que com um absurdo.
+        /// </summary>
+        internal static bool ToSample(long stamp, long before, long start, double perSecond, out FrameSample sample)
+        {
+            sample = default(FrameSample);
+            if (stamp <= before || perSecond <= 0) return false;
+            double at = (stamp - start) / perSecond;
+            if (at < 0 || at > MaxSampleSeconds) return false;
+            sample = new FrameSample(at, (float)((stamp - before) * 1000.0 / perSecond));
+            return true;
         }
 
         /// <summary>Os quadros do jogo: o processo da lista de jogos que mais entregou quadros. null se nenhum.</summary>

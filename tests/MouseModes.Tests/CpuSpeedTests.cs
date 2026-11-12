@@ -85,6 +85,56 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Analyze_CountsEachReadingForTheTimeItCovers()
+        {
+            // Leituras de 1 s e de 3 s misturadas (checagem fora do ritmo): cada uma conta pelo próprio intervalo.
+            var samples = new List<CpuSpeedSample>();
+            double at = 0;
+            for (int i = 0; i < 12; i++)
+            {
+                double seconds = i % 2 == 0 ? 1 : 3;
+                at += seconds;
+                bool slow = i >= 4 && i < 8; // 1 + 3 + 1 + 3 = 8 s freados
+                samples.Add(new CpuSpeedSample(at, slow ? 60 : 110, slow ? 60 : 100, 50, false, seconds));
+            }
+
+            CpuSpeedReport report = CpuSpeedStats.Analyze(samples);
+
+            Assert.Equal(24, report.MeasuredSeconds, 6);
+            Assert.Equal(8, report.LimitedSeconds, 6);
+            Assert.Equal(8, Assert.Single(report.All).Seconds, 6);
+        }
+
+        [Fact]
+        public void Analyze_UsesTheDefaultIntervalForReadingsWithoutOne()
+        {
+            CpuSpeedReport report = CpuSpeedStats.Analyze(Match(20, 0.0, 2, 62f, false));
+            Assert.Equal(60, report.MeasuredSeconds, 6);
+            Assert.Equal(6, report.LimitedSeconds, 6);
+        }
+
+        [Fact]
+        public void SpeedInterval_SkipsReadingsOutOfRhythm()
+        {
+            var t0 = new DateTime(2026, 11, 12, 20, 0, 0, DateTimeKind.Utc);
+            Assert.Null(MatchRecorder.SpeedInterval(t0.AddMilliseconds(300), t0));
+            Assert.Equal(1, MatchRecorder.SpeedInterval(t0.AddSeconds(1), t0).Value, 6);
+            Assert.Equal(3.2, MatchRecorder.SpeedInterval(t0.AddSeconds(3.2), t0).Value, 6);
+        }
+
+        [Fact]
+        public void Recorder_DoesNotReadTheSpeedRightAfterStarting()
+        {
+            // Só lê processos e contadores; o Caça-travadinhas e o ping ficam desligados.
+            var recorder = new MatchRecorder(measureNetwork: false);
+            recorder.Start("cs2");
+            recorder.Sample(new List<string> { "cs2" });
+            recorder.Sample(new List<string> { "cs2" });
+            Assert.Equal(0, recorder.SpeedSampleCount);
+            recorder.Abort();
+        }
+
+        [Fact]
         public void Analyze_IsNullWithTooFewReadings()
         {
             Assert.Null(CpuSpeedStats.Analyze(null));

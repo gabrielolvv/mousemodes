@@ -129,6 +129,78 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void ToSample_ConvertsQpcStampsToSecondsAndMs()
+        {
+            // Relógio QPC de 3 MHz (não 10 MHz): o quadro fica pronto aos 15 s e levou 7 ms.
+            const long Start = 1000000000, PerSecond = 3000000;
+            long stamp = Start + 15 * PerSecond;
+            FrameSample sample;
+
+            Assert.True(FrameProbe.ToSample(stamp, stamp - 21000, Start, PerSecond, out sample));
+            Assert.Equal(15, sample.At, 6);
+            Assert.Equal(7, sample.Ms, 3);
+        }
+
+        [Fact]
+        public void ToSample_DropsStampsOutsideTheMatch()
+        {
+            const long Start = 1000000000, PerSecond = 10000000;
+            FrameSample sample;
+
+            // Carimbo convertido para data e hora (FILETIME, ~2022) no lugar do QPC: daria 13 bilhões de segundos.
+            Assert.False(FrameProbe.ToSample(133000000000000000L, 133000000000000000L - 70000, Start, PerSecond, out sample));
+            Assert.False(FrameProbe.ToSample(Start - PerSecond, Start - 2 * PerSecond, Start, PerSecond, out sample)); // antes do começo
+            Assert.False(FrameProbe.ToSample(Start + PerSecond, Start + PerSecond, Start, PerSecond, out sample));    // não andou
+        }
+
+        [Fact]
+        public void Probe_KeepsOnlyTheGamesFramesAndNothingAfterStop()
+        {
+            // Sem sessão do Windows: os Presents são inventados e o nome vem de um dicionário.
+            var names = new Dictionary<int, string> { { 1, "cs2" }, { 2, "Discord" } };
+            var probe = new FrameProbe(pid => { string n; return names.TryGetValue(pid, out n) ? n : null; });
+            long t = System.Diagnostics.Stopwatch.GetTimestamp();
+            long frame = System.Diagnostics.Stopwatch.Frequency / 100; // 10 ms
+            for (int i = 1; i <= 5; i++)
+            {
+                probe.Add(1, t + i * frame);
+                probe.Add(2, t + i * frame);
+            }
+
+            probe.RefreshNames(new List<string> { "cs2.exe" });
+            for (int i = 6; i <= 8; i++)
+            {
+                probe.Add(1, t + i * frame);
+                probe.Add(2, t + i * frame);
+            }
+            Dictionary<int, string> named = probe.Names;
+            Dictionary<int, List<FrameSample>> byProcess = probe.Stop();
+            probe.Add(1, t + 9 * frame); // evento atrasado depois do fim
+
+            Assert.Equal(new[] { 1 }, new List<int>(byProcess.Keys).ToArray());
+            Assert.Equal(7, byProcess[1].Count);
+            Assert.Equal(10, byProcess[1][0].Ms, 3);
+            Assert.Equal("Discord", named[2]);
+            Assert.Same(byProcess[1], FrameProbe.GameFrames(byProcess, named, new List<string> { "cs2" }));
+        }
+
+        [Fact]
+        public void FramePermission_CommandTreatsAlreadyInAndAlreadyOutAsSuccess()
+        {
+            string add = FramePermission.Command(true, "S-1-5-21-1-2-3-1001");
+            string remove = FramePermission.Command(false, "S-1-5-21-1-2-3-1001");
+
+            Assert.Contains("Add-LocalGroupMember -SID S-1-5-32-559 -Member S-1-5-21-1-2-3-1001 -ErrorAction Stop", add);
+            Assert.Contains("Remove-LocalGroupMember -SID S-1-5-32-559", remove);
+            foreach (string command in new[] { add, remove })
+            {
+                Assert.Contains("'MemberExistsException','MemberNotFoundException') { exit 0 }", command);
+                Assert.EndsWith("exit 1 }", command); // qualquer outro erro continua sendo erro
+                Assert.DoesNotContain("\"", command);  // vai dentro de -Command "..."
+            }
+        }
+
+        [Fact]
         public void FramePermission_IsReadFromTheTokenWithoutErrors()
         {
             // Só lê o token desta sessão (o grupo e o administrador); não muda nada no Windows.

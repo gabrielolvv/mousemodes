@@ -132,5 +132,19 @@ namespace MouseModes.Tests
             Assert.Null(recorder.Stop()); // acabou de começar: curta demais
             Assert.False(recorder.Recording);
         }
+
+        [Fact]
+        public void Recorder_AbortDiscardsTheMatchAndCanBeRepeated()
+        {
+            var recorder = new MatchRecorder(measureNetwork: false);
+            recorder.Abort(); // sem partida: não faz nada
+            recorder.Start("cs2");
+            Assert.True(recorder.Recording);
+
+            recorder.Abort();
+            Assert.False(recorder.Recording);
+            recorder.Abort();
+            Assert.Null(recorder.Stop());
+        }
     }
 }
