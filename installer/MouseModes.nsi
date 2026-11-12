@@ -176,7 +176,7 @@ Section "Uninstall"
   ;    desinstalado na bateria). O aviso vai para a tela porque o registro pode ser apagado logo abaixo.
   ExecWait '"$INSTDIR\${APPNAME}.exe" --uninstall-cleanup' $0
   ${If} $0 == 3
-    MessageBox MB_OK|MB_ICONEXCLAMATION "O modo de energia do Windows pode ter ficado em Melhor desempenho. Com o PC na tomada, ajuste em Configurações → Sistema → Energia → Modo de energia.$\r$\n$\r$\nThe Windows power mode may have stayed on Best performance. With the PC plugged in, set it in Settings → System → Power → Power mode." /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "O modo de energia do Windows pode ter ficado em Melhor desempenho. Com o PC na tomada, ajuste em Configurações → Sistema → Energia e bateria → Modo de energia.$\r$\n$\r$\nThe Windows power mode may have stayed on Best performance. With the PC plugged in, set it in Settings → System → Power & battery → Power mode." /SD IDOK
   ${EndIf}
   DeleteRegValue HKCU "${RUNKEY}" "${APPNAME}"
 

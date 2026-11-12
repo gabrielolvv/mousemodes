@@ -381,7 +381,8 @@ namespace MouseModes.Tests
                 Assert.Null(FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
 
                 // AppDomainManager pelo .config, redirecionamento de DLL pelo .local (arquivo ou pasta), DLL ao lado.
-                foreach (string name in new[] { "MouseModes.exe.config", "MouseModes.exe.local", "version.dll", "QUALQUER.DLL" })
+                foreach (string name in new[] { "MouseModes.exe.config", "MouseModes.exe.local", "version.dll", "QUALQUER.DLL",
+                                                "MouseModes.exe.manifest", "outro.manifest" })
                 {
                     string path = temp.Text(@"app\" + name, "x");
                     Assert.Equal(path, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"), StringComparer.OrdinalIgnoreCase);
@@ -391,6 +392,12 @@ namespace MouseModes.Tests
                 System.IO.Directory.CreateDirectory(localDir);
                 Assert.Equal(localDir, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
                 System.IO.Directory.Delete(localDir);
+
+                // Subpasta: assemblies privados lado a lado.
+                string sub = temp.File(@"app\MouseModes");
+                System.IO.Directory.CreateDirectory(sub);
+                Assert.Equal(sub, FpsCap.UnsafeFileNextTo(folder, "MouseModes.exe"));
+                System.IO.Directory.Delete(sub);
 
                 // O nome vem do .exe que está rodando: o .config de outro .exe não conta.
                 temp.Text(@"app\Outro.exe.config", "x");

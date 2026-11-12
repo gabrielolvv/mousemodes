@@ -290,8 +290,11 @@ namespace MouseModes
 
         /// <summary>
         /// Arquivo na pasta do .exe que faria o Windows ou o .NET carregar código de fora na cópia administradora:
-        /// MouseModes.exe.config (AppDomainManager), MouseModes.exe.local (redirecionamento de DLL) ou qualquer .dll
-        /// (o app é um .exe só). A pasta pode ser gravável pela conta. null se não há nenhum.
+        /// MouseModes.exe.config (AppDomainManager), MouseModes.exe.local (redirecionamento de DLL), um .manifest (o
+        /// manifesto externo pode apontar assemblies lado a lado), qualquer .dll ou qualquer subpasta (assemblies
+        /// privados). O instalador só põe MouseModes.exe e Desinstalar.exe ali. null se não há nenhum.
+        /// É proteção a mais, não completa: a pasta é gravável pela conta, e um .config posto depois desta conferência e
+        /// antes de a cópia abrir ainda seria lido pelo .NET. A conferência se repete na própria cópia (RunHelper).
         /// </summary>
         internal static string UnsafeFileNextTo(string folder, string exeName)
         {
@@ -300,7 +303,9 @@ namespace MouseModes
                 string path = Path.Combine(folder, name);
                 if (File.Exists(path) || Directory.Exists(path)) return path;
             }
-            foreach (string dll in Directory.EnumerateFiles(folder, "*.dll")) return dll;
+            foreach (string pattern in new[] { "*.dll", "*.manifest" })
+                foreach (string file in Directory.EnumerateFiles(folder, pattern)) return file;
+            foreach (string sub in Directory.EnumerateDirectories(folder)) return sub;
             return null;
         }
 
@@ -378,6 +383,13 @@ namespace MouseModes
         {
             List<FpsCapChange> changes = ParseHelperArgs(args);
             if (changes == null) return 2;
+            // Já como administrador: confere de novo a pasta, caso algo tenha aparecido durante o pedido do Windows.
+            string exe = System.Windows.Forms.Application.ExecutablePath;
+            try
+            {
+                if (UnsafeFileNextTo(Path.GetDirectoryName(exe), Path.GetFileName(exe)) != null) return 2;
+            }
+            catch { return 2; }
             IFpsLimiter limiter = Detect();
             if (limiter == null) return 2;
             int result = 0;

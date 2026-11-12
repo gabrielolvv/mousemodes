@@ -90,21 +90,16 @@ namespace MouseModes
     }
 
     /// <summary>
-    /// O que esta execução do app já viu de cada item da lista (só em memória): o executável lembrado é reavaliado só
-    /// quando abre um processo novo do item, não quando um fecha, e não cai para um menor que o maior já visto do item.
-    /// Senão, com o jogo fechado antes do launcher, o FiveM.exe tomaria o lugar do FiveM_b3095_GTAProcess.exe. Tudo de
-    /// um item é esquecido quando nenhum processo dele está aberto.
+    /// O que esta execução do app já viu de cada item da lista (só em memória): para cada executável do item, a maior
+    /// memória em uso que ele chegou a ter. O lembrado é o de maior pico — o jogo, que começa pequeno e cresce, passa o
+    /// launcher assim que cresce; e, se o jogo fechar antes do launcher, o pico dele continua valendo. Um executável
+    /// lembrado de outra execução só é trocado depois de aparecer nesta (senão o launcher, aberto sozinho, tomaria o
+    /// lugar do jogo). Tudo de um item é esquecido quando nenhum processo dele está aberto.
     /// </summary>
     public sealed class GameExeWatch
     {
-        private sealed class Entry
-        {
-            public readonly HashSet<int> Pids = new HashSet<int>();
-            public long Largest;     // maior memória em uso já vista entre os processos do item
-            public bool Remembered;  // o executável lembrado foi escolhido (ou conferido) nesta execução
-        }
-
-        private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, Dictionary<string, long>> entries =
+            new Dictionary<string, Dictionary<string, long>>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Nenhum jogo aberto: esquece tudo.</summary>
         public void Clear()
@@ -113,8 +108,8 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// O processo a lembrar agora como o executável do item (o que usa mais memória), ou null para manter
-        /// <paramref name="remembered"/> (o que está lembrado).
+        /// O processo a lembrar agora como o executável do item, ou null para manter <paramref name="remembered"/> (o
+        /// que está lembrado).
         /// </summary>
         public RunningGame Pick(string entry, IList<RunningGame> running, string remembered)
         {
@@ -131,42 +126,37 @@ namespace MouseModes
                 return null;
             }
 
-            Entry seen;
-            if (!entries.TryGetValue(prefix, out seen))
+            Dictionary<string, long> peaks;
+            if (!entries.TryGetValue(prefix, out peaks))
             {
-                seen = new Entry();
-                entries[prefix] = seen;
+                peaks = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                entries[prefix] = peaks;
             }
-            bool newProcess = false;
-            RunningGame best = null;
             foreach (RunningGame r in mine)
             {
-                if (!seen.Pids.Contains(r.Pid)) newProcess = true;
-                if (best == null || r.WorkingSet > best.WorkingSet) best = r;
+                long peak;
+                if (!peaks.TryGetValue(r.Name, out peak) || r.WorkingSet > peak) peaks[r.Name] = r.WorkingSet;
             }
-            seen.Pids.Clear();
-            foreach (RunningGame r in mine) seen.Pids.Add(r.Pid);
-            long largestBefore = seen.Largest;
-            seen.Largest = Math.Max(seen.Largest, best.WorkingSet);
 
-            if (string.Equals(best.Name, remembered, StringComparison.OrdinalIgnoreCase))
-            {
-                seen.Remembered = true;
-                return null;
-            }
-            if (!ShouldRepick(newProcess, seen.Remembered, best.WorkingSet, largestBefore)) return null;
-            seen.Remembered = true;
-            return best;
+            string best = Best(peaks);
+            if (best == null || string.Equals(best, remembered, StringComparison.OrdinalIgnoreCase)) return null;
+            if (!string.IsNullOrEmpty(remembered) && !peaks.ContainsKey(remembered)) return null; // ainda não apareceu nesta execução
+            RunningGame open = mine.Find(r => string.Equals(r.Name, best, StringComparison.OrdinalIgnoreCase));
+            return open ?? new RunningGame(best, 0, peaks[best]);
         }
 
-        /// <summary>
-        /// Troca o executável lembrado? Só quando abriu processo novo do item; e um lembrado nesta execução só dá
-        /// lugar a um que use pelo menos tanta memória quanto o maior já visto do item.
-        /// </summary>
-        internal static bool ShouldRepick(bool newProcess, bool rememberedThisRun, long candidateWorkingSet, long largestSeen)
+        /// <summary>O executável de maior pico (no empate, o primeiro visto).</summary>
+        internal static string Best(Dictionary<string, long> peaks)
         {
-            if (!newProcess) return false;
-            return !rememberedThisRun || candidateWorkingSet >= largestSeen;
+            string best = null;
+            long top = -1;
+            foreach (KeyValuePair<string, long> p in peaks)
+                if (p.Value > top)
+                {
+                    best = p.Key;
+                    top = p.Value;
+                }
+            return best;
         }
     }
 

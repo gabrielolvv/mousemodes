@@ -150,14 +150,14 @@ namespace MouseModes
                 if (cfg.PowerModeBackup != null && !keeper.OnAC)
                 {
                     powerModeLeft = true;
-                    Log.Warn(L.T("Desinstalação na bateria: o modo de energia da tomada pode ter ficado em Melhor desempenho; ajuste em Configurações → Energia com o PC na tomada",
-                                 "Uninstall on battery: the plugged-in power mode may have stayed on Best performance; set it in Settings → Power while plugged in"));
+                    Log.Warn(L.T("Desinstalação na bateria: o modo de energia da tomada pode ter ficado em Melhor desempenho; ajuste em Configurações → Sistema → Energia e bateria → Modo de energia com o PC na tomada",
+                                 "Uninstall on battery: the plugged-in power mode may have stayed on Best performance; set it in Settings → System → Power & battery → Power mode while plugged in"));
                 }
                 else if (!keeper.Restore())
                 {
                     powerModeLeft = true;
-                    Log.Warn(L.T("Desinstalação: o modo de energia do Windows não voltou; ajuste em Configurações → Energia",
-                                 "Uninstall: the Windows power mode did not go back; set it in Settings → Power"));
+                    Log.Warn(L.T("Desinstalação: o modo de energia do Windows não voltou; ajuste em Configurações → Sistema → Energia e bateria → Modo de energia",
+                                 "Uninstall: the Windows power mode did not go back; set it in Settings → System → Power & battery → Power mode"));
                 }
             });
             // A sessão de leitura dos quadros desta conta, se o app caiu no meio de uma partida.

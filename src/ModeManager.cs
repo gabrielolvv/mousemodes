@@ -81,6 +81,16 @@ namespace MouseModes
 
         public void Apply(Mode mode, string reason)
         {
+            Apply(mode, reason, true);
+        }
+
+        /// <param name="saveMode">
+        /// false: não grava o modo novo no config. Para sair do app ou do Windows: quem chama grava o Dia a dia só depois
+        /// de o plano e o USB voltarem (WaitForPower); até lá o disco continua dizendo Performance, e a próxima abertura
+        /// desfaz se o processo morrer no meio.
+        /// </param>
+        public void Apply(Mode mode, string reason, bool saveMode)
+        {
             // Saindo do Dia a dia: o perfil passa a ser o mouse como está agora no Windows,
             // inclusive o que a pessoa mudou fora do app. É isso que volta depois.
             if (mode == Mode.Performance && Current == Mode.DiaADia)
@@ -122,8 +132,11 @@ namespace MouseModes
             CurrentProfile = profile;
             CurrentGameProfile = gameProfile;
             DailyMouseInUse = false; // o perfil acabou de ser aplicado inteiro
-            cfg.LastMode = mode;
-            SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
+            if (saveMode)
+            {
+                cfg.LastMode = mode;
+                SaveQuietly(); // grava já: se o app cair no Performance, a próxima abertura desfaz
+            }
 
             Log.Info(L.T("Modo ", "Mode ") + (mode == Mode.Performance ? "Performance" : L.T("Dia a dia", "Daily")) +
                      (gameProfile != null ? L.T(" (perfil de ", " (profile of ") + gameProfile + ")" : "") + " — " + reason);

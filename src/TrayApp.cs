@@ -1213,13 +1213,11 @@ namespace MouseModes
             {
                 quiet = true;
                 // O mouse volta na hora; plano e USB numa thread de fundo, com pouco tempo (o Windows não espera muito).
-                try { modes.Apply(Mode.DiaADia, L.T("Windows encerrando a sessão", "Windows is ending the session")); }
+                // Sem gravar o Dia a dia: plano e USB ainda voltam numa thread de fundo, e o Windows pode encerrar o
+                // processo na espera. O disco continua dizendo Performance (a próxima abertura aplica o Dia a dia de
+                // novo, inofensivo se já voltou); só com o plano de volta grava Dia a dia.
+                try { modes.Apply(Mode.DiaADia, L.T("Windows encerrando a sessão", "Windows is ending the session"), false); }
                 catch (Exception ex) { Log.Error(L.T("Voltar ao Dia a dia", "Go back to Daily"), ex); }
-                // O Apply já gravou Dia a dia, mas plano e USB ainda estão voltando numa thread de fundo, e o Windows
-                // pode encerrar o processo durante a espera. Grava Performance antes de esperar: a próxima abertura
-                // aplica o Dia a dia de novo (inofensivo se já voltou). Só com o plano de volta grava Dia a dia.
-                cfg.LastMode = Mode.Performance;
-                SaveConfig();
                 if (modes.WaitForPower(4000))
                 {
                     cfg.LastMode = Mode.DiaADia;
@@ -1277,11 +1275,9 @@ namespace MouseModes
             if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
             {
                 quiet = true;
-                modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"));
                 // Como no fim de sessão: até o plano e o USB voltarem, o disco diz Performance (se o processo morrer
                 // na espera, a próxima abertura desfaz).
-                cfg.LastMode = Mode.Performance;
-                SaveConfig();
+                modes.Apply(Mode.DiaADia, L.T("Saindo", "Quitting"), false);
                 backToDaily = true;
             }
             foreground.Dispose();
