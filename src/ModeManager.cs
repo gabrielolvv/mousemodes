@@ -18,6 +18,10 @@ namespace MouseModes
         /// <summary>Quem aplica plano e USB. Interno e trocável só para testar a fila sem mexer no PC.</summary>
         internal Action<MouseProfile, List<string>, string> PowerApplier;
 
+        /// <summary>Quem lê o plano ativo e a suspensão seletiva de USB do Windows (só leitura). Trocáveis nos testes.</summary>
+        internal Func<string> ActivePlanReader = PowerSettings.ActivePlanGuid;
+        internal Func<int?> UsbSuspendReader = PowerSettings.UsbSelectiveSuspendAC;
+
         public Mode Current { get; private set; }
 
         /// <summary>Perfil efetivamente aplicado (pode ser o perfil próprio de um jogo).</summary>
@@ -149,9 +153,13 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia (energia e USB ficam).</summary>
+        /// <summary>
+        /// Copia velocidade, aceleração e rolagem do Windows para o perfil Dia a dia. O plano fica; o USB vem do Windows só
+        /// na primeira vez neste PC (o valor original da pessoa); depois manda o que está nos Ajustes.
+        /// </summary>
         private void SyncDailyFromWindows()
         {
+            SeedDailyUsbFromWindows();
             MouseProfile now = MouseSettings.Read();
             MouseProfile d = cfg.Daily;
             if (now.PointerSpeed == d.PointerSpeed &&
@@ -160,10 +168,34 @@ namespace MouseModes
 
             Log.Info(L.T("Dia a dia atualizado com o mouse do Windows: velocidade ", "Daily updated from the Windows mouse: speed ") + d.PointerSpeed + " → " + now.PointerSpeed +
                      L.T(", aceleração ", ", acceleration ") + OnOff(d.EnhancePointerPrecision) + " → " + OnOff(now.EnhancePointerPrecision) +
-                     L.T(", rolagem ", ", scroll ") + d.ScrollLines + " → " + now.ScrollLines);
+                     L.T(", rolagem ", ", scroll ") + MouseSettings.DescribeScroll(d.ScrollLines) + " → " + MouseSettings.DescribeScroll(now.ScrollLines));
             d.PointerSpeed = now.PointerSpeed;
             d.EnhancePointerPrecision = now.EnhancePointerPrecision;
             d.ScrollLines = now.ScrollLines;
+        }
+
+        /// <summary>
+        /// Primeira vez neste PC: o Dia a dia começa com a suspensão seletiva de USB como o plano ativo tem agora (na tomada),
+        /// e não com o padrão do app, que desfaria quem já a tinha desligado. Se não der para ler, tenta na próxima vez.
+        /// </summary>
+        private void SeedDailyUsbFromWindows()
+        {
+            if (cfg.UsbSuspendSeeded) return;
+            int? value;
+            try { value = UsbSuspendReader(); }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Ler a suspensão seletiva de USB", "Read USB selective suspend"), ex);
+                return;
+            }
+            if (value != 0 && value != 1) return; // 0 = desativada, 1 = ativada; outra coisa (ou null) não dá para usar
+
+            bool disabled = value == 0;
+            cfg.UsbSuspendSeeded = true;
+            if (cfg.Daily.DisableUsbSelectiveSuspend == disabled) return;
+            cfg.Daily.DisableUsbSelectiveSuspend = disabled;
+            Log.Info(L.T("Dia a dia com o USB do Windows: suspensão seletiva ", "Daily set to the Windows USB setting: selective suspend ") +
+                     (disabled ? L.T("desativada", "disabled") : L.T("ativada", "enabled")));
         }
 
         /// <summary>
@@ -226,10 +258,12 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Com o Dia a dia em "ANTERIOR", guarda o plano de energia ativo antes de o Performance trocar.</summary>
-        private void RememberDailyPlan()
+        /// <summary>
+        /// Guarda o plano de energia ativo antes de o Performance trocar. Sempre, e não só com o Dia a dia em "ANTERIOR":
+        /// a pessoa pode mudar o Dia a dia para "ANTERIOR" no meio do Performance, e a volta é decidida ao sair.
+        /// </summary>
+        internal void RememberDailyPlan()
         {
-            if (cfg.Daily.PowerPlan != PowerPlanOption.NaoAlterar) return;
             // Com uma troca de plano em andamento (ex.: voltando ao anterior), o ativo agora não é o "de antes".
             // Espera ela acabar; só acontece quando os modos trocam em sequência rápida.
             if (!powerIdle.WaitOne(3000))
@@ -237,7 +271,7 @@ namespace MouseModes
                 Log.Info(L.T("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes", "Power plan still changing; keeping the Daily plan saved before"));
                 return;
             }
-            string guid = PowerSettings.ActivePlanGuid();
+            string guid = ActivePlanReader();
             if (guid == null || guid == cfg.DailyPlanGuid) return;
             cfg.DailyPlanGuid = guid;
             Log.Info(L.T("Plano de energia do Dia a dia guardado: ", "Daily power plan saved: ") + guid);

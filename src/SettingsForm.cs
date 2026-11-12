@@ -843,6 +843,7 @@ namespace MouseModes
         private readonly SectionLabel scrollLabel;
         private readonly Segmented plan;
         private readonly ToggleRow usb;
+        private bool pageScroll; // "uma tela por vez" do Windows: continua assim até a pessoa mexer na régua
 
         /// <param name="keepPlanLabel">
         /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "ANTERIOR": volta ao plano de antes do Performance.
@@ -867,6 +868,7 @@ namespace MouseModes
 
             scrollLabel = new SectionLabel { Text = L.T("Linhas por giro da roda", "Lines per wheel notch"), Location = new Point(0, 176), Size = new Size(440, 20), RightColor = b };
             scroll = new NeonSlider { Minimum = 1, Maximum = 20, Location = new Point(-4, 198), Size = new Size(448, 36), AccentA = a, AccentB = b };
+            scroll.ValueChanged += () => pageScroll = false; // antes do UpdateLabels: o texto já sai com as linhas
             scroll.ValueChanged += UpdateLabels;
 
             var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 252), Size = new Size(440, 20) };
@@ -917,7 +919,8 @@ namespace MouseModes
             speedNote.Text = v == 10
                 ? L.T("1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)", "1:1 — the pointer moves exactly what the sensor reads (recommended for games)")
                 : v > 10 ? L.T("Multiplica o movimento: pode pular pixels", "Multiplies movement: may skip pixels") : L.T("Reduz o movimento do sensor", "Reduces the sensor movement");
-            scrollLabel.RightText = scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
+            scrollLabel.RightText = pageScroll ? L.T("uma tela", "one screen")
+                : scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
             speedLabel.Invalidate();
             scrollLabel.Invalidate();
         }
@@ -926,8 +929,10 @@ namespace MouseModes
         {
             speed.Value = Math.Max(1, Math.Min(20, p.PointerSpeed));
             precision.Switch.SetChecked(p.EnhancePointerPrecision, false);
+            bool page = p.ScrollLines == MouseProfile.PageScroll;
             scroll.Maximum = Math.Max(20, p.ScrollLines);
-            scroll.Value = Math.Max(1, p.ScrollLines);
+            scroll.Value = page ? scroll.Maximum : Math.Max(1, p.ScrollLines);
+            pageScroll = page; // depois do Value: a troca de valor acima apagaria a marca
             plan.SelectedIndex = (int)p.PowerPlan;
             usb.Switch.SetChecked(p.DisableUsbSelectiveSuspend, false);
             UpdateLabels();
@@ -937,7 +942,7 @@ namespace MouseModes
         {
             p.PointerSpeed = speed.Value;
             p.EnhancePointerPrecision = precision.Switch.Checked;
-            p.ScrollLines = scroll.Value;
+            p.ScrollLines = pageScroll ? MouseProfile.PageScroll : scroll.Value;
             p.PowerPlan = (PowerPlanOption)Math.Max(0, plan.SelectedIndex);
             p.DisableUsbSelectiveSuspend = usb.Switch.Checked;
         }

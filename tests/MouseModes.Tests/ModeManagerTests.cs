@@ -15,6 +15,8 @@ namespace MouseModes.Tests
         private readonly TempFolder dir = new TempFolder(); // também desvia o log
         private readonly List<string> applied = new List<string>();
         private int delayMs = 300;
+        private int? usbSuspend; // o que o "Windows" responde sobre a suspensão seletiva de USB (null = não deu para ler)
+        private string activePlan = "232e2748-0959-4183-a9e8-1b5372b4f906";
 
         public void Dispose()
         {
@@ -34,6 +36,8 @@ namespace MouseModes.Tests
             Type owner = modes.PowerApplier.Method.DeclaringType;
             Assert.True(owner == typeof(ModeManagerTests) || owner.DeclaringType == typeof(ModeManagerTests),
                 "aplicador de mentira não instalado: " + owner);
+            modes.UsbSuspendReader = () => usbSuspend;
+            modes.ActivePlanReader = () => activePlan;
             return modes;
         }
 
@@ -89,6 +93,63 @@ namespace MouseModes.Tests
             Assert.Equal(MouseSettings.Read().PointerSpeed, cfg.Daily.PointerSpeed); // o perfil seguiu o Windows
             Assert.True(modes.WaitForPower(1000));
             Assert.Empty(applied); // nenhum plano de energia foi pedido
+        }
+
+        [Fact]
+        public void Start_FirstTimeTakesTheUsbSettingFromWindows()
+        {
+            AppConfig cfg = AppConfig.CreateDefault(); // Dia a dia nasce com a suspensão ativada (padrão do app)
+            usbSuspend = 0; // a pessoa já tinha desativado no Windows
+            ModeManager modes = NewManager(cfg);
+
+            modes.Start();
+
+            Assert.True(cfg.Daily.DisableUsbSelectiveSuspend);
+            Assert.True(cfg.UsbSuspendSeeded);
+            Assert.True(modes.WaitForPower(1000));
+            Assert.Empty(applied); // só leu: nada foi gravado no Windows
+        }
+
+        [Fact]
+        public void Start_AfterTheFirstTimeTheSettingsWin()
+        {
+            AppConfig cfg = AppConfig.CreateDefault();
+            cfg.UsbSuspendSeeded = true; // já leu antes; depois a pessoa ligou a suspensão nos Ajustes
+            usbSuspend = 0;              // o Windows ainda tem o valor do Performance, por exemplo
+
+            NewManager(cfg).Start();
+
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+        }
+
+        [Fact]
+        public void Start_TriesAgainWhenTheUsbSettingCannotBeRead()
+        {
+            AppConfig cfg = AppConfig.CreateDefault();
+            usbSuspend = null;
+
+            NewManager(cfg).Start();
+            Assert.False(cfg.UsbSuspendSeeded);
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+
+            usbSuspend = 1;
+            NewManager(cfg).Start();
+            Assert.True(cfg.UsbSuspendSeeded);
+            Assert.False(cfg.Daily.DisableUsbSelectiveSuspend);
+        }
+
+        [Theory]
+        [InlineData(PowerPlanOption.NaoAlterar)]
+        [InlineData(PowerPlanOption.Equilibrado)]
+        [InlineData(PowerPlanOption.AltoDesempenho)]
+        public void RememberDailyPlan_SavesTheActivePlanWhateverTheDailyOption(PowerPlanOption daily)
+        {
+            // Mesmo sem "ANTERIOR" agora: a pessoa pode escolher "ANTERIOR" no meio do Performance.
+            var cfg = new AppConfig { Daily = new MouseProfile { PowerPlan = daily }, Performance = new MouseProfile() };
+
+            NewManager(cfg).RememberDailyPlan();
+
+            Assert.Equal(activePlan, cfg.DailyPlanGuid);
         }
 
         [Fact]

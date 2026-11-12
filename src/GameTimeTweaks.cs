@@ -17,6 +17,8 @@ namespace MouseModes
         private const int WH_KEYBOARD_LL = 13;
         private const int VK_LWIN = 0x5B;
         private const int VK_RWIN = 0x5C;
+        private const int WM_KEYUP = 0x0101;
+        private const int WM_SYSKEYUP = 0x0105;
         private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
         private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
         private const uint WM_QUIT = 0x0012;
@@ -94,6 +96,16 @@ namespace MouseModes
         private uint cachedPid;
         private bool cachedIsGame;
         private int blockedCount;
+        private WinKeyPress leftWin;
+        private WinKeyPress rightWin;
+
+        /// <summary>O que aconteceu com o último aperto de uma tecla Windows (até ela subir).</summary>
+        internal enum WinKeyPress
+        {
+            Up,        // solta
+            Passed,    // desceu e o Windows viu
+            Swallowed  // desceu e foi engolida
+        }
 
         public WinKeyBlocker(Func<IList<string>> games)
         {
@@ -151,6 +163,8 @@ namespace MouseModes
                 PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_NOREMOVE); // cria a fila de mensagens antes do PostThreadMessage
                 cachedPid = 0;
                 blockedCount = 0;
+                leftWin = WinKeyPress.Up;
+                rightWin = WinKeyPress.Up;
 
                 IntPtr module = GetModuleHandle(Process.GetCurrentProcess().MainModule.ModuleName);
                 hook = SetWindowsHookEx(WH_KEYBOARD_LL, keyProc, module, 0);
@@ -204,15 +218,37 @@ namespace MouseModes
                 int vk = Marshal.ReadInt32(lParam);
                 if (vk == VK_LWIN || vk == VK_RWIN)
                 {
+                    int message = wParam.ToInt32();
+                    bool keyUp = message == WM_KEYUP || message == WM_SYSKEYUP;
                     if (foregroundHook == IntPtr.Zero) UpdateForeground(GetForegroundWindow());
-                    if (cachedIsGame)
+                    bool swallow = vk == VK_LWIN ? Decide(ref leftWin, keyUp, cachedIsGame) : Decide(ref rightWin, keyUp, cachedIsGame);
+                    if (swallow)
                     {
-                        blockedCount++;
+                        if (!keyUp) blockedCount++;
                         return (IntPtr)1; // engole a tecla
                     }
                 }
             }
             return CallNextHookEx(hook, nCode, wParam, lParam);
+        }
+
+        /// <summary>
+        /// Engolir ou não um evento da tecla Windows. A decisão é do aperto inteiro, tomada quando a tecla desce: o
+        /// Windows tem de ver a descida e a subida, ou nenhuma das duas. Se a janela do jogo vier para a frente com a tecla
+        /// já apertada na área de trabalho, a subida passa (senão o Windows acharia a tecla presa); subida sem descida
+        /// conhecida também passa.
+        /// </summary>
+        internal static bool Decide(ref WinKeyPress state, bool keyUp, bool isGame)
+        {
+            if (keyUp)
+            {
+                bool swallow = state == WinKeyPress.Swallowed;
+                state = WinKeyPress.Up;
+                return swallow;
+            }
+            // Repetição automática de uma tecla segurada: segue o que foi decidido na primeira descida.
+            if (state == WinKeyPress.Up) state = isGame ? WinKeyPress.Swallowed : WinKeyPress.Passed;
+            return state == WinKeyPress.Swallowed;
         }
 
         private void ForegroundChanged(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject,

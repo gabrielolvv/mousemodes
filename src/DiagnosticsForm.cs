@@ -124,7 +124,7 @@ namespace MouseModes
             {
                 MouseProfile now = MouseSettings.Read();
                 return L.T("Mouse agora: velocidade ", "Mouse now: speed ") + now.PointerSpeed + L.T("/20, aceleração ", "/20, acceleration ") +
-                       (now.EnhancePointerPrecision ? L.T("ligada", "on") : L.T("desligada", "off")) + L.T(", rolagem ", ", scroll ") + now.ScrollLines;
+                       (now.EnhancePointerPrecision ? L.T("ligada", "on") : L.T("desligada", "off")) + L.T(", rolagem ", ", scroll ") + MouseSettings.DescribeScroll(now.ScrollLines);
             }, "Mouse"));
             sb.AppendLine(Safe(() =>
             {

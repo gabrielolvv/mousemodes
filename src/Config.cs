@@ -28,7 +28,11 @@ namespace MouseModes
         /// <summary>"Aprimorar precisão do ponteiro" = aceleração do mouse do Windows.</summary>
         public bool EnhancePointerPrecision { get; set; }
 
+        /// <summary>Linhas por giro da roda (1–100), ou PageScroll para "uma tela por vez" do Windows.</summary>
         public int ScrollLines { get; set; }
+
+        /// <summary>ScrollLines do "uma tela por vez" do Windows (WHEEL_PAGESCROLL).</summary>
+        public const int PageScroll = -1;
 
         public PowerPlanOption PowerPlan { get; set; }
 
@@ -173,6 +177,12 @@ namespace MouseModes
         public string PowerModeBackup { get; set; }
 
         /// <summary>
+        /// O Dia a dia já recebeu a suspensão seletiva de USB que este PC tinha antes do app (lida uma vez só). Depois
+        /// disso vale o que está nos Ajustes. Só deste PC.
+        /// </summary>
+        public bool UsbSuspendSeeded { get; set; }
+
+        /// <summary>
         /// Limites de FPS que o app gravou no driver deste PC e confirmou ("cs2.exe=141"): para saber o que mudar ou tirar
         /// quando a tela muda. Só deste PC.
         /// </summary>
@@ -222,7 +232,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup"
+            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -244,6 +254,7 @@ namespace MouseModes
             copy.FramePermissionAsked = false;
             copy.FpsCapsApplied = new List<string>();
             copy.PowerModeBackup = null;
+            copy.UsbSuspendSeeded = false;
             return copy;
         }
 
@@ -349,30 +360,43 @@ namespace MouseModes
                 }
                 catch (Exception ex)
                 {
-                    // Arquivo corrompido: guarda uma cópia e recomeça do padrão.
-                    Log.Error(L.T("Configuração ilegível; cópia guardada em ", "Unreadable settings; copy saved as ") + Path.GetFileName(path) + L.T(".bak e padrão recriado", ".bak and defaults recreated"), ex);
+                    // Arquivo corrompido: guarda uma cópia; o .tmp de um Save interrompido ainda pode salvar o estado
+                    // (inclusive o que desfaz um travamento). Sem ele, recomeça do padrão.
+                    Log.Error(L.T("Configuração ilegível; cópia guardada em ", "Unreadable settings; copy saved as ") + Path.GetFileName(path) + ".bak", ex);
                     try { File.Copy(path, path + ".bak", true); } catch { }
+                    AppConfig fromTmp = TryRecover(tmp, path);
+                    if (fromTmp != null) return fromTmp;
+                    Log.Warn(L.T("Configuração padrão recriada", "Default settings recreated"));
                 }
             }
             else if (File.Exists(tmp))
             {
                 // Versões antigas apagavam o config antes de mover o .tmp: se caíram no meio, o .tmp é o config.
-                try
-                {
-                    AppConfig recovered = Load(tmp);
-                    recovered.SaveTo(path);
-                    Log.Warn(L.T("Configuração recuperada de ", "Settings recovered from ") + Path.GetFileName(tmp));
-                    return recovered;
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(L.T("Recuperar ", "Recover ") + Path.GetFileName(tmp), ex);
-                }
+                AppConfig fromTmp = TryRecover(tmp, path);
+                if (fromTmp != null) return fromTmp;
             }
 
             var created = CreateDefault();
             created.SaveTo(path);
             return created;
+        }
+
+        /// <summary>Lê o .tmp deixado por um Save que não terminou e grava como o config. null se não existe ou não dá para ler.</summary>
+        private static AppConfig TryRecover(string tmp, string path)
+        {
+            if (!File.Exists(tmp)) return null;
+            try
+            {
+                AppConfig recovered = Load(tmp);
+                recovered.SaveTo(path);
+                Log.Warn(L.T("Configuração recuperada de ", "Settings recovered from ") + Path.GetFileName(tmp));
+                return recovered;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Recuperar ", "Recover ") + Path.GetFileName(tmp), ex);
+                return null;
+            }
         }
 
         private static AppConfig Load(string path)

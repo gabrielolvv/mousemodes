@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -111,27 +112,99 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Usado pelo desinstalador depois do --quit.</summary>
+        /// <summary>
+        /// Usado pelo desinstalador depois do --quit (a cópia aberta já saiu e restaurou o que era dela). Desfaz o que
+        /// pode ter ficado no Windows. Cada parte isolada: se uma falhar, as outras ainda rodam.
+        /// </summary>
         private static int UninstallCleanup()
         {
-            try
-            {
-                AppConfig cfg = AppConfig.LoadOrCreate();
-                // Mesma regra da abertura: se ficou no Performance, volta ao Dia a dia (com o plano anterior).
-                var modes = new ModeManager(cfg);
-                modes.Start();
-                modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
-                NotificationSilencer.Restore(cfg); // só faz algo se ficaram silenciadas
-                BackgroundCalmer.Recover(cfg);     // idem, para o segundo plano calmo
-                Startup.SetEnabled(false);
-                Log.Info(L.T("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows", "Uninstall: Daily mode applied and removed from Start with Windows"));
-                return 0;
-            }
+            AppConfig cfg;
+            try { cfg = AppConfig.LoadOrCreate(); }
             catch (Exception ex)
             {
                 Log.Error(L.T("Desinstalação", "Uninstall"), ex);
                 return 1;
             }
+
+            bool ok = true;
+            // Mesma regra da abertura: se ficou no Performance, volta ao Dia a dia (com o plano anterior).
+            ok &= Step(L.T("Desinstalação: modo Dia a dia", "Uninstall: Daily mode"), () =>
+            {
+                var modes = new ModeManager(cfg);
+                modes.Start();
+                modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
+            });
+            ok &= Step(L.T("Desinstalação: notificações", "Uninstall: notifications"), () => NotificationSilencer.Restore(cfg)); // só se ficaram silenciadas
+            ok &= Step(L.T("Desinstalação: segundo plano calmo", "Uninstall: calm background"), () => BackgroundCalmer.Recover(cfg));
+            // Sem o app não haverá próxima vez na tomada: devolve o modo de energia mesmo na bateria.
+            ok &= Step(L.T("Desinstalação: modo de energia", "Uninstall: power mode"), () =>
+            {
+                if (!new PowerModeKeeper(cfg).Restore(true))
+                    Log.Warn(L.T("Desinstalação: o modo de energia do Windows não voltou; ajuste em Configurações → Energia",
+                                 "Uninstall: the Windows power mode did not go back; set it in Settings → Power"));
+            });
+            ok &= Step(L.T("Desinstalação: resolução", "Uninstall: resolution"), () => GameResolution.Recover(cfg));
+            ok &= Step(L.T("Desinstalação: limites de FPS", "Uninstall: FPS limits"), () => RemoveFpsCaps(cfg));
+            ok &= Step(L.T("Desinstalação: Iniciar com o Windows", "Uninstall: Start with Windows"), () => Startup.SetEnabled(false));
+            Log.Info(L.T("Desinstalação: modo Dia a dia aplicado e removido do Iniciar com o Windows", "Uninstall: Daily mode applied and removed from Start with Windows"));
+            return ok ? 0 : 1;
+        }
+
+        private static bool Step(string what, Action action)
+        {
+            try
+            {
+                action();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(what, ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Tira do driver os limites de FPS que o app gravou (eles valeriam mesmo sem o app). O driver pode pedir
+        /// administrador; a espera tem limite para a desinstalação nunca ficar parada no pedido.
+        /// </summary>
+        private static void RemoveFpsCaps(AppConfig cfg)
+        {
+            if (cfg.FpsCapsApplied == null || cfg.FpsCapsApplied.Count == 0) return;
+            List<FpsCapChange> changes = FpsCap.Plan(new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase), cfg.FpsCapsApplied);
+            if (changes.Count == 0) return;
+
+            var applied = new List<string>(cfg.FpsCapsApplied);
+            List<string> problems = null;
+            IFpsLimiter limiter = null;
+            Exception failure = null;
+            var worker = new Thread(() =>
+            {
+                try
+                {
+                    limiter = FpsCap.Detect();
+                    if (limiter != null) problems = FpsCap.Apply(changes, limiter, applied, FpsCap.RunElevated);
+                }
+                catch (Exception ex) { failure = ex; }
+            }) { IsBackground = true, Name = "MouseModes limites de FPS" };
+            worker.Start();
+            if (!worker.Join(90000))
+            {
+                Log.Warn(L.T("Desinstalação: o driver não terminou de tirar os limites de FPS em 90 s", "Uninstall: the driver did not finish removing the FPS limits within 90 s"));
+                return;
+            }
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+            if (limiter == null)
+            {
+                Log.Warn(L.T("Desinstalação: nenhuma placa com limitador de FPS encontrada; limites gravados antes ficam no driver: ",
+                             "Uninstall: no video card with an FPS limiter found; limits saved before stay in the driver: ") + string.Join(", ", cfg.FpsCapsApplied.ToArray()));
+                return;
+            }
+
+            cfg.FpsCapsApplied = applied;
+            cfg.Save();
+            foreach (string p in problems) Log.Warn(L.T("Desinstalação: limite de FPS não tirado: ", "Uninstall: FPS limit not removed: ") + p);
+            if (problems.Count == 0) Log.Info(L.T("Desinstalação: limites de FPS tirados do driver ", "Uninstall: FPS limits removed from the driver ") + limiter.Name);
         }
     }
 }

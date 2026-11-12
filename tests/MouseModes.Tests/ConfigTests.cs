@@ -46,6 +46,41 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void LoadOrCreate_CorruptFileRecoversFromTheLeftoverTmp()
+        {
+            using (var dir = new TempFolder())
+            {
+                string path = dir.File("config.xml");
+                new AppConfig { Hotkey = 3, LastMode = Mode.Performance, PowerModeBackup = "x" }.SaveTo(path);
+                File.Move(path, path + ".tmp"); // o Save parou depois de gravar o .tmp...
+                File.WriteAllText(path, "<AppConfig><Hotkey>1</Hot"); // ...e o config ficou estragado
+
+                AppConfig loaded = AppConfig.LoadOrCreate(path);
+
+                Assert.Equal(3, loaded.Hotkey);
+                Assert.Equal(Mode.Performance, loaded.LastMode); // o estado que desfaz o travamento não se perde
+                Assert.Equal("x", loaded.PowerModeBackup);
+                Assert.Contains("</Hot", File.ReadAllText(path + ".bak"));
+                Assert.Equal(3, AppConfig.LoadOrCreate(path).Hotkey); // e o config foi regravado
+            }
+        }
+
+        [Fact]
+        public void LoadOrCreate_CorruptFileAndCorruptTmpStartOver()
+        {
+            using (var dir = new TempFolder())
+            {
+                string path = dir.Text("config.xml", "<AppConfig><Hotkey>3</Hot");
+                dir.Text("config.xml.tmp", "<AppConfig><Hotkey>2</Ho");
+
+                AppConfig loaded = AppConfig.LoadOrCreate(path);
+
+                Assert.Equal(0, loaded.Hotkey);
+                Assert.Contains("</Hot", File.ReadAllText(path + ".bak"));
+            }
+        }
+
+        [Fact]
         public void LoadOrCreate_RecoversWhenOnlyTheTmpIsLeft()
         {
             using (var dir = new TempFolder())

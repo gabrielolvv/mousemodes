@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
@@ -213,6 +214,40 @@ namespace MouseModes
             if (!Run("/getactivescheme", out output)) return null;
             Match m = GuidRegex.Match(output);
             return m.Success ? m.Value.ToLowerInvariant() : null;
+        }
+
+        [DllImport("powrprof.dll")]
+        private static extern uint PowerGetActiveScheme(IntPtr userRootPowerKey, out IntPtr activePolicyGuid);
+
+        [DllImport("powrprof.dll")]
+        private static extern uint PowerReadACValueIndex(IntPtr rootPowerKey, ref Guid schemeGuid, ref Guid subGroupGuid,
+            ref Guid settingGuid, out uint acValueIndex);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr LocalFree(IntPtr mem);
+
+        /// <summary>
+        /// Suspensão seletiva de USB do plano ativo, na tomada (0 = desativada, 1 = ativada), ou null se não deu para ler.
+        /// Só lê, pelo powrprof: sem abrir o powercfg nem depender do idioma da saída dele.
+        /// </summary>
+        public static int? UsbSelectiveSuspendAC()
+        {
+            try
+            {
+                IntPtr active;
+                if (PowerGetActiveScheme(IntPtr.Zero, out active) != 0 || active == IntPtr.Zero) return null;
+                Guid scheme;
+                try { scheme = (Guid)Marshal.PtrToStructure(active, typeof(Guid)); }
+                finally { LocalFree(active); }
+
+                Guid subgroup = new Guid(UsbSubgroupGuid);
+                Guid setting = new Guid(UsbSelectiveSuspendGuid);
+                uint value;
+                if (PowerReadACValueIndex(IntPtr.Zero, ref scheme, ref subgroup, ref setting, out value) != 0) return null;
+                return (int)value;
+            }
+            catch (DllNotFoundException) { return null; }
+            catch (EntryPointNotFoundException) { return null; }
         }
 
         /// <summary>Nome do plano de energia ativo agora (para o Diagnóstico).</summary>
