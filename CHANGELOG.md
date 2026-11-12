@@ -12,6 +12,30 @@ dos dois arquivos como texto, primeiro em português e depois em inglês.
 - **Processador na partida** (Raio-X): velocidade média em relação à nominal e os trechos em que o processador foi
   freado por calor, limite de energia ou bateria. As travadinhas nesses trechos ganham essa causa.
 
+### Correções
+
+- **Caça-travadinhas**: o momento de cada travadinha saía errado (o relógio dos quadros era lido na unidade errada),
+  então a tela de carregamento entrava na conta e nenhuma travadinha ganhava causa. Agora o tempo e as causas saem
+  certos, e só os quadros do jogo ficam na memória.
+- **Desligar ou sair da conta no Performance** volta o Windows ao Dia a dia (mouse, plano, USB e modo de energia), e,
+  se o Windows encerrar o app no meio, a próxima abertura termina de desfazer. Cancelar o desligamento não deixa mais
+  a tecla Windows e as notificações sem o ajuste do Performance.
+- **Salvar os Ajustes** não desfaz mais mudanças de mouse feitas no Windows, não volta ao Performance quando você
+  escolheu o Dia a dia com o jogo aberto e não desfaz a Troca automática mudada pela bandeja.
+- **Desinstalar** tira o limite de FPS gravado no driver, devolve o modo de energia e a resolução, apaga as cópias de
+  plano de energia que o app criou e tira a permissão do Caça-travadinhas que o app deu.
+- **Limite de FPS**: o AUTO acompanha a taxa do monitor quando ela muda; vai para o executável que o jogo usa de
+  verdade (FiveM, Valorant, Fortnite); nunca pede administrador sozinho; e o app só pede administrador para o mesmo
+  arquivo que está rodando, com as bibliotecas das placas carregadas só da pasta do Windows.
+- **Windows preservado**: a rolagem "uma tela de cada vez", a suspensão de USB e o plano de energia de antes voltam
+  como estavam; jogos com nome genérico ("Game.exe") não confundem mais processos do Windows com jogo; e a tecla
+  Windows não fica presa ao trazer o jogo para a frente com Win+número.
+- **Segundo plano calmo** devolve a prioridade de programas abertos por um programa acalmado através de um
+  intermediário que já fechou.
+- **Atualização sozinha** confere o instalador de novo na hora de rodar.
+- **Telas em notebook com escala alta**: janelas que não cabem rolam, sem esconder botões, e o texto das opções não
+  corta mais.
+
 ## 1.11.0
 
 ### Novidades
