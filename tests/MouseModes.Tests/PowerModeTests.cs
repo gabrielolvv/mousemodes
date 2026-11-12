@@ -18,7 +18,13 @@ namespace MouseModes.Tests
 
             public FakePowerMode() { OnAC = true; }
 
-            public Guid? Get() { return Unreadable ? null : Mode; }
+            public int Gets; // quantas vezes leu o modo
+
+            public Guid? Get()
+            {
+                Gets++;
+                return Unreadable ? null : Mode;
+            }
 
             public bool Set(Guid mode)
             {
@@ -177,16 +183,21 @@ namespace MouseModes.Tests
         }
 
         [Fact]
-        public void Restore_OnBatteryWaitsUnlessItIsTheUninstall()
+        public void Restore_OnBatteryNeitherReadsNorTouchesTheBatteryMode()
         {
+            // Na bateria o Windows lê e grava o modo da bateria; o backup é o da tomada (inclusive na desinstalação).
             var cfg = new AppConfig { PowerModeBackup = PowerModeKeeper.BestEfficiency.ToString() };
             var windows = new FakePowerMode { Mode = PowerModeKeeper.BestPerformance, OnAC = false };
             PowerModeKeeper keeper = New(cfg, windows);
 
             Assert.False(keeper.Restore());
+            Assert.Equal(0, windows.Gets);
+            Assert.Empty(windows.Calls);
+            Assert.Equal(PowerModeKeeper.BestPerformance, windows.Mode);
             Assert.NotNull(cfg.PowerModeBackup);
 
-            Assert.True(keeper.Restore(true));
+            windows.OnAC = true;
+            Assert.True(keeper.Restore());
             Assert.Equal(PowerModeKeeper.BestEfficiency, windows.Mode);
             Assert.Null(cfg.PowerModeBackup);
         }

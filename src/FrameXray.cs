@@ -279,7 +279,32 @@ namespace MouseModes
     /// </summary>
     public sealed class FrameProbe
     {
-        private const string SessionName = "MouseModes Frame X-ray";
+        private const string SessionBaseName = "MouseModes Frame X-ray";
+
+        /// <summary>
+        /// Nome da sessão no Windows. As sessões ETW valem para o PC inteiro, e o app é por conta: com o SID da conta no
+        /// nome, abrir, fechar e limpar a que sobrou nunca pegam a captura de outra conta do Windows.
+        /// </summary>
+        internal static readonly string SessionName = SessionNameFor(CurrentUserId());
+
+        /// <summary>O nome da sessão para uma conta (SID). Sem SID, o nome da conta; sem os dois, o nome base.</summary>
+        internal static string SessionNameFor(string userId)
+        {
+            return string.IsNullOrEmpty(userId) ? SessionBaseName : SessionBaseName + " " + userId;
+        }
+
+        private static string CurrentUserId()
+        {
+            try
+            {
+                using (WindowsIdentity me = WindowsIdentity.GetCurrent())
+                    if (me.User != null) return me.User.Value;
+            }
+            catch { }
+            try { return Environment.UserDomainName + "\\" + Environment.UserName; }
+            catch { return null; }
+        }
+
         private static readonly Guid DxgiProvider = new Guid("CA11C036-0102-4A2D-A6AD-F03CFED5D3C9");   // Microsoft-Windows-DXGI
         private static readonly Guid D3D9Provider = new Guid("783ACA0A-790E-4D7F-8451-AA850511C6B9");   // Microsoft-Windows-D3D9
         private const ushort DxgiPresentStart = 42;
@@ -551,7 +576,7 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// Fecha uma sessão "MouseModes Frame X-ray" que tenha sobrado (o app caiu no meio de uma partida), pelo nome.
+        /// Fecha a sessão desta conta que tenha sobrado (o app caiu no meio de uma partida), pelo nome (SessionName).
         /// Não ter sessão aberta ou não ter permissão para fechá-la não é erro: não faz nada.
         /// </summary>
         internal static void StopLeftover()

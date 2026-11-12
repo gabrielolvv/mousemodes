@@ -108,7 +108,7 @@ namespace MouseModes.Tests
             var expectedMachineOnly = new HashSet<string>
             {
                 "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-                "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
+                "ResolutionChanged", "FramePermissionAsked", "FramePermissionGranted", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
             };
             Assert.Equal(expectedMachineOnly, new HashSet<string>(AppConfig.MachineOnly));
             foreach (string name in AppConfig.MachineOnly)

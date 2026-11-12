@@ -127,21 +127,41 @@ namespace MouseModes
             }
 
             bool ok = true;
+            bool planSettled = false;
             // Mesma regra da abertura: se ficou no Performance, volta ao Dia a dia (com o plano anterior).
             ok &= Step(L.T("Desinstalação: modo Dia a dia", "Uninstall: Daily mode"), () =>
             {
                 var modes = new ModeManager(cfg);
                 modes.Start();
-                modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
+                planSettled = modes.WaitForPower(15000); // o processo termina logo depois: o powercfg precisa acabar antes
             });
             ok &= Step(L.T("Desinstalação: notificações", "Uninstall: notifications"), () => NotificationSilencer.Restore(cfg)); // só se ficaram silenciadas
             ok &= Step(L.T("Desinstalação: segundo plano calmo", "Uninstall: calm background"), () => BackgroundCalmer.Recover(cfg));
-            // Sem o app não haverá próxima vez na tomada: devolve o modo de energia mesmo na bateria.
+            // Na bateria não mexe: o Windows trocaria o modo da bateria, e o guardado é o da tomada.
             ok &= Step(L.T("Desinstalação: modo de energia", "Uninstall: power mode"), () =>
             {
-                if (!new PowerModeKeeper(cfg).Restore(true))
+                var keeper = new PowerModeKeeper(cfg);
+                if (cfg.PowerModeBackup != null && !keeper.OnAC)
+                    Log.Warn(L.T("Desinstalação na bateria: o modo de energia da tomada pode ter ficado em Melhor desempenho; ajuste em Configurações → Energia com o PC na tomada",
+                                 "Uninstall on battery: the plugged-in power mode may have stayed on Best performance; set it in Settings → Power while plugged in"));
+                else if (!keeper.Restore())
                     Log.Warn(L.T("Desinstalação: o modo de energia do Windows não voltou; ajuste em Configurações → Energia",
                                  "Uninstall: the Windows power mode did not go back; set it in Settings → Power"));
+            });
+            // A sessão de leitura dos quadros desta conta, se o app caiu no meio de uma partida.
+            ok &= Step(L.T("Desinstalação: leitura dos quadros", "Uninstall: frame reading"), () => FrameProbe.StopLeftover());
+            ok &= Step(L.T("Desinstalação: permissão do Caça-travadinhas", "Uninstall: stutter finder permission"), () => RemoveFramePermission(cfg));
+            // Depois do Dia a dia: o plano que ele deixou ativo nunca é apagado. Com a troca de plano ainda rodando, o ativo
+            // pode mudar a qualquer momento: as cópias ficam.
+            ok &= Step(L.T("Desinstalação: cópias de planos de energia", "Uninstall: power plan copies"), () =>
+            {
+                if (!planSettled)
+                {
+                    Log.Warn(L.T("Desinstalação: plano de energia ainda trocando; cópias de planos do app ficam", "Uninstall: power plan still changing; the app's plan copies stay"));
+                    return;
+                }
+                PowerSettings.DeletePlanCopies(cfg);
+                cfg.Save();
             });
             ok &= Step(L.T("Desinstalação: resolução", "Uninstall: resolution"), () => GameResolution.Recover(cfg));
             ok &= Step(L.T("Desinstalação: limites de FPS", "Uninstall: FPS limits"), () => RemoveFpsCaps(cfg));
@@ -162,6 +182,32 @@ namespace MouseModes
                 Log.Error(what, ex);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Tira a conta do grupo "Performance Log Users" só se foi o app que pôs (FramePermissionGranted). Abre o pedido de
+        /// administrador do Windows; a espera tem limite para a desinstalação nunca ficar parada nele.
+        /// </summary>
+        private static void RemoveFramePermission(AppConfig cfg)
+        {
+            if (!cfg.FramePermissionGranted) return;
+            string error = L.T("o Windows não respondeu em 90 s", "Windows did not answer within 90 s");
+            var worker = new Thread(() =>
+            {
+                try { error = FramePermission.Change(false); }
+                catch (Exception ex) { error = ex.Message; }
+            }) { IsBackground = true, Name = "MouseModes permissão dos quadros" };
+            worker.Start();
+            worker.Join(90000);
+            if (error != null)
+            {
+                Log.Warn(L.T("Desinstalação: a conta continua no grupo Performance Log Users (", "Uninstall: the account is still in Performance Log Users (") + error + ")");
+                return;
+            }
+            cfg.FramePermissionGranted = false;
+            cfg.FramePermissionAsked = false;
+            cfg.Save();
+            Log.Info(L.T("Desinstalação: conta tirada do grupo Performance Log Users", "Uninstall: account removed from Performance Log Users"));
         }
 
         /// <summary>

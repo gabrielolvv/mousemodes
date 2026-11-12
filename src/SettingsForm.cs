@@ -268,6 +268,7 @@ namespace MouseModes
                 return;
             }
             cfg.FramePermissionAsked = allow;
+            cfg.FramePermissionGranted = allow; // só o Change muda; o Asked some quando a permissão passa a valer, este fica
             try { cfg.Save(); } catch (Exception ex) { Log.Error(L.T("Salvar configuração", "Save settings"), ex); } // vale mesmo com Cancelar
             Log.Info(allow ? L.T("Caça-travadinhas: conta posta no grupo Performance Log Users", "Stutter finder: account added to Performance Log Users")
                            : L.T("Caça-travadinhas: conta tirada do grupo Performance Log Users", "Stutter finder: account removed from Performance Log Users"));

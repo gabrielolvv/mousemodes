@@ -1132,22 +1132,29 @@ namespace MouseModes
             Log.Info(L.T("Windows encerrando a sessão", "Windows is ending the session"));
             gameTimer.Stop();   // nada de voltar ao Performance com o jogo ainda fechando
             updateTimer.Stop();
-            try { recorder.Abort(); } // fecha a leitura dos quadros, sem relatório
-            catch (Exception ex) { Log.Error(L.T("Encerrar o Raio-X da partida", "Stop the match X-ray"), ex); }
 
+            // Primeiro o que fica no Windows (plano, USB, modo de energia); o Raio-X, que só lê, fecha por último.
             if (cfg.RestoreDailyOnExit && modes.Current == Mode.Performance)
             {
                 quiet = true;
                 // O mouse volta na hora; plano e USB numa thread de fundo, com pouco tempo (o Windows não espera muito).
                 try { modes.Apply(Mode.DiaADia, L.T("Windows encerrando a sessão", "Windows is ending the session")); }
                 catch (Exception ex) { Log.Error(L.T("Voltar ao Dia a dia", "Go back to Daily"), ex); }
-                modes.WaitForPower(4000);
+                if (!modes.WaitForPower(4000))
+                {
+                    // O Apply já gravou Dia a dia, mas plano e USB podem não ter voltado antes de o Windows encerrar o
+                    // processo. Grava Performance: a próxima abertura aplica o Dia a dia de novo (inofensivo se já voltou).
+                    cfg.LastMode = Mode.Performance;
+                    SaveConfig();
+                }
                 try { powerMode.Restore(); }
                 catch (Exception ex) { Log.Error(L.T("Devolver o modo de energia", "Restore the power mode"), ex); }
             }
             try { RestoreGameTimeTweaks(); }
             catch (Exception ex) { Log.Error(L.T("Desfazer os extras do jogo", "Undo the game extras"), ex); }
             SaveConfig();
+            try { recorder.Abort(); } // fecha a leitura dos quadros, sem relatório (a próxima abertura fecha a que sobrar)
+            catch (Exception ex) { Log.Error(L.T("Encerrar o Raio-X da partida", "Stop the match X-ray"), ex); }
         }
 
         /// <summary>

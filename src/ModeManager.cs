@@ -263,17 +263,25 @@ namespace MouseModes
         /// <summary>
         /// Guarda o plano de energia ativo antes de o Performance trocar. Sempre, e não só com o Dia a dia em "ANTERIOR":
         /// a pessoa pode mudar o Dia a dia para "ANTERIOR" no meio do Performance, e a volta é decidida ao sair.
+        /// Roda na thread da tela: só lê pelo powrprof (sem powercfg) e não espera a thread do plano de energia.
         /// </summary>
         internal void RememberDailyPlan()
         {
-            // Com uma troca de plano em andamento (ex.: voltando ao anterior), o ativo agora não é o "de antes".
-            // Espera ela acabar; só acontece quando os modos trocam em sequência rápida.
-            if (!powerIdle.WaitOne(3000))
+            // Com uma troca de plano ainda na fila ou rodando (o jogo reaberto logo depois de fechar), o ativo agora pode
+            // ser o do Performance anterior, e o pedido do Dia a dia ainda na fila vai ser trocado pelo do Performance
+            // (só o último roda). O Dia a dia não chegou a valer: o plano "de antes" continua o guardado da última vez.
+            if (!powerIdle.WaitOne(0))
             {
                 Log.Info(L.T("Plano de energia ainda trocando; mantido o plano do Dia a dia guardado antes", "Power plan still changing; keeping the Daily plan saved before"));
                 return;
             }
-            string guid = ActivePlanReader();
+            string guid;
+            try { guid = ValidGuid(ActivePlanReader()); }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Ler o plano de energia ativo", "Read the active power plan"), ex);
+                return;
+            }
             if (guid == null || guid == cfg.DailyPlanGuid) return;
             cfg.DailyPlanGuid = guid;
             Log.Info(L.T("Plano de energia do Dia a dia guardado: ", "Daily power plan saved: ") + guid);

@@ -167,6 +167,12 @@ namespace MouseModes
         /// </summary>
         public bool FramePermissionAsked { get; set; }
 
+        /// <summary>
+        /// O app pôs esta conta no grupo "Performance Log Users" (e ainda não tirou): a desinstalação tira. Se a conta já
+        /// estava no grupo por outro motivo, o app não mexe. Só deste PC.
+        /// </summary>
+        public bool FramePermissionGranted { get; set; }
+
         /// <summary>A resolução de um jogo está na tela agora (para desfazer após travamento). Só deste PC.</summary>
         public bool ResolutionChanged { get; set; }
 
@@ -238,7 +244,7 @@ namespace MouseModes
         internal static readonly string[] MachineOnly =
         {
             "LastMode", "DailyPlanGuid", "PlanCopies", "NotificationBackup", "CalmBackup", "LastUpdateCheck", "NotifiedVersion",
-            "ResolutionChanged", "FramePermissionAsked", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
+            "ResolutionChanged", "FramePermissionAsked", "FramePermissionGranted", "FpsCapsApplied", "PowerModeBackup", "UsbSuspendSeeded", "GameExes"
         };
 
         /// <summary>Cópia para exportar: todas as configurações, sem o que só vale neste PC.</summary>
@@ -258,6 +264,7 @@ namespace MouseModes
             copy.NotifiedVersion = null;
             copy.ResolutionChanged = false;
             copy.FramePermissionAsked = false;
+            copy.FramePermissionGranted = false;
             copy.FpsCapsApplied = new List<string>();
             copy.PowerModeBackup = null;
             copy.UsbSuspendSeeded = false;
@@ -284,6 +291,12 @@ namespace MouseModes
                 prop.SetValue(this, prop.GetValue(other, null), null);
             }
             if (Hotkey < 0 || Hotkey >= HotkeyWindow.Choices.Length) Hotkey = 0;
+        }
+
+        /// <summary>Cópia da lista de cópias de planos, para percorrer sem a thread do plano de energia mexer junto.</summary>
+        public List<PlanCopy> PlanCopiesSnapshot()
+        {
+            lock (planCopiesGate) return new List<PlanCopy>(PlanCopies);
         }
 
         public void RememberPlanCopy(string template, string guid)

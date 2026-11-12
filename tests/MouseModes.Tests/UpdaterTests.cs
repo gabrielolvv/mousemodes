@@ -151,8 +151,13 @@ namespace MouseModes.Tests
         {
             using (var temp = new TempFolder())
             {
+                // Bytes que não são um executável: se a conferência do caminho regredir, o Windows recusa rodar isto (o
+                // teste falha sem abrir nada, nem o app de verdade).
                 string other = temp.File("MouseModes-Setup.exe");
-                File.Copy(typeof(Updater).Assembly.Location, other);
+                var bytes = new byte[64 * 1024];
+                new Random(42).NextBytes(bytes);
+                bytes[0] = (byte)'#';
+                File.WriteAllBytes(other, bytes);
                 Updater.Remember(null, null, null);
 
                 Assert.False(Updater.Install(other));

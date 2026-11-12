@@ -88,24 +88,19 @@ namespace MouseModes
             if (!Restore()) restoreFailed = true;
         }
 
-        /// <summary>Devolve o modo de energia de antes, se o app trocou e o PC está na tomada.</summary>
+        /// <summary>
+        /// Devolve o modo de energia de antes, se o app trocou e o PC está na tomada. O backup só some quando o modo voltou
+        /// ou quando a pessoa já trocou por conta própria; se o Windows não deixou ler ou trocar, fica guardado para tentar
+        /// de novo. false = ainda falta devolver.
+        /// </summary>
+        /// <remarks>
+        /// Na bateria nem lê nem troca: lá o Windows lê e grava o modo da bateria, e o backup é o da tomada. Mexer agora
+        /// trocaria o modo da bateria da pessoa e deixaria o da tomada em Melhor desempenho.
+        /// </remarks>
         public bool Restore()
         {
-            return Restore(false);
-        }
-
-        /// <summary>
-        /// Devolve o modo de energia de antes. O backup só some quando o modo voltou ou quando a pessoa já trocou por conta
-        /// própria; se o Windows não deixou ler ou trocar, fica guardado para tentar de novo. false = ainda falta devolver.
-        /// </summary>
-        /// <param name="evenOnBattery">
-        /// Desinstalação: não haverá próxima vez na tomada, então tenta mesmo na bateria. Lá o Windows mostra o modo da
-        /// bateria; como o app nunca põe Melhor desempenho na bateria, só troca se ler Melhor desempenho.
-        /// </param>
-        public bool Restore(bool evenOnBattery)
-        {
             if (cfg.PowerModeBackup == null) return true;
-            if (!evenOnBattery && !windows.OnAC) return false;
+            if (!windows.OnAC) return false;
             Guid previous;
             if (!Guid.TryParse(cfg.PowerModeBackup, out previous))
             {

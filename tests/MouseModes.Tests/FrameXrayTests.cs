@@ -201,6 +201,24 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void SessionName_IsPerWindowsAccount()
+        {
+            // As sessões ETW valem para o PC inteiro: cada conta usa a sua, e a limpeza não fecha a de outra conta.
+            string one = FrameProbe.SessionNameFor("S-1-5-21-1-2-3-1001");
+            string other = FrameProbe.SessionNameFor("S-1-5-21-1-2-3-1002");
+
+            Assert.NotEqual(one, other);
+            Assert.Equal(one, FrameProbe.SessionNameFor("S-1-5-21-1-2-3-1001"));
+            Assert.StartsWith("MouseModes Frame X-ray", one);
+            Assert.Equal("MouseModes Frame X-ray", FrameProbe.SessionNameFor(null));
+
+            // A desta conta (só lê o SID; não abre sessão nenhuma) cabe no espaço que o Windows dá para o nome.
+            string mine = FrameProbe.SessionName;
+            Assert.NotEqual("MouseModes Frame X-ray", mine);
+            Assert.True(mine.Length < 1024, mine);
+        }
+
+        [Fact]
         public void FramePermission_IsReadFromTheTokenWithoutErrors()
         {
             // Só lê o token desta sessão (o grupo e o administrador); não muda nada no Windows.

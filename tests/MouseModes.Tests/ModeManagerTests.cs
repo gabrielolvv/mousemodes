@@ -177,6 +177,45 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void RememberDailyPlan_DoesNotWaitForAPlanChangeStillRunning()
+        {
+            // Jogo reaberto logo depois de fechar: a volta ao Dia a dia ainda está na fila. A tela não espera, e o plano
+            // ativo agora (ainda o do Performance) não vira o "de antes".
+            var cfg = new AppConfig { DailyPlanGuid = "381b4222-f694-41f0-9685-ff5bb260df2e" };
+            ModeManager modes = NewManager(cfg);
+            delayMs = 1500;
+            int reads = 0;
+            modes.ActivePlanReader = () => { reads++; return activePlan; };
+            modes.QueuePower(Plan(PowerPlanOption.NaoAlterar), "381b4222-f694-41f0-9685-ff5bb260df2e");
+
+            var clock = Stopwatch.StartNew();
+            modes.RememberDailyPlan();
+            Assert.True(clock.ElapsedMilliseconds < 500, "a tela não pode esperar o plano de energia: " + clock.ElapsedMilliseconds + " ms");
+
+            Assert.Equal(0, reads);
+            Assert.Equal("381b4222-f694-41f0-9685-ff5bb260df2e", cfg.DailyPlanGuid);
+            Assert.True(modes.WaitForPower(5000));
+
+            modes.RememberDailyPlan(); // fila vazia: lê e guarda o ativo
+            Assert.Equal(1, reads);
+            Assert.Equal(activePlan, cfg.DailyPlanGuid);
+        }
+
+        [Fact]
+        public void RememberDailyPlan_IgnoresAnUnreadablePlan()
+        {
+            var cfg = new AppConfig { DailyPlanGuid = "381b4222-f694-41f0-9685-ff5bb260df2e" };
+            ModeManager modes = NewManager(cfg);
+
+            modes.ActivePlanReader = () => null;
+            modes.RememberDailyPlan();
+            modes.ActivePlanReader = () => { throw new InvalidOperationException("powrprof de mentira"); };
+            modes.RememberDailyPlan();
+
+            Assert.Equal("381b4222-f694-41f0-9685-ff5bb260df2e", cfg.DailyPlanGuid);
+        }
+
+        [Fact]
         public void SetGameFocused_DoesNothingOutsidePerformance()
         {
             AppConfig cfg = new AppConfig { MouseOnlyWhenGameFocused = true, Daily = new MouseProfile() };
