@@ -11,10 +11,11 @@ namespace MouseModes.Tests
         {
             public readonly Label Last;
 
-            public TallWindow(int height) : base("Teste", true)
+            /// <param name="bottomMargin">Espaço vazio abaixo do último controle (as janelas do app têm 12 a 18 px).</param>
+            public TallWindow(int height, int bottomMargin = 20) : base("Teste", true)
             {
                 ClientSize = new Size(400, height);
-                Last = Note("fim", 20, height - 40, 360, 20, Theme.Muted);
+                Last = Note("fim", 20, height - bottomMargin - 20, 360, 20, Theme.Muted);
                 Controls.Add(Last);
                 FinishLayout();
             }
@@ -33,8 +34,8 @@ namespace MouseModes.Tests
 
                 Assert.True(window.FitToWorkingArea(new Rectangle(0, 0, 1920, 600)));
 
-                Assert.Equal(580, window.Height);
-                Assert.Equal(10, window.Top);
+                Assert.Equal(600, window.Height); // a área útil inteira, sem sobra
+                Assert.Equal(0, window.Top);
                 Assert.Same(window, window.Bar.Parent); // a barra de título não rola
                 Assert.NotNull(window.Scroller);
                 Assert.True(window.Scroller.AutoScroll);
@@ -44,6 +45,56 @@ namespace MouseModes.Tests
                 Assert.True(window.Scroller.Bottom <= window.ClientSize.Height);
 
                 Assert.False(window.FitToWorkingArea(new Rectangle(0, 0, 1920, 600))); // uma vez só
+            }
+        }
+
+        [Fact]
+        public void FitToWorkingArea_OnlyCutsTheEmptyBottomMarginWhenTheControlsFit()
+        {
+            // Windows 11 em 1366x768 a 100%: área útil de 720 px e a janela principal com 724 px.
+            using (var window = new TallWindow(724, 14))
+            {
+                int width = window.Width;
+                int bottom = window.Last.Bottom;
+
+                Assert.False(window.FitToWorkingArea(new Rectangle(0, 0, 1366, 720)));
+
+                Assert.Null(window.Scroller);
+                Assert.Same(window, window.Last.Parent);
+                Assert.Equal(bottom, window.Last.Bottom);
+                Assert.Equal(720, window.Height);
+                Assert.Equal(0, window.Top);
+                Assert.Equal(width, window.Width);
+                Assert.True(window.Last.Bottom <= window.ClientSize.Height - 1); // acima da borda
+            }
+        }
+
+        [Fact]
+        public void FitToWorkingArea_UsesTheTopOfTheWorkingArea()
+        {
+            // 1080p a 150% com a barra de tarefas em cima: Ajustes com 1020 px numa área de 1008 que começa em 72.
+            using (var window = new TallWindow(1020, 18))
+            {
+                Assert.False(window.FitToWorkingArea(new Rectangle(0, 72, 1280, 1008)));
+
+                Assert.Null(window.Scroller);
+                Assert.Equal(1008, window.Height);
+                Assert.Equal(72, window.Top);
+            }
+        }
+
+        [Fact]
+        public void FitToWorkingArea_ScrollsWhenTheLastControlDoesNotFit()
+        {
+            // Só 2 px de margem: o último controle passaria da área útil.
+            using (var window = new TallWindow(724, 2))
+            {
+                Assert.True(window.FitToWorkingArea(new Rectangle(0, 30, 1366, 720)));
+
+                Assert.NotNull(window.Scroller);
+                Assert.Equal(720, window.Height);
+                Assert.Equal(30, window.Top);
+                Assert.Same(window.Scroller, window.Last.Parent);
             }
         }
 

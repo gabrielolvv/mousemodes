@@ -460,24 +460,60 @@ namespace MouseModes
             bool stutters = frames != null && frames.StutterCount > 0;
             bool throttled = cpu != null && cpu.Limited;
             if ((report.Culprits.Count == 0 && !badNetwork && !stutters && !throttled) || !cfg.ShowNotifications) return;
-            string text = "";
-            if (frames != null) text = frames.Summary() + ".\n";
+            // Em ordem de importância: o que pesou em segundo plano (é o que dá para resolver), as travadinhas, a rede e o processador.
+            var body = new List<string>();
             if (report.Culprits.Count > 0)
             {
                 Culprit top = report.Culprits[0];
-                text += top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").\n";
+                body.Add(top.Name + L.T(" foi o que mais pesou em segundo plano (", " weighed the most in the background (") + MatchReport.Describe(top) + ").");
             }
+            if (frames != null) body.Add(frames.Summary() + ".");
             if (badNetwork)
-                text += L.T("Rede: ", "Network: ") +
-                        (net.SpikeCount > 0
-                            ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
-                            : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
-                        NetSource(net) + ".\n";
+                body.Add(L.T("Rede: ", "Network: ") +
+                         (net.SpikeCount > 0
+                             ? net.SpikeCount + L.T(" pico(s) de ping", " ping spike(s)")
+                             : L.T("perda de ", "") + net.LossPercent.ToString("0.#") + L.T("% dos pings", "% ping loss")) +
+                         NetSource(net) + ".");
             if (throttled)
-                text += L.T("Processador freado ", "CPU throttled for ") + CpuSpeedReport.Span(cpu.LimitedSeconds) +
-                        L.T(" (até ", " (down to ") + Math.Round(cpu.LowestLimit) + L.T("% da velocidade).\n", "% speed).\n");
-            ShowBalloonWithAction(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game,
-                text + L.T("Clique para ver e resolver.", "Click to see and fix it."), ToolTipIcon.Info, OpenReport);
+                body.Add(L.T("Processador freado ", "CPU throttled for ") + CpuSpeedReport.Span(cpu.LimitedSeconds) +
+                         L.T(" (até ", " (down to ") + Math.Round(cpu.LowestLimit) + L.T("% da velocidade).", "% speed)."));
+            ShowBalloonWithAction(FitBalloonTitle(L.T("Raio-X da partida: ", "Match X-ray: ") + report.Game),
+                MatchBalloonText(body, L.T("Clique para ver e resolver.", "Click to see and fix it.")), ToolTipIcon.Info, OpenReport);
+        }
+
+        /// <summary>Limites do Windows para o aviso da bandeja (sem o caractere nulo do fim): o resto é cortado.</summary>
+        internal const int BalloonTextMax = 255;
+        internal const int BalloonTitleMax = 63;
+
+        /// <summary>
+        /// Texto do aviso do fim da partida: até 3 linhas, na ordem recebida (a mais importante primeiro), e a chamada
+        /// para clicar sempre inteira no fim. Se passar do limite do Windows, saem as últimas linhas e, sobrando uma só
+        /// longa demais, ela termina em "…".
+        /// </summary>
+        internal static string MatchBalloonText(IList<string> lines, string action)
+        {
+            action = action ?? "";
+            var kept = new List<string>();
+            foreach (string line in lines)
+                if (!string.IsNullOrEmpty(line) && kept.Count < 3) kept.Add(line);
+
+            int room = BalloonTextMax - action.Length - 1; // o "\n" antes da chamada
+            string body = string.Join("\n", kept.ToArray());
+            while (kept.Count > 1 && body.Length > room)
+            {
+                kept.RemoveAt(kept.Count - 1);
+                body = string.Join("\n", kept.ToArray());
+            }
+            if (body.Length == 0 || room < 2) return action.Length > BalloonTextMax ? action.Substring(0, BalloonTextMax) : action;
+            if (body.Length > room) body = body.Substring(0, room - 1).TrimEnd() + "…";
+            return body + "\n" + action;
+        }
+
+        /// <summary>Título do aviso dentro do limite do Windows (nome de jogo longo termina em "…").</summary>
+        internal static string FitBalloonTitle(string title)
+        {
+            title = title ?? "";
+            return title.Length <= BalloonTitleMax ? title : title.Substring(0, BalloonTitleMax - 1).TrimEnd() + "…";
         }
 
         /// <summary>", vindos do Wi-Fi" para o aviso (vazio se não deu para saber).</summary>

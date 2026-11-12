@@ -774,9 +774,14 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = Begin(e);
-            Theme.DrawSpaced(g, (Text ?? "").ToUpperInvariant(), Theme.Ui(7.5f, FontStyle.Bold), Theme.Muted, 0, 3, 1.8f);
-            if (!string.IsNullOrEmpty(RightText))
-                Theme.DrawText(g, RightText, Theme.Display(10f), RightColor, new RectangleF(0, 0, Width, Height), StringAlignment.Far, StringAlignment.Center, false);
+            string title = (Text ?? "").ToUpperInvariant();
+            Font titleFont = Theme.Ui(7.5f, FontStyle.Bold);
+            Theme.DrawSpaced(g, title, titleFont, Theme.Muted, 0, 3, 1.8f);
+            if (string.IsNullOrEmpty(RightText)) return;
+            // Só no espaço que sobra à direita do título: texto longo termina em "…" em vez de passar por cima dele.
+            float left = title.Length > 0 ? Theme.MeasureSpaced(g, title, titleFont, 1.8f).Width + 8 : 0;
+            if (left >= Width) return;
+            Theme.DrawText(g, RightText, Theme.Display(10f), RightColor, new RectangleF(left, 0, Width - left, Height), StringAlignment.Far, StringAlignment.Center, false);
         }
     }
 

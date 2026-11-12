@@ -707,9 +707,30 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// Ao lado do título do limite: para qual executável e placa ele vai (ou que a placa não tem limitador). A lista
-        /// guarda o começo do nome: sem o jogo ter sido visto aberto, ainda não se sabe o executável exato.
+        /// O executável que aparece ao lado do limite: o que vai receber o limite (FpsCap.TargetExe). Sem o jogo ter
+        /// sido visto aberto é um palpite (o nome da lista com ".exe"), marcado com "?". Só pede para abrir o jogo quando
+        /// há limite escolhido e o item é com certeza um começo de nome (ClearlyPrefix): aí o palpite certamente erra.
         /// </summary>
+        internal static string FpsTargetText(AppConfig cfg, string game, int choice)
+        {
+            string exe = FpsCap.TargetExe(cfg, game);
+            if (cfg.SeenGameExe(game) != null) return exe;
+            if (choice != 0 && ClearlyPrefix(game)) return L.T("abra o jogo uma vez", "open the game once");
+            return exe + "?";
+        }
+
+        /// <summary>
+        /// O item da lista termina num separador ("FiveM_", "Jogo-"): nenhum executável de jogo termina assim, então é
+        /// só o começo do nome. Fora isso não dá para saber ("cs2" é o nome inteiro, "FiveM" é começo de
+        /// "FiveM_b3095_GTAProcess"), e o palpite com ".exe" fica valendo.
+        /// </summary>
+        internal static bool ClearlyPrefix(string game)
+        {
+            string name = GameDetector.Normalize(game);
+            return name.Length > 0 && "-_.".IndexOf(name[name.Length - 1]) >= 0;
+        }
+
+        /// <summary>Ao lado do título do limite: para qual executável e placa ele vai (ou que a placa não tem limitador).</summary>
         private void ShowFpsTarget()
         {
             if (current == null) return;
@@ -719,7 +740,7 @@ namespace MouseModes
                 limiter = FpsCap.Detect();
             }
             int choice = FpsCap.Options[Math.Max(0, fps.SelectedIndex)];
-            string target = cfg.SeenGameExe(current.Name) != null ? FpsCap.TargetExe(cfg, current.Name) : L.T("abra o jogo uma vez", "open the game once");
+            string target = FpsTargetText(cfg, current.Name, choice);
             if (limiter == null)
                 fpsLabel.RightText = L.T("esta placa não tem limitador", "this card has no limiter");
             else if (choice == 0)

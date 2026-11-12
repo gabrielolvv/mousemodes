@@ -77,5 +77,37 @@ namespace MouseModes.Tests
                 Assert.False(cfg.AutoSwitch);
             }
         }
+
+        [Fact]
+        public void FpsTargetText_ShowsTheExeTheCapGoesTo()
+        {
+            var cfg = new AppConfig();
+            cfg.Games.AddRange(new[] { "cs2", "FortniteClient", "FiveM_" });
+
+            // Ainda não visto: o nome da lista com ".exe", que é para onde o limite vai mesmo, marcado como palpite.
+            Assert.Equal("cs2.exe?", GamesPanel.FpsTargetText(cfg, "cs2", 144));
+            Assert.Equal("cs2.exe?", GamesPanel.FpsTargetText(cfg, "cs2", 0));
+            Assert.Equal("fortniteclient.exe?", GamesPanel.FpsTargetText(cfg, "FortniteClient", 0));
+
+            // Visto aberto: o executável exato, sem "?".
+            Assert.True(cfg.RememberGameExe("FortniteClient-Win64-Shipping"));
+            Assert.Equal("fortniteclient-win64-shipping.exe", GamesPanel.FpsTargetText(cfg, "FortniteClient", 144));
+
+            // Começo de nome com certeza: com limite, pede para abrir o jogo; sem limite, não pede nada.
+            Assert.Equal("abra o jogo uma vez", GamesPanel.FpsTargetText(cfg, "FiveM_", 144));
+            Assert.Equal("fivem_.exe?", GamesPanel.FpsTargetText(cfg, "FiveM_", 0));
+        }
+
+        [Fact]
+        public void ClearlyPrefix_OnlyForNamesEndingInASeparator()
+        {
+            Assert.True(GamesPanel.ClearlyPrefix("FiveM_"));
+            Assert.True(GamesPanel.ClearlyPrefix("Jogo-"));
+            Assert.False(GamesPanel.ClearlyPrefix("cs2"));
+            Assert.False(GamesPanel.ClearlyPrefix("cs2.exe"));
+            Assert.False(GamesPanel.ClearlyPrefix("League of Legends"));
+            Assert.False(GamesPanel.ClearlyPrefix(""));
+            Assert.False(GamesPanel.ClearlyPrefix(null));
+        }
     }
 }

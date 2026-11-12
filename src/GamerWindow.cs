@@ -94,8 +94,10 @@ namespace MouseModes
         }
 
         /// <summary>
-        /// Se a janela passar da área útil, passa o conteúdo (tudo menos a barra de título) para um painel com rolagem
-        /// e encolhe a janela até caber. Retorna true se precisou.
+        /// Se a janela passar da área útil: quando só a margem vazia de baixo sobra (alguns pixels, como 724 px numa
+        /// área de 720), encosta a janela no alto e corta essa margem. Se os controles mesmo não couberem, passa o
+        /// conteúdo (tudo menos a barra de título) para um painel com rolagem do tamanho da área útil.
+        /// Retorna true se criou a rolagem.
         /// </summary>
         internal bool FitToWorkingArea(Rectangle area)
         {
@@ -105,15 +107,28 @@ namespace MouseModes
             int contentHeight = ClientSize.Height - bar;
             int scrollBar = SystemInformation.VerticalScrollBarWidth;
             var moving = new List<Control>();
+            int lowest = bar;
             foreach (Control c in Controls)
-                if (c != TitleBar) moving.Add(c);
+            {
+                if (c == TitleBar) continue;
+                moving.Add(c);
+                lowest = Math.Max(lowest, c.Bottom);
+            }
+
+            // O último controle cabe acima da borda de 1 px: basta perder parte da margem vazia, sem rolagem.
+            if (lowest <= area.Height - 1)
+            {
+                Top = area.Top;
+                Height = Math.Min(Height, area.Height);
+                return false;
+            }
 
             SuspendLayout();
             // Mais larga pela barra de rolagem: o conteúdo continua com a largura de antes.
             Width += scrollBar;
             Left = Math.Max(area.Left, Math.Min(Left - scrollBar / 2, area.Right - Width));
-            Height = Math.Max(bar * 3, area.Height - 20);
-            Top = area.Top + 10;
+            Height = Math.Max(bar * 3, area.Height);
+            Top = area.Top;
 
             // Dentro da borda de 1 px que a janela desenha.
             var panel = new Panel
