@@ -753,7 +753,30 @@ namespace MouseModes
     /// <summary>Título de seção em caixa alta, com texto opcional à direita.</summary>
     public class SectionLabel : GControl
     {
-        public string RightText { get; set; }
+        private string rightText;
+        private string[] rightTextOptions;
+
+        /// <summary>Texto da direita. Gravar aqui descarta as alternativas de RightTextOptions.</summary>
+        public string RightText
+        {
+            get { return rightText; }
+            set { rightText = value; rightTextOptions = null; }
+        }
+
+        /// <summary>
+        /// Versões do texto da direita, da mais longa para a mais curta: desenha a primeira que cabe ao lado do título;
+        /// só a última termina em "…" quando nem ela cabe. Gravar aqui põe a primeira em RightText.
+        /// </summary>
+        public string[] RightTextOptions
+        {
+            get { return rightTextOptions; }
+            set
+            {
+                rightTextOptions = value != null && value.Length > 0 ? value : null;
+                rightText = rightTextOptions != null ? rightTextOptions[0] : "";
+            }
+        }
+
         public Color RightColor { get; set; }
 
         public SectionLabel()
@@ -781,7 +804,27 @@ namespace MouseModes
             // Só no espaço que sobra à direita do título: texto longo termina em "…" em vez de passar por cima dele.
             float left = title.Length > 0 ? Theme.MeasureSpaced(g, title, titleFont, 1.8f).Width + 8 : 0;
             if (left >= Width) return;
-            Theme.DrawText(g, RightText, Theme.Display(10f), RightColor, new RectangleF(left, 0, Width - left, Height), StringAlignment.Far, StringAlignment.Center, false);
+            Font font = Theme.Display(10f);
+            string text = RightText;
+            if (rightTextOptions != null && rightTextOptions.Length > 1)
+            {
+                // A versão mais completa que cabe inteira: o "…" nunca come o fim (o executável e o "?" do palpite).
+                var widths = new float[rightTextOptions.Length];
+                using (var format = new StringFormat { FormatFlags = StringFormatFlags.NoWrap })
+                    for (int i = 0; i < widths.Length; i++)
+                        widths[i] = g.MeasureString(rightTextOptions[i] ?? "", font, PointF.Empty, format).Width;
+                text = rightTextOptions[FirstThatFits(widths, Width - left)];
+            }
+            Theme.DrawText(g, text, font, RightColor, new RectangleF(left, 0, Width - left, Height), StringAlignment.Far, StringAlignment.Center, false);
+        }
+
+        /// <summary>Índice da primeira largura (da mais longa para a mais curta) que cabe no espaço; nenhuma cabe: a última.</summary>
+        internal static int FirstThatFits(float[] widths, float space)
+        {
+            if (widths == null || widths.Length == 0) return 0;
+            for (int i = 0; i < widths.Length - 1; i++)
+                if (widths[i] <= space) return i;
+            return widths.Length - 1;
         }
     }
 

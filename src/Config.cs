@@ -376,9 +376,10 @@ namespace MouseModes
 
         /// <summary>
         /// Como RememberGameExe(process), com todos os processos de jogo abertos: quando um item da lista pega vários
-        /// (FiveM.exe e FiveM_b3095_GTAProcess.exe), fica o que usa mais memória — o jogo, não o launcher.
+        /// (FiveM.exe e FiveM_b3095_GTAProcess.exe), fica o que usa mais memória — o jogo, não o launcher. Com
+        /// <paramref name="watch"/> (a checagem periódica), só troca quando ela deixa (GameExeWatch.Pick).
         /// </summary>
-        public bool RememberGameExe(IList<RunningGame> running)
+        public bool RememberGameExe(IList<RunningGame> running, GameExeWatch watch = null)
         {
             if (running == null || running.Count == 0) return false;
             bool changed = GameExes.RemoveAll(line =>
@@ -392,7 +393,13 @@ namespace MouseModes
             {
                 string prefix = GameDetector.Normalize(entry);
                 if (prefix.Length == 0) continue;
-                string process = GameDetector.Biggest(prefix, running);
+                string process;
+                if (watch != null)
+                {
+                    RunningGame pick = watch.Pick(prefix, running, SeenGameExe(prefix));
+                    process = pick != null ? pick.Name : null;
+                }
+                else process = GameDetector.Biggest(prefix, running);
                 if (process == null) continue;
                 if (string.Equals(SeenGameExe(prefix), process, StringComparison.OrdinalIgnoreCase)) continue;
                 GameExes.RemoveAll(line => line.StartsWith(prefix + "|", StringComparison.OrdinalIgnoreCase));

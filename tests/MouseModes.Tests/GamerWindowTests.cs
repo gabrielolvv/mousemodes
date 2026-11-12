@@ -4,7 +4,11 @@ using Xunit;
 
 namespace MouseModes.Tests
 {
-    /// <summary>Janela mais alta que a tela (escala do Windows alta): sem mostrar nada, só a disposição dos controles.</summary>
+    /// <summary>
+    /// Janela mais alta que a tela (escala do Windows alta): sem mostrar nada, só a disposição dos controles.
+    /// O WinForms limita a altura de uma janela a SystemInformation.MaxWindowTrackSize (altura da área virtual + 20):
+    /// no runner do GitHub (1024x768) nenhuma janela passa de 788 px, então os testes não criam janelas acima de 760.
+    /// </summary>
     public class GamerWindowTests
     {
         private sealed class TallWindow : GamerWindow
@@ -26,7 +30,7 @@ namespace MouseModes.Tests
         [Fact]
         public void FitToWorkingArea_ScrollsTheContentAndKeepsTheTitleBar()
         {
-            using (var window = new TallWindow(900))
+            using (var window = new TallWindow(760))
             {
                 int bar = window.Bar.Height;
                 int width = window.Width;
@@ -72,13 +76,14 @@ namespace MouseModes.Tests
         [Fact]
         public void FitToWorkingArea_UsesTheTopOfTheWorkingArea()
         {
-            // 1080p a 150% com a barra de tarefas em cima: Ajustes com 1020 px numa área de 1008 que começa em 72.
-            using (var window = new TallWindow(1020, 18))
+            // Barra de tarefas em cima (como 1080p a 150%, em tamanho que cabe em qualquer tela de 768 px):
+            // janela de 724 px numa área de 712 que começa em 72; o último controle termina em 706.
+            using (var window = new TallWindow(724, 18))
             {
-                Assert.False(window.FitToWorkingArea(new Rectangle(0, 72, 1280, 1008)));
+                Assert.False(window.FitToWorkingArea(new Rectangle(0, 72, 1280, 712)));
 
                 Assert.Null(window.Scroller);
-                Assert.Equal(1008, window.Height);
+                Assert.Equal(712, window.Height);
                 Assert.Equal(72, window.Top);
             }
         }

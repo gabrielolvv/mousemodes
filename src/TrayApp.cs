@@ -38,7 +38,7 @@ namespace MouseModes
         private bool fpsExeLearned;         // o detector achou o executável de um jogo: grava o limite quando ele fechar
         private bool fpsSyncDeferred;       // uma gravação automática esperou o jogo: tenta de novo quando ele fechar
         private bool fpsAdminNoticeLogged;  // já anotou no log que a gravação automática espera o administrador
-        private string gameProcessesKey;    // os processos do jogo da última checagem: o executável é reavaliado quando mudam
+        private readonly GameExeWatch gameExes = new GameExeWatch(); // processos de cada jogo vistos nesta execução
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
         private readonly WinKeyBlocker winKey;
@@ -336,12 +336,10 @@ namespace MouseModes
             else if (gameChanged) WarnIfOnBattery(game);
 
             // Limite de FPS: a lista guarda o começo do nome; o driver precisa do executável exato que abriu. Um item pode
-            // pegar vários processos (FiveM.exe e FiveM_b3095_GTAProcess.exe): vale o maior, reavaliado só quando o jogo
-            // abre ou os processos dele mudam.
-            string processesKey = running ? GameDetector.KeyOf(gameProcesses) : null;
-            bool processesChanged = processesKey != gameProcessesKey;
-            gameProcessesKey = processesKey;
-            if (running && processesChanged && cfg.RememberGameExe(gameProcesses))
+            // pegar vários processos (FiveM.exe e FiveM_b3095_GTAProcess.exe): vale o maior, reavaliado só quando abre
+            // processo novo do jogo (o launcher que sobra depois do jogo fechar não toma o lugar dele).
+            if (!running) gameExes.Clear();
+            if (running && cfg.RememberGameExe(gameProcesses, gameExes))
             {
                 SaveConfig();
                 fpsExeLearned = true;

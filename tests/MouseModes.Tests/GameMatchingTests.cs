@@ -86,14 +86,57 @@ namespace MouseModes.Tests
         }
 
         [Fact]
-        public void KeyOf_ChangesOnlyWhenTheSetOfProcessesChanges()
+        public void ShouldRepick_OnlyOnANewProcessAndNeverDownToASmallerOne()
         {
-            var a = new List<RunningGame> { new RunningGame("FiveM", 20, 1), new RunningGame("FiveM_b3095_GTAProcess", 7, 2) };
-            var sameOtherOrder = new List<RunningGame> { new RunningGame("FiveM_b3095_GTAProcess", 7, 999), new RunningGame("FiveM", 20, 5) };
-            var oneMore = new List<RunningGame>(a) { new RunningGame("FiveM_ChromeBrowser", 30, 1) };
+            Assert.False(GameExeWatch.ShouldRepick(false, false, 3000, 0));  // só fechou processo: nada a reavaliar
+            Assert.True(GameExeWatch.ShouldRepick(true, false, 300, 3000));  // lembrado de outra execução: vale o maior aberto
+            Assert.True(GameExeWatch.ShouldRepick(true, true, 3000, 3000));
+            Assert.False(GameExeWatch.ShouldRepick(true, true, 300, 3000));  // lembrado agora: o launcher não toma o lugar do jogo
+        }
 
-            Assert.Equal(GameDetector.KeyOf(a), GameDetector.KeyOf(sameOtherOrder)); // a memória muda o tempo todo: não conta
-            Assert.NotEqual(GameDetector.KeyOf(a), GameDetector.KeyOf(oneMore));
+        [Fact]
+        public void RememberGameExe_WithWatch_KeepsTheGameWhenItClosesBeforeTheLauncher()
+        {
+            var cfg = new AppConfig();
+            cfg.Games.Clear();
+            cfg.Games.Add("FiveM.exe");
+            var watch = new GameExeWatch();
+            var launcher = new RunningGame("FiveM", 10, 300L << 20);
+            var game = new RunningGame("FiveM_b3095_GTAProcess", 12, 3000L << 20);
+
+            Assert.True(cfg.RememberGameExe(new List<RunningGame> { launcher }, watch));
+            Assert.Equal("FiveM", cfg.SeenGameExe("FiveM"));
+            Assert.True(cfg.RememberGameExe(new List<RunningGame> { launcher, game }, watch));
+            Assert.Equal("FiveM_b3095_GTAProcess", cfg.SeenGameExe("FiveM"));
+
+            // O jogo fechou antes do launcher: nenhum processo novo, fica o jogo.
+            Assert.False(cfg.RememberGameExe(new List<RunningGame> { launcher }, watch));
+            Assert.Equal("FiveM_b3095_GTAProcess", cfg.SeenGameExe("FiveM"));
+
+            // Abriu um processo novo, mas o maior aberto (o launcher) é menor que o jogo já visto: fica o jogo.
+            var helper = new RunningGame("FiveM_ChromeBrowser", 30, 120L << 20);
+            Assert.False(cfg.RememberGameExe(new List<RunningGame> { launcher, helper }, watch));
+            Assert.Equal("FiveM_b3095_GTAProcess", cfg.SeenGameExe("FiveM"));
+
+            // Tudo fechou: esquece o que viu; da próxima vez vale de novo o maior que abrir.
+            watch.Clear();
+            Assert.True(cfg.RememberGameExe(new List<RunningGame> { launcher }, watch));
+            Assert.Equal("FiveM", cfg.SeenGameExe("FiveM"));
+        }
+
+        [Fact]
+        public void GameExeWatch_ForgetsAnEntryWithNothingOpen()
+        {
+            var watch = new GameExeWatch();
+            var launcher = new RunningGame("FiveM", 10, 300L << 20);
+            var game = new RunningGame("FiveM_b3095_GTAProcess", 12, 3000L << 20);
+            var other = new RunningGame("cs2", 40, 2000L << 20);
+
+            Assert.Same(game, watch.Pick("FiveM", new List<RunningGame> { launcher, game }, null));
+            // Só o cs2 aberto: o FiveM sai da memória (sem chamar Clear).
+            Assert.Null(watch.Pick("FiveM", new List<RunningGame> { other }, "FiveM_b3095_GTAProcess"));
+            // O launcher reabre sozinho: processo novo e nada visto antes, então ele vale.
+            Assert.Same(launcher, watch.Pick("FiveM", new List<RunningGame> { launcher }, "FiveM_b3095_GTAProcess"));
         }
 
         [Fact]

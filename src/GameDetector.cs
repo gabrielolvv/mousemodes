@@ -89,6 +89,87 @@ namespace MouseModes
         }
     }
 
+    /// <summary>
+    /// O que esta execução do app já viu de cada item da lista (só em memória): o executável lembrado é reavaliado só
+    /// quando abre um processo novo do item, não quando um fecha, e não cai para um menor que o maior já visto do item.
+    /// Senão, com o jogo fechado antes do launcher, o FiveM.exe tomaria o lugar do FiveM_b3095_GTAProcess.exe. Tudo de
+    /// um item é esquecido quando nenhum processo dele está aberto.
+    /// </summary>
+    public sealed class GameExeWatch
+    {
+        private sealed class Entry
+        {
+            public readonly HashSet<int> Pids = new HashSet<int>();
+            public long Largest;     // maior memória em uso já vista entre os processos do item
+            public bool Remembered;  // o executável lembrado foi escolhido (ou conferido) nesta execução
+        }
+
+        private readonly Dictionary<string, Entry> entries = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Nenhum jogo aberto: esquece tudo.</summary>
+        public void Clear()
+        {
+            entries.Clear();
+        }
+
+        /// <summary>
+        /// O processo a lembrar agora como o executável do item (o que usa mais memória), ou null para manter
+        /// <paramref name="remembered"/> (o que está lembrado).
+        /// </summary>
+        public RunningGame Pick(string entry, IList<RunningGame> running, string remembered)
+        {
+            string prefix = GameDetector.Normalize(entry);
+            if (prefix.Length == 0) return null;
+            var mine = new List<RunningGame>();
+            if (running != null)
+                foreach (RunningGame r in running)
+                    if (r != null && !string.IsNullOrEmpty(r.Name) && r.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        mine.Add(r);
+            if (mine.Count == 0)
+            {
+                entries.Remove(prefix);
+                return null;
+            }
+
+            Entry seen;
+            if (!entries.TryGetValue(prefix, out seen))
+            {
+                seen = new Entry();
+                entries[prefix] = seen;
+            }
+            bool newProcess = false;
+            RunningGame best = null;
+            foreach (RunningGame r in mine)
+            {
+                if (!seen.Pids.Contains(r.Pid)) newProcess = true;
+                if (best == null || r.WorkingSet > best.WorkingSet) best = r;
+            }
+            seen.Pids.Clear();
+            foreach (RunningGame r in mine) seen.Pids.Add(r.Pid);
+            long largestBefore = seen.Largest;
+            seen.Largest = Math.Max(seen.Largest, best.WorkingSet);
+
+            if (string.Equals(best.Name, remembered, StringComparison.OrdinalIgnoreCase))
+            {
+                seen.Remembered = true;
+                return null;
+            }
+            if (!ShouldRepick(newProcess, seen.Remembered, best.WorkingSet, largestBefore)) return null;
+            seen.Remembered = true;
+            return best;
+        }
+
+        /// <summary>
+        /// Troca o executável lembrado? Só quando abriu processo novo do item; e um lembrado nesta execução só dá
+        /// lugar a um que use pelo menos tanta memória quanto o maior já visto do item.
+        /// </summary>
+        internal static bool ShouldRepick(bool newProcess, bool rememberedThisRun, long candidateWorkingSet, long largestSeen)
+        {
+            if (!newProcess) return false;
+            return !rememberedThisRun || candidateWorkingSet >= largestSeen;
+        }
+    }
+
     /// <summary>Um processo aberto que pode ser um jogo da lista.</summary>
     public sealed class RunningGame
     {
@@ -256,15 +337,6 @@ namespace MouseModes
                 if (best == null || r.WorkingSet > best.WorkingSet) best = r;
             }
             return best != null ? best.Name : null;
-        }
-
-        /// <summary>Quais processos de jogo estão abertos (os PIDs, em ordem): muda quando um abre ou fecha.</summary>
-        internal static string KeyOf(IList<RunningGame> running)
-        {
-            var pids = new List<int>();
-            foreach (RunningGame r in running) if (r != null) pids.Add(r.Pid);
-            pids.Sort();
-            return string.Join(",", pids.ConvertAll(p => p.ToString(System.Globalization.CultureInfo.InvariantCulture)).ToArray());
         }
 
         public static string Normalize(string entry)

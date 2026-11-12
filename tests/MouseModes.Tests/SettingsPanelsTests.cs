@@ -99,6 +99,47 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void FpsLabelTexts_DropTheCardThenTheRateButNeverTheExe()
+        {
+            Assert.Equal(new[] { "144 FPS · NVIDIA · cs2.exe?", "144 FPS · cs2.exe?", "cs2.exe?" },
+                GamesPanel.FpsLabelTexts("NVIDIA", 144, 144, "cs2.exe?"));
+            Assert.Equal(new[] { "taxa desconhecida · NVIDIA · abra o jogo uma vez", "taxa desconhecida · abra o jogo uma vez", "abra o jogo uma vez" },
+                GamesPanel.FpsLabelTexts("NVIDIA", FpsCap.Auto, 0, "abra o jogo uma vez"));
+            // Sem limite escolhido não há taxa: só a placa sai.
+            Assert.Equal(new[] { "Intel Arc · fivem_.exe?", "fivem_.exe?" }, GamesPanel.FpsLabelTexts("Intel Arc", 0, 0, "fivem_.exe?"));
+        }
+
+        [Fact]
+        public void SectionLabel_DrawsTheLongestTextThatFits()
+        {
+            var widths = new[] { 300f, 180f, 90f };
+            Assert.Equal(0, SectionLabel.FirstThatFits(widths, 300f));
+            Assert.Equal(1, SectionLabel.FirstThatFits(widths, 299f));
+            Assert.Equal(2, SectionLabel.FirstThatFits(widths, 120f));
+            Assert.Equal(2, SectionLabel.FirstThatFits(widths, 40f)); // nem a última cabe: ela, com "…"
+            Assert.Equal(0, SectionLabel.FirstThatFits(new[] { 500f }, 10f));
+            Assert.Equal(0, SectionLabel.FirstThatFits(new float[0], 10f));
+        }
+
+        [Fact]
+        public void SectionLabel_RightTextStillWorksAlone()
+        {
+            using (var label = new SectionLabel())
+            {
+                label.RightTextOptions = new[] { "144 FPS · NVIDIA · cs2.exe?", "cs2.exe?" };
+                Assert.Equal("144 FPS · NVIDIA · cs2.exe?", label.RightText);
+
+                label.RightText = "esta placa não tem limitador"; // descarta as alternativas
+                Assert.Null(label.RightTextOptions);
+                Assert.Equal("esta placa não tem limitador", label.RightText);
+
+                label.RightTextOptions = new string[0];
+                Assert.Null(label.RightTextOptions);
+                Assert.Equal("", label.RightText);
+            }
+        }
+
+        [Fact]
         public void ClearlyPrefix_OnlyForNamesEndingInASeparator()
         {
             Assert.True(GamesPanel.ClearlyPrefix("FiveM_"));

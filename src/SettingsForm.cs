@@ -735,6 +735,17 @@ namespace MouseModes
             return name.Length > 0 && "-_.".IndexOf(name[name.Length - 1]) >= 0;
         }
 
+        /// <summary>
+        /// Versões do texto ao lado do limite, da mais longa para a mais curta (SectionLabel.RightTextOptions): sem
+        /// espaço, perde primeiro a placa e depois a taxa; o executável (e o "?" do palpite) fica sempre inteiro.
+        /// </summary>
+        internal static string[] FpsLabelTexts(string card, int choice, int rate, string target)
+        {
+            if (choice == 0) return new[] { card + " · " + target, target };
+            string fps = rate > 0 ? rate + " FPS" : L.T("taxa desconhecida", "unknown rate");
+            return new[] { fps + " · " + card + " · " + target, fps + " · " + target, target };
+        }
+
         /// <summary>Ao lado do título do limite: para qual executável e placa ele vai (ou que a placa não tem limitador).</summary>
         private void ShowFpsTarget()
         {
@@ -748,14 +759,8 @@ namespace MouseModes
             string target = FpsTargetText(cfg, current.Name, choice);
             if (limiter == null)
                 fpsLabel.RightText = L.T("esta placa não tem limitador", "this card has no limiter");
-            else if (choice == 0)
-                fpsLabel.RightText = limiter.Name + " · " + target;
             else
-            {
-                int value = FpsCap.Resolve(choice, FpsCap.PrimaryRefresh());
-                fpsLabel.RightText = (value > 0 ? value + " FPS" : L.T("taxa desconhecida", "unknown rate")) + " · " +
-                                     limiter.Name + " · " + target;
-            }
+                fpsLabel.RightTextOptions = FpsLabelTexts(limiter.Name, choice, choice == 0 ? 0 : FpsCap.Resolve(choice, FpsCap.PrimaryRefresh()), target);
             fpsLabel.RightColor = limiter == null ? Theme.Faint : Theme.PerfB;
             fpsLabel.Invalidate();
         }
