@@ -91,6 +91,56 @@ namespace MouseModes
 
     public static class GameDetector
     {
+        private const uint ProcessQueryLimitedInformation = 0x1000;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool QueryFullProcessImageNameW(IntPtr process, int flags, System.Text.StringBuilder name, ref int size);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        /// <summary>
+        /// Componentes de jogo do próprio Windows que não ficam na pasta do Windows (a Xbox Game Bar vem da Store).
+        /// Começo do nome, como a lista de jogos.
+        /// </summary>
+        internal static readonly string[] WindowsGaming = { "GameBar", "GameInput", "GamingServices", "XboxGameBar", "XboxPcApp" };
+
+        private static int mySession = -1;
+
+        /// <summary>
+        /// Se um processo cujo nome bateu com a lista pode ser o jogo. Um item curto como "Game" (o Game.exe do RPG Maker
+        /// e do Godot) também pega GameBarPresenceWriter, GameInputSvc...: serviços (outra sessão), o que roda da pasta do
+        /// Windows e os componentes de jogo do Windows nunca contam. Caminho vazio (sem acesso) não exclui.
+        /// </summary>
+        internal static bool CanBeGame(string name, int sessionId, int userSession, string imagePath, string windowsDir)
+        {
+            if (sessionId != userSession) return false;
+            if (GameBooster.Matches(name, WindowsGaming)) return false;
+            if (string.IsNullOrEmpty(imagePath) || string.IsNullOrEmpty(windowsDir)) return true;
+            string dir = windowsDir.TrimEnd('\\') + "\\";
+            return !imagePath.StartsWith(dir, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>Caminho do .exe do processo, sem abrir mais que o mínimo; null se não der (acesso negado, já fechou).</summary>
+        private static string ImagePath(int pid)
+        {
+            IntPtr handle = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+            if (handle == IntPtr.Zero) return null;
+            try
+            {
+                var buffer = new System.Text.StringBuilder(1024);
+                int size = buffer.Capacity;
+                return QueryFullProcessImageNameW(handle, 0, buffer, ref size) ? buffer.ToString(0, size) : null;
+            }
+            finally
+            {
+                CloseHandle(handle);
+            }
+        }
+
         /// <summary>Retorna o nome do primeiro processo aberto que começa com algum item da lista, ou null.</summary>
         public static string FindRunning(IList<string> games)
         {
@@ -102,19 +152,31 @@ namespace MouseModes
             }
             if (prefixes.Count == 0) return null;
 
+            if (mySession < 0)
+                using (Process me = Process.GetCurrentProcess()) mySession = me.SessionId;
+            string windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+
             Process[] processes = Process.GetProcesses();
             try
             {
                 foreach (Process proc in processes)
                 {
                     string procName;
-                    try { procName = proc.ProcessName; }
+                    int sessionId;
+                    try
+                    {
+                        procName = proc.ProcessName;
+                        sessionId = proc.SessionId;
+                    }
                     catch { continue; }
 
                     foreach (string prefix in prefixes)
                     {
-                        if (procName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        if (!procName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                        // Só quem bateu com a lista paga a leitura do caminho (a checagem roda a cada 3 s).
+                        if (CanBeGame(procName, sessionId, mySession, ImagePath(proc.Id), windowsDir))
                             return procName;
+                        break;
                     }
                 }
             }

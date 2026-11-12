@@ -163,10 +163,16 @@ namespace MouseModes
                     ProcessPriorityClass priority = proc.PriorityClass;
                     long started = proc.StartTime.ToFileTimeUtc();
                     CalmedProcess parent = priority == ProcessPriorityClass.BelowNormal ? CalmedAncestor(proc.Id, started, ref parents) : null;
+                    bool lateBelowNormal = parent == null && priority == ProcessPriorityClass.BelowNormal && started >= since;
                     // Um jogo abaixo do normal que abriu depois de o segundo plano ser acalmado herdou isso de alguém,
                     // mesmo que o processo do meio (launcher, bootstrapper do anti-cheat) já tenha fechado.
+                    // Fora os jogos, o mesmo vale para quem ficou órfão: o do meio (cmd /c start, Update.exe --processStart
+                    // do Squirrel, stub de launcher) fechou e não dá para subir até o programa acalmado. Sem adotar, ele
+                    // ficaria abaixo do normal depois do Performance. Processos do Windows ficam de fora (não são nossos).
                     bool inherited = parent != null ||
-                                     (priority == ProcessPriorityClass.BelowNormal && started >= since && GameBooster.Matches(name, games));
+                                     (lateBelowNormal && GameBooster.Matches(name, games)) ||
+                                     (lateBelowNormal && calmed.Count > 0 && !AppCloser.Protected.Contains(name) &&
+                                      ParentGone(proc.Id, started, ref parents));
                     // O primeiro plano muda: reavalia quando ele for para trás (por isso não vai para skipped).
                     if (string.Equals(name, foreground, StringComparison.OrdinalIgnoreCase))
                     {
@@ -246,6 +252,32 @@ namespace MouseModes
                 pid = parentId;
             }
             return null;
+        }
+
+        /// <summary>
+        /// Quem abriu este processo já fechou (não está na foto, ou o PID agora é de um processo mais novo que ele).
+        /// false se não der para saber.
+        /// </summary>
+        private static bool ParentGone(int pid, long started, ref Dictionary<int, int> parents)
+        {
+            if (parents == null) parents = ParentIds();
+            int parentId;
+            if (!parents.TryGetValue(pid, out parentId) || parentId == pid || parentId == 0) return false;
+            if (!parents.ContainsKey(parentId)) return true;
+            try
+            {
+                // O Windows reaproveita PIDs: um "pai" que começou depois do filho é outro processo.
+                using (Process p = Process.GetProcessById(parentId))
+                    return p.StartTime.ToFileTimeUtc() > started;
+            }
+            catch (ArgumentException)
+            {
+                return true; // fechou depois da foto
+            }
+            catch
+            {
+                return false; // acesso negado (processo elevado ou do sistema): está vivo
+            }
         }
 
         /// <summary>Herdou a prioridade baixa, mas não é para acalmar (jogo, Windows, voz...): volta ao normal.</summary>

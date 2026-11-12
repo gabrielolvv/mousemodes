@@ -81,6 +81,12 @@ namespace MouseModes
             return GetFont("Segoe UI", size, style);
         }
 
+        /// <summary>Fonte de largura fixa (registro e resumo do sistema), do mesmo cache: não precisa liberar.</summary>
+        public static Font Mono(float size)
+        {
+            return GetFont("Consolas", size, FontStyle.Regular);
+        }
+
         public static Font UiSemibold(float size)
         {
             return Installed("Segoe UI Semibold")

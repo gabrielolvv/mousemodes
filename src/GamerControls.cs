@@ -332,7 +332,8 @@ namespace MouseModes
             // Luz diagonal da cor do modo no canto superior esquerdo
             using (GraphicsPath clip = Theme.Rounded(card, radius))
             {
-                Region old = g.Clip;
+                // Save/Restore em vez de guardar o g.Clip: aquele Region nunca era liberado, a cada quadro (~33 ms).
+                GraphicsState state = g.Save();
                 g.SetClip(clip, CombineMode.Intersect);
                 var lightRect = new RectangleF(card.X, card.Y, card.Width * 0.8f, card.Height);
                 using (LinearGradientBrush lb = Theme.Gradient(lightRect, Theme.Alpha(AccentA, 46), Theme.Alpha(AccentA, 0), 20f))
@@ -344,7 +345,7 @@ namespace MouseModes
                     for (float gx = card.X; gx < card.Right; gx += 22) g.DrawLine(gridPen, gx, card.Y, gx, card.Bottom);
                     for (float gy = card.Y; gy < card.Bottom; gy += 22) g.DrawLine(gridPen, card.X, gy, card.Right, gy);
                 }
-                g.Clip = old;
+                g.Restore(state);
             }
 
             using (LinearGradientBrush border = Theme.Gradient(card, Theme.Alpha(AccentA, 220), Theme.Alpha(AccentB, 90), 30f))
@@ -597,21 +598,30 @@ namespace MouseModes
 
             float textW = Width - Switch.Width - 48;
             bool hasSub = !string.IsNullOrEmpty(Subtitle);
-            float titleY = hasSub ? Height / 2f - 19 : Height / 2f - 10;
-            Theme.DrawText(g, Title, Theme.UiSemibold(10f), Theme.Text, new RectangleF(16, titleY, textW, 22), wrap: false);
+            Font titleFont = Theme.UiSemibold(10f), subFont = Theme.Ui(8.5f);
+            // Altura das linhas pela fonte: a 100% dá os 22 e 18 px de sempre; com a escala do Windows alta, cresce
+            // junto com o texto e não corta as letras que descem (g, p, q).
+            float titleH = Math.Max(22f, (float)Math.Ceiling(titleFont.GetHeight(g)));
+            float subH = Math.Max(18f, (float)Math.Ceiling(subFont.GetHeight(g)));
+            float titleY = hasSub
+                ? Height / 2f - 19 - (titleH - 22 + subH - 18) / 2f
+                : Height / 2f - titleH / 2f + 1;
+            Theme.DrawText(g, Title, titleFont, Theme.Text, new RectangleF(16, titleY, textW, titleH), wrap: false);
 
             if (hasSub)
             {
+                float subY = titleY + titleH - 1;
                 float subX = 17;
                 if (DotColor != Color.Empty)
                 {
+                    float dotY = subY + subH / 2f - 4; // centro da linha do subtítulo
                     using (var halo = new SolidBrush(Theme.Alpha(DotColor, (int)(40 + 60 * DotPulse))))
-                        g.FillEllipse(halo, subX - 3, Height / 2f + 4, 13, 13);
+                        g.FillEllipse(halo, subX - 3, dotY - 3, 13, 13);
                     using (var dot = new SolidBrush(DotColor))
-                        g.FillEllipse(dot, subX, Height / 2f + 7, 7, 7);
+                        g.FillEllipse(dot, subX, dotY, 7, 7);
                     subX += 14;
                 }
-                Theme.DrawText(g, Subtitle, Theme.Ui(8.5f), Theme.Muted, new RectangleF(subX, Height / 2f + 2, textW - subX + 16, 18), wrap: false);
+                Theme.DrawText(g, Subtitle, subFont, Theme.Muted, new RectangleF(subX, subY, textW - subX + 16, subH), wrap: false);
             }
         }
     }

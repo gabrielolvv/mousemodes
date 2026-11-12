@@ -29,6 +29,16 @@ namespace MouseModes
             @"easyanticheat|battleye|prereq|redist|cefsharp|qtwebengine|touchup|cleanup",
             RegexOptions.IgnoreCase);
 
+        /// <summary>
+        /// Nomes de .exe genéricos (RPG Maker e Godot usam "Game.exe"): como começo do nome, "Game" pegaria GameBar,
+        /// GameInputSvc... Nomes de 1 ou 2 letras também contam. Os de 3 não: cs2, re4 e FFX são jogos de verdade.
+        /// </summary>
+        private static readonly HashSet<string> GenericNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "game", "games", "launcher", "launch", "start", "play", "run", "app", "application", "client", "main",
+            "setup", "program", "player", "engine", "bin", "win32", "win64", "x64", "x86"
+        };
+
         // "chave" "valor" (VDF da Steam) e "chave": "valor" (JSON da Epic).
         private static readonly Regex VdfPair = new Regex("\"(\\w+)\"\\s+\"((?:[^\"\\\\]|\\\\.)*)\"");
         private static readonly Regex JsonPair = new Regex("\"(\\w+)\"\\s*:\\s*(?:\"((?:[^\"\\\\]|\\\\.)*)\"|(true|false))");
@@ -125,12 +135,14 @@ namespace MouseModes
             return games;
         }
 
-        /// <summary>Nome (sem .exe) do maior executável da pasta que não seja instalador, launcher etc., ou null.</summary>
+        /// <summary>
+        /// Nome (sem .exe) do executável do jogo: o maior da pasta que não seja instalador, launcher etc.; se ele tiver
+        /// nome genérico, um de nome próprio (veja ChooseExecutable). null se não houver nenhum.
+        /// </summary>
         internal static string MainExecutable(string folder)
         {
             if (!Directory.Exists(folder)) return null;
-            string best = null;
-            long bestSize = -1;
+            var candidates = new List<KeyValuePair<string, long>>();
             int seen = 0;
             var pending = new Stack<KeyValuePair<string, int>>();
             pending.Push(new KeyValuePair<string, int>(folder, 0));
@@ -144,8 +156,7 @@ namespace MouseModes
                         seen++;
                         string name = Path.GetFileNameWithoutExtension(exe);
                         if (NotTheGame.IsMatch(name)) continue;
-                        long size = new FileInfo(exe).Length;
-                        if (size > bestSize) { best = name; bestSize = size; }
+                        candidates.Add(new KeyValuePair<string, long>(name, new FileInfo(exe).Length));
                     }
                     if (dir.Value < MaxDepth)
                         foreach (string sub in Directory.GetDirectories(dir.Key))
@@ -154,7 +165,30 @@ namespace MouseModes
                 catch (UnauthorizedAccessException) { }
                 catch (IOException) { }
             }
-            return best;
+            return ChooseExecutable(candidates);
+        }
+
+        internal static bool IsGenericName(string name)
+        {
+            return string.IsNullOrEmpty(name) || name.Length < 3 || GenericNames.Contains(name);
+        }
+
+        /// <summary>
+        /// Entre os executáveis (nome, tamanho) na ordem em que foram achados: o maior. Se o nome dele for genérico, o
+        /// maior de nome próprio que tenha pelo menos um décimo do tamanho (um utilitário minúsculo não é o jogo).
+        /// Sem nenhum assim, fica o genérico mesmo: o detector de jogos não confunde ele com os processos do Windows.
+        /// </summary>
+        internal static string ChooseExecutable(IList<KeyValuePair<string, long>> candidates)
+        {
+            string best = null, specific = null;
+            long bestSize = -1, specificSize = -1;
+            foreach (KeyValuePair<string, long> c in candidates)
+            {
+                if (c.Value > bestSize) { best = c.Key; bestSize = c.Value; }
+                if (!IsGenericName(c.Key) && c.Value > specificSize) { specific = c.Key; specificSize = c.Value; }
+            }
+            if (best == null || !IsGenericName(best) || specific == null) return best;
+            return specificSize * 10 >= bestSize ? specific : best;
         }
 
         private static Dictionary<string, string> Pairs(Regex pattern, string text)

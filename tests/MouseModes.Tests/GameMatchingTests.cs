@@ -28,6 +28,19 @@ namespace MouseModes.Tests
             Assert.Equal(expected, GameBooster.Matches(process, games));
         }
 
+        [Theory]
+        [InlineData("Game", 1, @"D:\Jogos\MeuRPG\Game.exe", true)]                                 // o Game.exe do RPG Maker
+        [InlineData("Game", 1, null, true)]                                                          // sem acesso ao caminho
+        [InlineData("GameInputSvc", 0, @"C:\Windows\System32\GameInputSvc.exe", false)]            // serviço (sessão 0)
+        [InlineData("GameBarPresenceWriter", 1, @"C:\WINDOWS\System32\GameBarPresenceWriter.exe", false)]
+        [InlineData("GameBar", 1, @"C:\Program Files\WindowsApps\Microsoft.XboxGamingOverlay_8wekyb3d8bbwe\GameBar.exe", false)]
+        [InlineData("GamingServicesNet", 1, null, false)]
+        [InlineData("Windows2", 1, @"C:\Windows2\Windows2.exe", true)]                              // só a pasta do Windows
+        public void CanBeGame_LeavesWindowsProcessesOut(string name, int session, string path, bool expected)
+        {
+            Assert.Equal(expected, GameDetector.CanBeGame(name, session, 1, path, @"C:\Windows"));
+        }
+
         [Fact]
         public void PerformanceFor_UsesTheGameProfileWhenThereIsOne()
         {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -77,6 +78,64 @@ namespace MouseModes
                 DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
             }
             catch { } // Windows 10 ou outro sistema: ignora
+        }
+
+        /// <summary>Área de rolagem criada quando a janela não cabe na tela; null enquanto couber.</summary>
+        internal Panel Scroller { get; private set; }
+
+        /// <summary>
+        /// Janela mais alta que a área útil da tela (escala do Windows alta num notebook): encaixa nela e rola.
+        /// A barra de título fica fixa em cima, para arrastar e fechar continuarem à mão.
+        /// </summary>
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            FitToWorkingArea(Screen.FromControl(this).WorkingArea);
+        }
+
+        /// <summary>
+        /// Se a janela passar da área útil, passa o conteúdo (tudo menos a barra de título) para um painel com rolagem
+        /// e encolhe a janela até caber. Retorna true se precisou.
+        /// </summary>
+        internal bool FitToWorkingArea(Rectangle area)
+        {
+            if (Scroller != null || Height <= area.Height) return false; // cabe (mesmo justa, como numa tela de 768 px)
+
+            int bar = TitleBar.Height;
+            int contentHeight = ClientSize.Height - bar;
+            int scrollBar = SystemInformation.VerticalScrollBarWidth;
+            var moving = new List<Control>();
+            foreach (Control c in Controls)
+                if (c != TitleBar) moving.Add(c);
+
+            SuspendLayout();
+            // Mais larga pela barra de rolagem: o conteúdo continua com a largura de antes.
+            Width += scrollBar;
+            Left = Math.Max(area.Left, Math.Min(Left - scrollBar / 2, area.Right - Width));
+            Height = Math.Max(bar * 3, area.Height - 20);
+            Top = area.Top + 10;
+
+            // Dentro da borda de 1 px que a janela desenha.
+            var panel = new Panel
+            {
+                AutoScroll = true,
+                BackColor = BackColor,
+                Bounds = new Rectangle(1, bar, ClientSize.Width - 2, ClientSize.Height - bar - 1),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                // A margem de baixo também rola: não para colado no último controle.
+                AutoScrollMinSize = new Size(0, contentHeight)
+            };
+            panel.SuspendLayout();
+            foreach (Control c in moving)
+            {
+                c.Location = new Point(c.Left - 1, c.Top - bar);
+                panel.Controls.Add(c);
+            }
+            Controls.Add(panel);
+            panel.ResumeLayout(false);
+            ResumeLayout(true);
+            Scroller = panel;
+            return true;
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

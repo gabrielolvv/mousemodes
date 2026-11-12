@@ -95,6 +95,58 @@ namespace MouseModes.Tests
             }
         }
 
+        private static List<KeyValuePair<string, long>> Exes(params object[] nameAndSize)
+        {
+            var list = new List<KeyValuePair<string, long>>();
+            for (int i = 0; i < nameAndSize.Length; i += 2)
+                list.Add(new KeyValuePair<string, long>((string)nameAndSize[i], (int)nameAndSize[i + 1]));
+            return list;
+        }
+
+        [Fact]
+        public void ChooseExecutable_AvoidsGenericNamesWhenThereIsARealOne()
+        {
+            // "Game" como começo do nome pegaria GameBar e GameInputSvc: um executável de nome próprio ganha.
+            Assert.Equal("MeuRpg", InstalledGames.ChooseExecutable(Exes("Game", 900, "MeuRpg", 300)));
+            // Um utilitário minúsculo (menos de um décimo) não é o jogo: fica o genérico.
+            Assert.Equal("Game", InstalledGames.ChooseExecutable(Exes("Game", 60000, "Game.console", 100)));
+            // Só genéricos: fica o maior mesmo (o detector de jogos deixa os processos do Windows de fora).
+            Assert.Equal("Play", InstalledGames.ChooseExecutable(Exes("Game", 10, "Play", 20)));
+            // Nome próprio: nada muda, mesmo com 3 letras.
+            Assert.Equal("cs2", InstalledGames.ChooseExecutable(Exes("cs2", 900, "vconsole2", 800)));
+            // Empate de tamanho: o primeiro achado, como antes.
+            Assert.Equal("Primeiro", InstalledGames.ChooseExecutable(Exes("Primeiro", 5, "Segundo", 5)));
+            Assert.Null(InstalledGames.ChooseExecutable(Exes()));
+        }
+
+        [Theory]
+        [InlineData("Game", true)]
+        [InlineData("GAME", true)]
+        [InlineData("Start", true)]
+        [InlineData("Client", true)]
+        [InlineData("x", true)]
+        [InlineData("cs2", false)]
+        [InlineData("Game64", false)]
+        [InlineData("HaloReach", false)]
+        public void IsGenericName_FlagsWordsThatMatchOtherProcesses(string name, bool expected)
+        {
+            Assert.Equal(expected, InstalledGames.IsGenericName(name));
+        }
+
+        [Fact]
+        public void Steam_PrefersTheSpecificExecutableOverGameExe()
+        {
+            using (var dir = new TempFolder())
+            {
+                string steam = dir.File("Steam");
+                dir.Text(@"Steam\steamapps\appmanifest_400.acf", "\"AppState\"\n{\n \"name\" \"Jogo RPG Teste\"\n \"installdir\" \"JogoRpg\"\n}");
+                dir.Exe(@"Steam\steamapps\common\JogoRpg\Game.exe", 60);
+                dir.Exe(@"Steam\steamapps\common\JogoRpg\JogoRpgTeste.exe", 30);
+
+                Assert.Contains(InstalledGames.FromSteam(steam), g => g.Process == "JogoRpgTeste");
+            }
+        }
+
         [Theory]
         [InlineData("unins000", false)]
         [InlineData("UnityCrashHandler64", false)]

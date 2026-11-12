@@ -293,6 +293,45 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Calm_AdoptsAProgramWhoseLauncherChainAlreadyClosed()
+        {
+            // Como o Update.exe --processStart do Squirrel ou um cmd /c start: o do meio abre o programa e fecha na hora.
+            // O programa não é jogo, mas herdou a prioridade baixa e precisa voltar ao normal no fim do Performance.
+            using (var temp = new TempFolder())
+            using (Process launcher = StartLauncher("cmd /c start /b ping -n 120 127.0.0.1"))
+            {
+                Process program = null;
+                try
+                {
+                    var cfg = new AppConfig();
+                    var calmer = NewCalmer(cfg, temp, launcher);
+                    DateTime began = DateTime.Now;
+                    calmer.Calm(NoGames, null);
+
+                    program = WaitForPing(started => started >= began, null);
+                    Assert.Equal(ProcessPriorityClass.BelowNormal, PriorityOf(program));
+                    WaitForOrphan(program);
+
+                    int launcherId = launcher.Id, programId = program.Id;
+                    calmer.Scope = id => id == launcherId || id == programId;
+                    calmer.Calm(NoGames, null);
+                    CalmedProcess adopted = cfg.CalmBackup.Find(e => e.Pid == programId);
+                    Assert.NotNull(adopted);
+                    Assert.Equal(ProcessPriorityClass.Normal, adopted.Priority);
+                    Assert.Equal(adopted.StartTime, adopted.CalmedAt);
+
+                    calmer.RestoreAll();
+                    Assert.Equal(ProcessPriorityClass.Normal, PriorityOf(program));
+                }
+                finally
+                {
+                    if (program != null) Stop(program);
+                    Stop(launcher);
+                }
+            }
+        }
+
+        [Fact]
         public void Calm_ReleasesAProgramThatBecameAGame()
         {
             using (var temp = new TempFolder())
@@ -500,6 +539,20 @@ namespace MouseModes.Tests
                 System.Threading.Thread.Sleep(100);
             }
             throw new TimeoutException("o launcher do teste não abriu o ping em " + LauncherWait.TotalSeconds + " s");
+        }
+
+        /// <summary>Espera o processo que abriu este fechar (o cmd do meio fecha logo depois de abrir o ping).</summary>
+        private static void WaitForOrphan(Process proc)
+        {
+            var watch = Stopwatch.StartNew();
+            while (watch.Elapsed < LauncherWait)
+            {
+                Dictionary<int, int> parents = BackgroundCalmer.ParentIds();
+                int parent;
+                if (parents.TryGetValue(proc.Id, out parent) && !parents.ContainsKey(parent)) return;
+                System.Threading.Thread.Sleep(100);
+            }
+            throw new TimeoutException("o cmd do meio não fechou em " + LauncherWait.TotalSeconds + " s");
         }
 
         private static ProcessPriorityClass PriorityOf(Process proc)
