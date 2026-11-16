@@ -43,7 +43,7 @@ namespace MouseModes.Tests
                 Assert.Same(window, window.Bar.Parent); // a barra de título não rola
                 Assert.NotNull(window.Scroller);
                 Assert.True(window.Scroller.AutoScroll);
-                Assert.Same(window.Scroller, window.Last.Parent);
+                Assert.Same(window.Scroller, window.Last.Parent.Parent); // dentro do painel de conteúdo da rolagem
                 Assert.Equal(bottomTop - bar, window.Last.Top);
                 Assert.Equal(width + SystemInformation.VerticalScrollBarWidth, window.Width);
                 Assert.True(window.Scroller.Bottom <= window.ClientSize.Height);
@@ -99,7 +99,28 @@ namespace MouseModes.Tests
                 Assert.NotNull(window.Scroller);
                 Assert.Equal(720, window.Height);
                 Assert.Equal(30, window.Top);
-                Assert.Same(window.Scroller, window.Last.Parent);
+                Assert.Same(window.Scroller, window.Last.Parent.Parent); // dentro do painel de conteúdo da rolagem
+            }
+        }
+
+        [Fact]
+        public void FitToWorkingArea_DoesNotScrollSidewaysForAControlPastTheRightEdge()
+        {
+            // Como as páginas dos Ajustes: passam da borda direita de propósito (a barra nativa delas fica escondida lá).
+            using (var window = new TallWindow(760))
+            {
+                var wide = new Panel { Location = new Point(200, 60), Size = new Size(200 + SystemInformation.VerticalScrollBarWidth, 300) };
+                window.Controls.Add(wide);
+
+                Assert.True(window.FitToWorkingArea(new Rectangle(0, 0, 1920, 600)));
+
+                // Só o painel de conteúdo entra na rolagem, e ele cabe ao lado da barra vertical: nada cria rolagem
+                // para o lado. O controle largo fica recortado nele.
+                Assert.Equal(1, window.Scroller.Controls.Count);
+                Control content = window.Scroller.Controls[0];
+                Assert.Same(content, wide.Parent);
+                Assert.True(content.Right <= window.Scroller.Width - SystemInformation.VerticalScrollBarWidth);
+                Assert.True(wide.Right > content.Width);
             }
         }
 

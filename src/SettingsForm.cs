@@ -7,7 +7,7 @@ namespace MouseModes
 {
     public class SettingsForm : GamerWindow
     {
-        private const int PageX = 200, PageY = 60, PageW = 440, PageH = 554;
+        private const int PageX = 200, PageY = 60, PageW = SettingsLayout.Width, PageH = SettingsLayout.PageHeight;
 
         private readonly AppConfig cfg;
         private readonly ProfilePanel perfPanel;
@@ -18,6 +18,7 @@ namespace MouseModes
         private readonly NavItem[] nav;
         private readonly Panel[] pages;
         private readonly NeonButton save;
+        private readonly ThinScrollBar pageBar;
 
         // Turbo
         private readonly ToggleRow boostRow;
@@ -56,6 +57,7 @@ namespace MouseModes
 
             Color a = Theme.DailyA, b = Theme.DailyB;
             Color pa = Theme.PerfA, pb = Theme.PerfB;
+            const int inner = SettingsLayout.Width - SettingsGroup.Inset * 2;
 
             // --- Performance / Dia a dia ---
             perfPanel = new ProfilePanel(pa, pb,
@@ -64,69 +66,78 @@ namespace MouseModes
                     "Tip: speed 10 without acceleration = 1:1 movement. Tune sensitivity with the mouse DPI and inside the game. " +
                     "Games with their own settings (Games tab) use theirs."));
             perfPanel.LoadProfile(cfg.Performance);
-            focusRow = MakeRow(L.T("Mouse do jogo só com o jogo na tela", "Game mouse only with the game on screen"), L.T("No alt-tab e no desktop, usa o mouse do Dia a dia", "On alt-tab and the desktop, uses the Daily mouse"), pa, pb, 444, 50);
+            focusRow = MakeRow(L.T("Mouse do jogo só com o jogo na tela", "Game mouse only with the game on screen"), L.T("No alt-tab e no desktop, usa o mouse do Dia a dia", "On alt-tab and the desktop, uses the Daily mouse"), pa, pb);
             focusRow.Switch.SetChecked(cfg.MouseOnlyWhenGameFocused, false);
-            perfPanel.Controls.Add(focusRow);
             guardRow = MakeRow(L.T("Vigiar o mouse", "Watch the mouse"),
-                L.T("Desfaz se outro programa mexer no mouse no Performance", "Undoes it if another program changes the mouse in Performance"), pa, pb, 498, 50);
+                L.T("Desfaz se outro programa mexer no mouse no Performance", "Undoes it if another program changes the mouse in Performance"), pa, pb);
             guardRow.Switch.SetChecked(cfg.GuardMouse, false);
-            perfPanel.Controls.Add(guardRow);
+            perfPanel.AddGroup(L.T("Durante o jogo", "While gaming"), focusRow, guardRow);
 
             dailyPanel = new ProfilePanel(a, b,
                 L.T("Acompanha o mouse do Windows e volta ao fechar o jogo ou ao sair do app. " +
-                    "Plano ANTERIOR: volta ao plano de energia que estava ativo antes do Performance.",
+                    "Plano \"Anterior\": volta ao plano de energia que estava ativo antes do Performance.",
                     "Follows the Windows mouse and comes back when the game closes or the app quits. " +
-                    "PREVIOUS plan: goes back to the power plan that was active before Performance."),
-                L.T("ANTERIOR", "PREVIOUS"));
+                    "\"Previous\" plan: goes back to the power plan that was active before Performance."),
+                L.T("Anterior", "Previous"));
             dailyPanel.LoadProfile(cfg.Daily);
 
             // --- Jogos ---
             gamesPanel = new GamesPanel(cfg, this);
 
             // --- Turbo ---
-            var turboPanel = new Panel { BackColor = Theme.Bg };
-            boostRow = MakeRow(L.T("Prioridade alta para o jogo", "High priority for the game"), L.T("Enquanto o modo Performance estiver ativo", "While Performance mode is on"), pa, pb, 0, 50);
+            var turboPanel = SettingsLayout.NewPage();
+            boostRow = MakeRow(L.T("Prioridade alta para o jogo", "High priority for the game"), L.T("Enquanto o modo Performance estiver ativo", "While Performance mode is on"), pa, pb);
             boostRow.Switch.SetChecked(cfg.BoostGamePriority, false);
-            winKeyRow = MakeRow(L.T("Bloquear a tecla Windows", "Block the Windows key"), L.T("Só quando um jogo da lista estiver em primeiro plano", "Only while a game from the list is in the foreground"), pa, pb, 56, 50);
+            winKeyRow = MakeRow(L.T("Bloquear a tecla Windows", "Block the Windows key"), L.T("Só quando um jogo da lista estiver em primeiro plano", "Only while a game from the list is in the foreground"), pa, pb);
             winKeyRow.Switch.SetChecked(cfg.BlockWinKey, false);
-            stickyRow = MakeRow(L.T("Sem aviso das Teclas de Aderência", "No Sticky Keys prompt"), L.T("Desliga o atalho Shift 5x e outros de acessibilidade", "Turns off Shift 5x and other accessibility shortcuts"), pa, pb, 112, 50);
+            stickyRow = MakeRow(L.T("Sem aviso das Teclas de Aderência", "No Sticky Keys prompt"), L.T("Desliga o atalho Shift 5x e outros de acessibilidade", "Turns off Shift 5x and other accessibility shortcuts"), pa, pb);
             stickyRow.Switch.SetChecked(cfg.DisableAccessibilityHotkeys, false);
-            silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb, 168, 50);
+            silenceRow = MakeRow(L.T("Silenciar notificações do Windows", "Silence Windows notifications"), L.T("Voltam ao normal quando sair do Performance", "Back to normal when leaving Performance"), pa, pb);
             silenceRow.Switch.SetChecked(cfg.SilenceNotifications, false);
             // Processador híbrido: os outros programas também vão para os núcleos de eficiência.
             calmRow = MakeRow(L.T("Segundo plano calmo", "Calm background"),
                 CpuSets.Background != null
                     ? L.T("Outros programas: prioridade baixa, eficiência e núcleos E", "Other programs: low priority, efficiency mode and E-cores")
                     : L.T("Outros programas com prioridade baixa e em modo de eficiência", "Other programs at low priority and in efficiency mode"),
-                pa, pb, 224, 50);
+                pa, pb);
             calmRow.Switch.SetChecked(cfg.CalmBackground, false);
-            closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb, 280, 50);
+            closeRow = MakeRow(L.T("Fechar programas ao entrar em Performance", "Close programs when entering Performance"), L.T("Os da lista abaixo. Eles não são reabertos depois.", "The ones listed below. They are not reopened afterwards."), pa, pb);
             closeRow.Switch.SetChecked(cfg.CloseAppsOnPerformance, false);
-
-            var appsLabel = new SectionLabel { Text = L.T("Programas para fechar", "Programs to close"), Location = new Point(0, 338), Size = new Size(440, 20) };
-            var appsNote = Note(L.T("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", "One per line. E.g.: OneDrive, EpicGamesLauncher, Spotify, chrome"), 0, 358, 440, 18, Theme.Faint, 8f);
-            appsToClose = NewListBox(cfg.AppsToClose);
-            var appsHost = new FieldHost(appsToClose) { Location = new Point(0, 378), Size = new Size(440, 64), Accent = pb };
-            var pickApp = new NeonButton { Text = L.T("Escolher programa aberto", "Pick an open program"), Glyph = GlyphKind.Mouse, Location = new Point(0, 448), Size = new Size(440, 38), AccentA = pa, AccentB = pb };
-            pickApp.Click += (s, e) => AppendPicked(appsToClose);
-            forceRow = MakeRow(L.T("Forçar se não fechar", "Force if it does not close"), L.T("Encerra à força: pode perder trabalho não salvo", "Kills it: unsaved work may be lost"), pa, pb, 494, 50);
+            forceRow = MakeRow(L.T("Forçar se não fechar", "Force if it does not close"), L.T("Encerra à força: pode perder trabalho não salvo", "Kills it: unsaved work may be lost"), pa, pb);
             forceRow.Switch.SetChecked(cfg.ForceCloseApps, false);
 
-            foreach (Control c in new Control[] { boostRow, winKeyRow, stickyRow, silenceRow, calmRow, closeRow, appsLabel, appsNote, appsHost, pickApp, forceRow })
-                turboPanel.Controls.Add(c);
+            // A lista de programas: título com o botão de escolher ao lado, a legenda e a caixa (um por linha).
+            const int pickW = 204;
+            var appsLabel = SettingsLayout.RowTitle(L.T("Programas para fechar", "Programs to close"));
+            appsLabel.Location = new Point(SettingsGroup.Inset, 18);
+            appsLabel.Width = inner - pickW - 8;
+            var pickApp = new NeonButton { Text = L.T("Escolher programa aberto", "Pick an open program"), Glyph = GlyphKind.Mouse, Location = new Point(SettingsLayout.Width - SettingsGroup.Inset - pickW, 12), Size = new Size(pickW, 32), AccentA = pa, AccentB = pb };
+            pickApp.Click += (s, e) => AppendPicked(appsToClose);
+            var appsNote = SettingsLayout.Caption(L.T("Um por linha. Ex.: OneDrive, EpicGamesLauncher, Spotify, chrome", "One per line. E.g.: OneDrive, EpicGamesLauncher, Spotify, chrome"), inner);
+            appsNote.Location = new Point(SettingsGroup.Inset, 50);
+            appsToClose = NewListBox(cfg.AppsToClose);
+            var appsHost = new FieldHost(appsToClose) { Location = new Point(SettingsGroup.Inset, appsNote.Bottom + 6), Size = new Size(inner, 72), Accent = pb };
+            var appsCell = SettingsLayout.Cell(appsHost.Bottom + 14, appsLabel, pickApp, appsNote, appsHost);
+
+            var during = SettingsLayout.Group(boostRow, winKeyRow, stickyRow, silenceRow, calmRow);
+            var closing = SettingsLayout.Group(closeRow, appsCell, forceRow);
+            int y = SettingsLayout.Place(turboPanel, 0, SettingsLayout.Header(L.T("No modo Performance", "In Performance mode")), during);
+            y = SettingsLayout.Place(turboPanel, y, SettingsLayout.Header(L.T("Fechar programas", "Close programs")), closing);
+            SettingsLayout.FinishPage(turboPanel, y);
 
             // --- Geral ---
-            var generalPanel = new Panel { BackColor = Theme.Bg };
-            // Linhas de 50 px a cada 54. As de versão nova ficam na página Privacidade, com o resto do que sai do PC.
-            startWithWindows = MakeRow(L.T("Iniciar com o Windows", "Start with Windows"), L.T("Abre direto na bandeja, sem mostrar a janela", "Opens straight in the tray, without showing the window"), a, b, 0, 50);
+            var generalPanel = SettingsLayout.NewPage();
+            // As linhas de versão nova ficam na página Privacidade, com o resto do que sai do PC.
+            startWithWindows = MakeRow(L.T("Iniciar com o Windows", "Start with Windows"), L.T("Abre direto na bandeja, sem mostrar a janela", "Opens straight in the tray, without showing the window"), a, b);
             try { startWithWindows.Switch.SetChecked(Startup.IsEnabled(), false); } catch { }
-            restoreOnExit = MakeRow(L.T("Voltar ao Dia a dia ao sair", "Back to Daily on quit"), L.T("Desfaz o modo Performance quando o app fecha", "Undoes Performance mode when the app closes"), a, b, 54, 50);
+            restoreOnExit = MakeRow(L.T("Voltar ao Dia a dia ao sair", "Back to Daily on quit"), L.T("Desfaz o modo Performance quando o app fecha", "Undoes Performance mode when the app closes"), a, b);
             restoreOnExit.Switch.SetChecked(cfg.RestoreDailyOnExit, false);
-            notifications = MakeRow(L.T("Avisos do MouseModes", "MouseModes notices"), L.T("Mostra perto do relógio quando o modo muda", "Shows next to the clock when the mode changes"), a, b, 108, 50);
+            notifications = MakeRow(L.T("Avisos do MouseModes", "MouseModes notices"), L.T("Mostra perto do relógio quando o modo muda", "Shows next to the clock when the mode changes"), a, b);
             notifications.Switch.SetChecked(cfg.ShowNotifications, false);
-            monitorCheckRow = MakeRow(L.T("Avisar sobre a taxa do monitor", "Warn about the monitor refresh rate"), L.T("Mostra na tela inicial se algum monitor está abaixo do máximo", "Shows on the main screen if a monitor is below its max"), a, b, 162, 50);
+            monitorCheckRow = MakeRow(L.T("Avisar sobre a taxa do monitor", "Warn about the monitor refresh rate"), L.T("Mostra na tela inicial se algum monitor está abaixo do máximo", "Shows on the main screen if a monitor is below its max"), a, b);
             monitorCheckRow.Switch.SetChecked(cfg.MonitorCheck, false);
-            var hotkeyLabel = new SectionLabel { Text = L.T("Atalho para trocar de modo", "Hotkey to switch modes"), Location = new Point(0, 222), Size = new Size(440, 20) };
+
+            var hotkeyLabel = SettingsLayout.Header(L.T("Atalho para trocar de modo", "Hotkey to switch modes"));
             // Clique no campo e aperte a combinação. Se outro programa já usar, o app cai nas opções fixas.
             hotkeyBox = new HotkeyBox();
             uint savedMods;
@@ -134,8 +145,9 @@ namespace MouseModes
             if (!HotkeyWindow.TryParse(cfg.CustomHotkey, out savedMods, out savedKey))
                 HotkeyWindow.Choice(cfg.Hotkey, out savedMods, out savedKey);
             hotkeyBox.SetValue(savedMods, savedKey);
-            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(0, 244), Size = new Size(300, 40), Accent = b };
-            var hotkeyDefault = new NeonButton { Text = L.T("Padrão", "Default"), Location = new Point(310, 244), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            const int sideW = 120;
+            var hotkeyHost = new FieldHost(hotkeyBox) { Location = new Point(SettingsGroup.Inset, 12), Size = new Size(inner - sideW - 8, 36), Accent = b };
+            var hotkeyDefault = new NeonButton { Text = L.T("Padrão", "Default"), Location = new Point(SettingsLayout.Width - SettingsGroup.Inset - sideW, 12), Size = new Size(sideW, 36), AccentA = a, AccentB = b };
             hotkeyDefault.Click += (s, e) =>
             {
                 uint mods;
@@ -144,71 +156,91 @@ namespace MouseModes
                 hotkeyBox.SetValue(mods, key);
             };
 
-            var maintenance = new SectionLabel { Text = L.T("Manutenção", "Maintenance"), Location = new Point(0, 294), Size = new Size(440, 20) };
-            var diag = new NeonButton { Text = L.T("Diagnóstico", "Diagnostics"), Location = new Point(0, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
-            diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
-            var export = new NeonButton { Text = L.T("Exportar", "Export"), Location = new Point(150, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
-            export.Click += (s, e) => ExportConfig();
-            var import = new NeonButton { Text = L.T("Importar", "Import"), Location = new Point(300, 318), Size = new Size(140, 42), AccentA = a, AccentB = b };
-            import.Click += (s, e) => ImportConfig();
-            var restore = new NeonButton { Text = L.T("Restaurar padrões do Windows", "Restore Windows defaults"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(0, 368), Size = new Size(440, 42) };
-            restore.Click += (s, e) => ConfirmRestore();
-            var restoreNote = Note(L.T("Velocidade 10, aceleração ligada, rolagem 3, plano Equilibrado e USB padrão. " +
-                                       "O Dia a dia passa a usar esses valores.",
-                                       "Speed 10, acceleration on, scroll 3, Balanced plan and default USB. " +
-                                       "Daily mode starts using these values."),
-                                   0, 414, 440, 40, Theme.Faint, 8.5f);
-
             // Caça-travadinhas: o Windows só deixa ler os quadros do jogo com a permissão do grupo "Performance Log Users".
-            var framesLabel = new SectionLabel { Text = L.T("Caça-travadinhas (quadros do jogo)", "Stutter finder (game frames)"), Location = new Point(0, 462), Size = new Size(440, 20) };
-            framesStatus = Note("", 0, 486, 300, 56, Theme.Faint, 8.5f);
-            framesButton = new NeonButton { Location = new Point(310, 490), Size = new Size(130, 40), AccentA = a, AccentB = b };
+            var framesLabel = SettingsLayout.Header(L.T("Caça-travadinhas (quadros do jogo)", "Stutter finder (game frames)"));
+            const int framesTextW = inner - sideW - 16;
+            framesStatus = SettingsLayout.Caption(9f, "", framesTextW, FrameStatusTexts()); // alto o bastante para os três textos
+            int framesH = Math.Max(56, framesStatus.Height + 24);
+            framesStatus.Location = new Point(SettingsGroup.Inset, (framesH - framesStatus.Height) / 2);
+            framesButton = new NeonButton { Location = new Point(SettingsLayout.Width - SettingsGroup.Inset - sideW, (framesH - 36) / 2), Size = new Size(sideW, 36), AccentA = a, AccentB = b };
             framesButton.Click += (s, e) => ChangeFramePermission();
             ShowFramePermission();
 
-            foreach (Control c in new Control[] { startWithWindows, restoreOnExit, notifications, monitorCheckRow, hotkeyLabel, hotkeyHost, hotkeyDefault, maintenance, diag, export, import, restore, restoreNote, framesLabel, framesStatus, framesButton })
-                generalPanel.Controls.Add(c);
+            var maintenance = SettingsLayout.Header(L.T("Manutenção", "Maintenance"));
+            const int toolW = (inner - 16) / 3;
+            var diag = new NeonButton { Text = L.T("Diagnóstico", "Diagnostics"), Location = new Point(SettingsGroup.Inset, 12), Size = new Size(toolW, 36), AccentA = a, AccentB = b };
+            diag.Click += (s, e) => { if (DiagnosticsRequested != null) DiagnosticsRequested(); };
+            var export = new NeonButton { Text = L.T("Exportar", "Export"), Location = new Point(SettingsGroup.Inset + toolW + 8, 12), Size = new Size(toolW, 36), AccentA = a, AccentB = b };
+            export.Click += (s, e) => ExportConfig();
+            var import = new NeonButton { Text = L.T("Importar", "Import"), Location = new Point(SettingsLayout.Width - SettingsGroup.Inset - toolW, 12), Size = new Size(toolW, 36), AccentA = a, AccentB = b };
+            import.Click += (s, e) => ImportConfig();
+            var restore = new NeonButton { Text = L.T("Restaurar padrões do Windows", "Restore Windows defaults"), Glyph = GlyphKind.Power, Style = ButtonStyle.Danger, Location = new Point(SettingsGroup.Inset, 12), Size = new Size(inner, 36) };
+            restore.Click += (s, e) => ConfirmRestore();
+            var restoreNote = SettingsLayout.Caption(L.T("Velocidade 10, aceleração ligada, rolagem 3, plano Equilibrado e USB padrão. " +
+                                                         "O Dia a dia passa a usar esses valores.",
+                                                         "Speed 10, acceleration on, scroll 3, Balanced plan and default USB. " +
+                                                         "Daily mode starts using these values."), inner);
+            restoreNote.Location = new Point(SettingsGroup.Inset, restore.Bottom + 6);
+
+            y = SettingsLayout.Place(generalPanel, 0, SettingsLayout.Header(L.T("Inicialização e avisos", "Startup and notices")),
+                SettingsLayout.Group(startWithWindows, restoreOnExit, notifications, monitorCheckRow));
+            y = SettingsLayout.Place(generalPanel, y, hotkeyLabel, SettingsLayout.Group(SettingsLayout.Cell(60, hotkeyHost, hotkeyDefault)));
+            y = SettingsLayout.Place(generalPanel, y, framesLabel, SettingsLayout.Group(SettingsLayout.Cell(framesH, framesStatus, framesButton)));
+            y = SettingsLayout.Place(generalPanel, y, maintenance, SettingsLayout.Group(
+                SettingsLayout.Cell(60, diag, export, import),
+                SettingsLayout.Cell(restoreNote.Bottom + 12, restore, restoreNote)));
+            SettingsLayout.FinishPage(generalPanel, y);
 
             // --- Privacidade: tudo o que sai do PC, e como desligar ---
-            var privacyPanel = new Panel { BackColor = Theme.Bg };
-            var outLabel = new SectionLabel { Text = L.T("O que sai do seu PC", "What leaves your PC"), Location = new Point(0, 0), Size = new Size(440, 20) };
-            var outNote = Note(L.T("• Uma vez por dia, uma consulta à página de versões do GitHub, para saber se há versão nova; ao atualizar, " +
-                                   "o instalador é baixado da Release do GitHub.\n" +
-                                   "• Durante a partida, com o Raio-X da rede ligado: um ping por segundo ao seu roteador e ao 1.1.1.1 " +
-                                   "(Cloudflare), sem conteúdo.\n" +
-                                   "• Mais nada: sem conta e sem telemetria. As configurações, o registro e o histórico das partidas ficam neste PC, em %APPDATA%\\MouseModes.",
-                                   "• Once a day, a request to the GitHub releases page, to know whether there is a new version; when updating, " +
-                                   "the installer is downloaded from the GitHub Release.\n" +
-                                   "• During a match, with the network X-ray on: one ping per second to your router and to 1.1.1.1 " +
-                                   "(Cloudflare), with no content.\n" +
-                                   "• Nothing else: no account and no telemetry. Settings, the log and the match history stay on this PC, in %APPDATA%\\MouseModes."),
-                               0, 24, 440, 150, Theme.Muted, 9f);
-            updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b, 184, 50);
+            var privacyPanel = SettingsLayout.NewPage();
+            var outLabel = SettingsLayout.Header(L.T("O que sai do seu PC", "What leaves your PC"));
+            var outGroup = SettingsLayout.Group(
+                SettingsLayout.IconLine(GlyphKind.Clock,
+                    L.T("Uma vez por dia, uma consulta à página de versões do GitHub, para saber se há versão nova; ao atualizar, " +
+                        "o instalador é baixado da Release do GitHub.",
+                        "Once a day, a request to the GitHub releases page, to know whether there is a new version; when updating, " +
+                        "the installer is downloaded from the GitHub Release.")),
+                SettingsLayout.IconLine(GlyphKind.Gauge,
+                    L.T("Durante a partida, com o Raio-X da rede ligado: um ping por segundo ao seu roteador e ao 1.1.1.1 " +
+                        "(Cloudflare), sem conteúdo.",
+                        "During a match, with the network X-ray on: one ping per second to your router and to 1.1.1.1 " +
+                        "(Cloudflare), with no content.")),
+                SettingsLayout.IconLine(GlyphKind.Shield,
+                    L.T("Mais nada: sem conta e sem telemetria. As configurações, o registro e o histórico das partidas ficam neste PC, em %APPDATA%\\MouseModes.",
+                        "Nothing else: no account and no telemetry. Settings, the log and the match history stay on this PC, in %APPDATA%\\MouseModes.")));
+            updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b);
             updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
             autoUpdateRow = MakeRow(L.T("Instalar versão nova sozinho", "Install new versions by itself"),
-                L.T("Baixa do GitHub, confere o SHA-256 e instala fora do jogo", "Downloads, checks the SHA-256 and installs outside games"), a, b, 238, 50);
+                L.T("Baixa do GitHub, confere o SHA-256 e instala fora do jogo", "Downloads, checks the SHA-256 and installs outside games"), a, b);
             autoUpdateRow.Switch.SetChecked(cfg.AutoUpdate, false);
             networkRow = MakeRow(L.T("Medir a rede no Raio-X", "Measure the network in the X-ray"),
-                L.T("Um ping por segundo ao roteador e ao 1.1.1.1, só na partida", "One ping per second to the router and 1.1.1.1, only in a match"), a, b, 292, 50);
+                L.T("Um ping por segundo ao roteador e ao 1.1.1.1, só na partida", "One ping per second to the router and 1.1.1.1, only in a match"), a, b);
             networkRow.Switch.SetChecked(cfg.MeasureNetwork, false);
             historyRow = MakeRow(L.T("Guardar o histórico das partidas", "Keep the match history"),
-                L.T("As últimas 100 partidas, só neste PC (bandeja → Partidas)", "The last 100 matches, only on this PC (tray → Previous)"), a, b, 346, 50);
+                L.T("As últimas 100 partidas, só neste PC (bandeja → Partidas)", "The last 100 matches, only on this PC (tray → Previous)"), a, b);
             historyRow.Switch.SetChecked(cfg.KeepMatchHistory, false);
-            var privacyNote = Note(L.T("Desligando as duas primeiras, o app não fala com o GitHub sozinho (Procurar versão nova, no ícone da " +
-                                       "bandeja, continua funcionando). O código está aberto no GitHub para quem quiser conferir.",
-                                       "With the first two off, the app does not talk to GitHub by itself (Check for a new version, in the tray " +
-                                       "icon, still works). The code is open on GitHub for anyone who wants to check."),
-                                   0, 406, 440, 48, Theme.Faint, 8.5f);
-            foreach (Control c in new Control[] { outLabel, outNote, updateRow, autoUpdateRow, networkRow, historyRow, privacyNote })
-                privacyPanel.Controls.Add(c);
+            var privacyNote = SettingsLayout.Caption(L.T("Desligando as duas primeiras, o app não fala com o GitHub sozinho (Procurar versão nova, no ícone da " +
+                                                         "bandeja, continua funcionando). O código está aberto no GitHub para quem quiser conferir.",
+                                                         "With the first two off, the app does not talk to GitHub by itself (Check for a new version, in the tray " +
+                                                         "icon, still works). The code is open on GitHub for anyone who wants to check."), SettingsLayout.Width);
+            privacyNote.BackColor = Theme.Bg;
+            y = SettingsLayout.Place(privacyPanel, 0, outLabel, outGroup);
+            y = SettingsLayout.Place(privacyPanel, y, SettingsLayout.Header(L.T("O que você controla", "What you control")),
+                SettingsLayout.Group(updateRow, autoUpdateRow, networkRow, historyRow));
+            y = SettingsLayout.PlaceCaption(privacyPanel, y, privacyNote);
+            SettingsLayout.FinishPage(privacyPanel, y);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel, privacyPanel };
             foreach (Panel p in pages)
             {
+                // A página vai até a borda da janela e a barra nativa dela fica além da borda, escondida; a barra fina
+                // (pageBar) fica na margem direita, 10 px depois dos grupos, e lê a rolagem da página visível.
                 p.Location = new Point(PageX, PageY);
-                p.Size = new Size(PageW, PageH);
+                p.Size = new Size(ClientSize.Width - PageX + SystemInformation.VerticalScrollBarWidth, PageH);
                 Controls.Add(p);
             }
+            pageBar = new ThinScrollBar { BackColor = Theme.Bg, RightInset = 4, Location = new Point(PageX + PageW + 6, PageY), Size = new Size(ClientSize.Width - PageX - PageW - 6, PageH) };
+            Controls.Add(pageBar);
 
             // --- Navegação lateral ---
             nav = new[]
@@ -223,44 +255,60 @@ namespace MouseModes
             for (int i = 0; i < nav.Length; i++)
             {
                 int index = i;
-                nav[i].Location = new Point(18, PageY + i * 50);
-                nav[i].Size = new Size(166, 44);
+                // Sem divisória vertical: 24 px de espaço até as páginas.
+                nav[i].Location = new Point(16, PageY + i * 44);
+                nav[i].Size = new Size(PageX - 24 - 16, 36);
                 nav[i].Click += (s, e) => SelectPage(index);
                 Controls.Add(nav[i]);
             }
-            Controls.Add(new SideDivider { Location = new Point(190, PageY), Size = new Size(1, PageH) });
 
-            // --- Botões ---
-            var cancel = new NeonButton { Text = L.T("Cancelar", "Cancel"), Location = new Point(370, 626), Size = new Size(130, 42) };
-            save = new NeonButton { Text = L.T("Salvar", "Save"), Style = ButtonStyle.Primary, Location = new Point(510, 626), Size = new Size(130, 42), AccentA = a, AccentB = b };
+            // --- Rodapé: divisória e os botões. Salvar fica na cor da página mostrada: um só acento por tela. ---
+            Controls.Add(new Rule { Location = new Point(0, PageY + PageH), Size = new Size(ClientSize.Width, 1) });
+            Mode active = cfg.LastMode ?? Mode.DiaADia;
+            var cancel = new NeonButton { Text = L.T("Cancelar", "Cancel"), Location = new Point(372, 630), Size = new Size(124, 36) };
+            save = new NeonButton { Text = L.T("Salvar", "Save"), Style = ButtonStyle.Primary, Location = new Point(504, 630), Size = new Size(136, 36), AccentA = Theme.AccentA(active), AccentB = Theme.AccentB(active) };
             cancel.Click += (s, e) => Close();
             save.Click += (s, e) => SaveAndClose();
             Controls.Add(cancel);
             Controls.Add(save);
+            TitleBar.AccentA = Theme.AccentA(active);
+            TitleBar.AccentB = Theme.AccentB(active);
 
             SelectPage(0);
             FinishLayout();
+        }
+
+        /// <summary>Os três textos possíveis do estado do Caça-travadinhas (permitido, pedido, não pedido).</summary>
+        private static string[] FrameStatusTexts()
+        {
+            return new[]
+            {
+                L.T("Ligado: mede os quadros em toda partida (FPS, 1% low e travadinhas) e mostra no Raio-X.",
+                    "On: measures frames in every match (FPS, 1% low and stutters) and shows them in the X-ray."),
+                L.T("Permissão dada. Falta sair e entrar de novo na conta do Windows para valer.",
+                    "Permission granted. Sign out and back in to Windows for it to apply."),
+                L.T("Precisa de uma permissão única do Windows (pede o administrador uma vez). Não entra no jogo.",
+                    "Needs a one-time Windows permission (asks for the administrator once). It does not touch the game.")
+            };
         }
 
         /// <summary>Estado da permissão do Caça-travadinhas e o que o botão faz.</summary>
         private void ShowFramePermission()
         {
             bool allowed = FramePermission.Allowed;
+            string[] texts = FrameStatusTexts();
             if (allowed)
             {
                 cfg.FramePermissionAsked = false;
-                framesStatus.Text = L.T("Ligado: mede os quadros em toda partida (FPS, 1% low e travadinhas) e mostra no Raio-X.",
-                                        "On: measures frames in every match (FPS, 1% low and stutters) and shows them in the X-ray.");
+                framesStatus.Text = texts[0];
             }
             else if (cfg.FramePermissionAsked)
             {
-                framesStatus.Text = L.T("Permissão dada. Falta sair e entrar de novo na conta do Windows para valer.",
-                                        "Permission granted. Sign out and back in to Windows for it to apply.");
+                framesStatus.Text = texts[1];
             }
             else
             {
-                framesStatus.Text = L.T("Precisa de uma permissão única do Windows (pede o administrador uma vez). Não entra no jogo.",
-                                        "Needs a one-time Windows permission (asks for the administrator once). It does not touch the game.");
+                framesStatus.Text = texts[2];
             }
             framesButton.Text = allowed || cfg.FramePermissionAsked ? L.T("Tirar", "Remove") : L.T("Permitir", "Allow");
             framesButton.Invalidate();
@@ -305,11 +353,9 @@ namespace MouseModes
             };
         }
 
-        private ToggleRow MakeRow(string title, string subtitle, Color a, Color b, int y, int h)
+        private static ToggleRow MakeRow(string title, string subtitle, Color a, Color b)
         {
-            var row = new ToggleRow { Title = title, Subtitle = subtitle, Location = new Point(0, y), Size = new Size(440, h) };
-            row.SetAccents(a, b);
-            return row;
+            return SettingsLayout.Toggle(title, subtitle, a, b);
         }
 
         private void SelectPage(int index)
@@ -319,13 +365,39 @@ namespace MouseModes
                 pages[i].Visible = i == index;
                 nav[i].Selected = i == index;
             }
-            TitleBar.AccentA = nav[index].AccentA;
-            TitleBar.AccentB = nav[index].AccentB;
-            TitleBar.Invalidate();
+            pageBar.Target = pages[index];
+            // Salvar na paleta da página (Performance, Jogos e Turbo em laranja; Dia a dia, Geral e Privacidade em azul).
             save.AccentA = nav[index].AccentA;
             save.AccentB = nav[index].AccentB;
             save.Invalidate();
         }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // Windows 10 (sem a borda do sistema): a barra fina cobre a coluna da borda que a janela pinta.
+            pageBar.EdgeColor = SystemBorder ? Color.Empty : Theme.Border;
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            // Cada página só aparece até a barra fina (região da janela): a parte de baixo dela, com a barra nativa,
+            // fica recortada, e a barra fina na margem não fica coberta pela página.
+            if (pageBar == null || pages == null) return;
+            foreach (Panel p in pages)
+            {
+                var visible = new Size(Math.Max(1, pageBar.Left - p.Left), p.Height);
+                Size was;
+                if (clipped.TryGetValue(p, out was) && was == visible) continue;
+                clipped[p] = visible;
+                Region old = p.Region;
+                p.Region = new Region(new Rectangle(Point.Empty, visible));
+                if (old != null) old.Dispose();
+            }
+        }
+
+        private readonly Dictionary<Panel, Size> clipped = new Dictionary<Panel, Size>();
 
         /// <summary>Abre a lista de programas abertos; retorna o escolhido ou null.</summary>
         internal string PickProcess()
@@ -534,9 +606,172 @@ namespace MouseModes
             Close();
         }
 
-        private class SideDivider : Control
+        /// <summary>Divisória de 1 px (rodapé).</summary>
+        private class Rule : Control
         {
-            public SideDivider() { BackColor = Theme.Border; }
+            public Rule() { BackColor = Theme.Border; }
+        }
+    }
+
+    /// <summary>
+    /// Montagem das páginas dos Ajustes (px a 96 dpi, antes da escala da janela): cabeçalho de grupo, grupo de linhas,
+    /// linhas feitas de vários controles e legendas medidas pelo texto.
+    /// </summary>
+    internal static class SettingsLayout
+    {
+        /// <summary>Largura do conteúdo das páginas.</summary>
+        public const int Width = 440;
+        /// <summary>Altura visível das páginas.</summary>
+        public const int PageHeight = 554;
+        private const int HeaderH = 22, HeaderAbove = 24, HeaderBelow = 8, CaptionGap = 6;
+
+        /// <summary>
+        /// Página que chega perto do rodapé: 16 px de margem embaixo (rola o que faltar), para o fim não ficar colado
+        /// na divisória do rodapé.
+        /// </summary>
+        public static void FinishPage(Panel page, int bottom)
+        {
+            page.AutoScrollMargin = bottom > PageHeight - Theme.Space.S16 ? new Size(0, Theme.Space.S16) : Size.Empty;
+        }
+
+        /// <summary>Página dos Ajustes: rola (barra escura) quando o conteúdo passa da altura.</summary>
+        public static Panel NewPage()
+        {
+            var page = new Panel { BackColor = Theme.Bg };
+            MakeScrollable(page);
+            return page;
+        }
+
+        public static void MakeScrollable(Panel page)
+        {
+            page.AutoScroll = true;
+            Theme.DarkScroll(page);
+        }
+
+        /// <summary>Cabeçalho de grupo: UiSemibold 11, Text, sentence case.</summary>
+        public static SectionLabel Header(string text)
+        {
+            return new SectionLabel { Text = text, Size = new Size(Width, HeaderH) };
+        }
+
+        /// <summary>Título de uma linha feita de vários controles (o mesmo estilo do título do ToggleRow).</summary>
+        public static SectionLabel RowTitle(string text)
+        {
+            return new SectionLabel { Text = text, RowTitle = true, Size = new Size(Width - SettingsGroup.Inset * 2, 20) };
+        }
+
+        /// <summary>Linha com chave: 56 px (com subtítulo).</summary>
+        public static ToggleRow Toggle(string title, string subtitle, Color a, Color b)
+        {
+            var row = new ToggleRow { Title = title, Subtitle = subtitle, Size = new Size(Width, string.IsNullOrEmpty(subtitle) ? 44 : 56) };
+            row.SetAccents(a, b);
+            return row;
+        }
+
+        /// <summary>Legenda (Ui 8.5, TextSecondary) com a altura do texto mais comprido entre ele e as variantes.</summary>
+        public static Label Caption(string text, int width, params string[] variants)
+        {
+            return Caption(Theme.TypeScale.Caption, text, width, variants);
+        }
+
+        public static Label Caption(float size, string text, int width, params string[] variants)
+        {
+            Font font = Theme.Ui(size);
+            int h = Theme.TextHeight(text, font, width);
+            if (variants != null)
+                foreach (string v in variants) h = Math.Max(h, Theme.TextHeight(v, font, width));
+            return new Label
+            {
+                Text = text ?? "",
+                Size = new Size(width, h),
+                ForeColor = Theme.TextSecondary,
+                BackColor = Theme.Surface,
+                Font = font,
+                UseMnemonic = false
+            };
+        }
+
+        /// <summary>Grupo com as linhas dadas, na largura da página.</summary>
+        public static SettingsGroup Group(params Control[] rows)
+        {
+            var group = new SettingsGroup(Width);
+            foreach (Control row in rows) group.AddRow(row);
+            return group;
+        }
+
+        /// <summary>Linha de grupo com os controles já posicionados dentro dela.</summary>
+        public static GroupCell Cell(int height, params Control[] children)
+        {
+            var cell = new GroupCell { Size = new Size(Width, height) };
+            foreach (Control c in children) cell.Controls.Add(c);
+            return cell;
+        }
+
+        /// <summary>Título com o valor à direita, o slider embaixo (trilha alinhada ao texto) e a legenda opcional.</summary>
+        public static GroupCell SliderCell(SectionLabel title, NeonSlider slider, Label caption)
+        {
+            const int inset = SettingsGroup.Inset;
+            title.Location = new Point(inset, 12);
+            title.Size = new Size(Width - inset * 2, 20);
+            // O slider desenha a trilha 12 px para dentro: assim ela começa e termina no recuo do texto.
+            slider.Location = new Point(inset - 12, 34);
+            slider.Size = new Size(Width - (inset - 12) * 2, 28);
+            int bottom = slider.Bottom + 8;
+            var cell = Cell(0, title, slider);
+            if (caption != null)
+            {
+                caption.Location = new Point(inset, slider.Bottom);
+                caption.Width = Width - inset * 2;
+                cell.Controls.Add(caption);
+                bottom = caption.Bottom + 10;
+            }
+            cell.Height = bottom;
+            return cell;
+        }
+
+        /// <summary>Título e, embaixo, um controle de largura inteira (ex.: Segmented de 36 px).</summary>
+        public static GroupCell ControlCell(SectionLabel title, Control control)
+        {
+            const int inset = SettingsGroup.Inset;
+            title.Location = new Point(inset, 12);
+            title.Size = new Size(Width - inset * 2, 20);
+            control.Location = new Point(inset, 38);
+            control.Size = new Size(Width - inset * 2, 36);
+            return Cell(control.Bottom + 14, title, control);
+        }
+
+        /// <summary>Linha de ícone com um texto de várias linhas (a altura sai do texto).</summary>
+        public static IconRow IconLine(GlyphKind glyph, string text)
+        {
+            return new IconRow { Glyph = glyph, Text = text, Size = new Size(Width, IconRow.HeightFor(text, Width)) };
+        }
+
+        /// <summary>Põe o cabeçalho (opcional) e o bloco a partir de y; devolve o pé do bloco.</summary>
+        public static int Place(Control page, int y, SectionLabel header, Control block)
+        {
+            if (header != null)
+            {
+                if (y > 0) y += HeaderAbove;
+                header.Location = new Point(0, y);
+                header.Size = new Size(Width, HeaderH);
+                page.Controls.Add(header);
+                y += HeaderH + HeaderBelow;
+            }
+            else if (y > 0)
+            {
+                y += Theme.Space.BetweenGroups;
+            }
+            block.Location = new Point(0, y);
+            if (block.Parent != page) page.Controls.Add(block);
+            return block.Bottom;
+        }
+
+        /// <summary>Legenda logo abaixo de um grupo (6 px); devolve o pé dela.</summary>
+        public static int PlaceCaption(Control page, int y, Label caption)
+        {
+            caption.Location = new Point(0, y + CaptionGap);
+            if (caption.Parent != page) page.Controls.Add(caption);
+            return caption.Bottom;
         }
     }
 
@@ -570,11 +805,19 @@ namespace MouseModes
         private Entry current;
         private readonly bool autoLoaded; // troca automática ao abrir: a da bandeja, mudada depois, não é desfeita
 
+        private readonly SettingsGroup customGroup; // a linha "Configurações próprias para ..." (some sem jogo escolhido)
+        private readonly EmptyState emptyBox;       // moldura do emptyNote
+
+        /// <summary>Altura de cada jogo na lista (px a 96 dpi) e quantos aparecem sem rolar.</summary>
+        private const int ItemHeight = 34, VisibleItems = 6;
+
         public GamesPanel(AppConfig cfg, SettingsForm owner)
         {
             this.cfg = cfg;
             BackColor = Theme.Bg;
+            SettingsLayout.MakeScrollable(this); // com o editor aberto a página passa da altura
             Color a = Theme.PerfA, b = Theme.PerfB;
+            const int width = SettingsLayout.Width;
 
             foreach (string g in cfg.Games)
             {
@@ -582,23 +825,25 @@ namespace MouseModes
                 entries.Add(new Entry { Name = g, Custom = gp != null ? gp.Profile.Clone() : null });
             }
 
-            autoSwitch = new ToggleRow { Title = L.T("Troca automática", "Automatic switch"), Subtitle = L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), Location = new Point(0, 4), Size = new Size(440, 52) };
-            autoSwitch.SetAccents(a, b);
+            autoSwitch = SettingsLayout.Toggle(L.T("Trocar ao abrir um jogo", "Switch when a game opens"), L.T("Ativa Performance quando um jogo da lista abrir", "Turns on Performance when a game from the list opens"), a, b);
             autoSwitch.Switch.SetChecked(cfg.AutoSwitch, false);
             autoLoaded = cfg.AutoSwitch;
 
-            listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 64), Size = new Size(440, 20), RightColor = Theme.Danger };
+            listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), RightColor = Theme.DangerText };
             list = new ListBox
             {
                 BorderStyle = BorderStyle.None,
-                IntegralHeight = false,
+                IntegralHeight = true, // só jogos inteiros: nenhum cortado no pé
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 26,
+                ItemHeight = ItemHeight,
                 Font = Theme.Ui(10f)
             };
+            // A altura do item não acompanha a escala da janela sozinha.
+            list.HandleCreated += (s, e) => list.ItemHeight = Math.Max(ItemHeight, (int)Math.Round(ItemHeight * list.DeviceDpi / 96f));
             list.DrawItem += DrawItem;
             list.SelectedIndexChanged += (s, e) => { list.Invalidate(); Select(list.SelectedIndex); };
-            var listHost = new FieldHost(list) { Location = new Point(0, 88), Size = new Size(440, 80), Accent = b };
+            // FieldHost põe a lista 10 px para dentro em cima e embaixo: seis jogos inteiros.
+            var listHost = new FieldHost(list) { Size = new Size(width, ItemHeight * VisibleItems + 20), Accent = b };
 
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
             nameBox.KeyDown += (s, e) =>
@@ -609,10 +854,14 @@ namespace MouseModes
                 // caixa de texto (o bipe de erro do Windows).
                 BeginInvoke((Action)(() => AddName(nameBox.Text)));
             };
-            var nameHost = new FieldHost(nameBox) { Location = new Point(0, 176), Size = new Size(196, 38), Accent = b };
-            var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 176), Size = new Size(74, 38), AccentA = a, AccentB = b };
-            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 176), Size = new Size(78, 38), AccentA = a, AccentB = b };
-            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Location = new Point(368, 176), Size = new Size(72, 38) };
+            string example = L.T("Nome do processo, ex.: cs2", "Process name, e.g. cs2");
+            Theme.CueBanner(nameBox, example);
+            // Incluir e Buscar são ações da linha (secundárias: o único primário da tela é o Salvar); Tirar é destrutivo.
+            const int addW = 72, pickW = 72, removeW = 70, gap = 8;
+            var nameHost = new FieldHost(nameBox) { Size = new Size(width - addW - pickW - removeW - gap * 3, 36), Accent = b, Placeholder = example };
+            var add = new NeonButton { Text = L.T("Incluir", "Add"), Style = ButtonStyle.Secondary, Size = new Size(addW, 36), AccentA = a, AccentB = b };
+            var pick = new NeonButton { Text = L.T("Buscar", "Find"), Style = ButtonStyle.Secondary, Size = new Size(pickW, 36), AccentA = a, AccentB = b };
+            var remove = new NeonButton { Text = L.T("Tirar", "Remove"), Style = ButtonStyle.Danger, Size = new Size(removeW, 36) };
             add.Click += (s, e) => AddName(nameBox.Text);
             pick.Click += (s, e) =>
             {
@@ -620,52 +869,74 @@ namespace MouseModes
             };
             remove.Click += (s, e) => RemoveSelected();
 
-            customRow = new ToggleRow { Location = new Point(0, 220), Size = new Size(440, 46), Subtitle = L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings") };
-            customRow.SetAccents(a, b);
+            customRow = SettingsLayout.Toggle("", L.T("Desligado: usa as configurações do modo Performance", "Off: uses the Performance mode settings"), a, b);
             customRow.Switch.CheckedChanged += OnCustomToggled;
+            customGroup = SettingsLayout.Group(customRow);
 
-            editor = new Panel { BackColor = Theme.Bg, Location = new Point(0, 270), Size = new Size(440, 284) };
-            speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 0), Size = new Size(440, 20), RightColor = b };
-            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 20), Size = new Size(448, 34), AccentA = a, AccentB = b };
+            speedLabel = SettingsLayout.RowTitle(L.T("Velocidade do ponteiro", "Pointer speed"));
+            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, AccentA = a, AccentB = b };
             speed.ValueChanged += () => { speedLabel.RightText = speed.Value + " / 20"; speedLabel.Invalidate(); };
-            precision = new ToggleRow { Title = L.T("Aceleração do Windows", "Windows acceleration"), Subtitle = L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), Location = new Point(0, 54), Size = new Size(440, 44) };
-            precision.SetAccents(a, b);
-            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 102), Size = new Size(440, 20) };
-            plan = new Segmented { Options = new[] { L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") }, Location = new Point(0, 124), Size = new Size(440, 36), AccentA = a, AccentB = b };
+            precision = SettingsLayout.Toggle(L.T("Aceleração do Windows", "Windows acceleration"), L.T("\"Aprimorar precisão do ponteiro\"", "\"Enhance pointer precision\""), a, b);
+            var planLabel = SettingsLayout.RowTitle(L.T("Plano de energia", "Power plan"));
+            plan = new Segmented { Options = new[] { L.T("Manter", "Keep"), L.T("Equilibrado", "Balanced"), L.T("Alto", "High"), L.T("Máximo", "Ultimate") }, AccentA = a, AccentB = b };
             // Resolução do monitor principal com o jogo aberto (4:3 esticado depende da escala da placa em "Tela cheia").
-            var resolutionLabel = new SectionLabel { Text = L.T("Resolução com o jogo aberto", "Resolution with the game open"), Location = new Point(0, 164), Size = new Size(440, 20), RightText = L.T("monitor principal", "main monitor"), RightColor = Theme.Faint };
+            var resolutionLabel = SettingsLayout.RowTitle(L.T("Resolução com o jogo aberto", "Resolution with the game open"));
+            resolutionLabel.RightText = L.T("monitor principal", "main monitor");
+            resolutionLabel.RightColor = Theme.TextTertiary;
             var resolutionNames = new string[GameResolution.Options.Length];
             for (int i = 0; i < resolutionNames.Length; i++)
-                resolutionNames[i] = GameResolution.Options[i] == null ? L.T("NATIVA", "NATIVE") : GameResolution.Format(GameResolution.Options[i]);
-            resolution = new Segmented { Options = resolutionNames, Location = new Point(0, 186), Size = new Size(440, 36), AccentA = a, AccentB = b };
+                resolutionNames[i] = GameResolution.Options[i] == null ? L.T("Nativa", "Native") : GameResolution.Format(GameResolution.Options[i]);
+            resolution = new Segmented { Options = resolutionNames, AccentA = a, AccentB = b };
             // Limite de FPS no driver da placa (NVIDIA ou Intel Arc): gravado ao salvar, vale da próxima vez que o jogo abrir.
-            fpsLabel = new SectionLabel { Text = L.T("Limite de FPS (beta)", "FPS limit (beta)"), Location = new Point(0, 226), Size = new Size(440, 20), RightColor = Theme.Faint };
+            fpsLabel = SettingsLayout.RowTitle(L.T("Limite de FPS (beta)", "FPS limit (beta)"));
+            fpsLabel.RightColor = Theme.TextTertiary;
             var fpsNames = new string[FpsCap.Options.Length];
             for (int i = 0; i < fpsNames.Length; i++)
-                fpsNames[i] = FpsCap.Options[i] == 0 ? L.T("SEM", "OFF") : FpsCap.Options[i] == FpsCap.Auto ? "AUTO" : FpsCap.Options[i].ToString();
-            fps = new Segmented { Options = fpsNames, Location = new Point(0, 248), Size = new Size(440, 36), AccentA = a, AccentB = b };
+                fpsNames[i] = FpsCap.Options[i] == 0 ? L.T("Sem", "Off") : FpsCap.Options[i] == FpsCap.Auto ? "Auto" : FpsCap.Options[i].ToString();
+            fps = new Segmented { Options = fpsNames, AccentA = a, AccentB = b };
             fps.SelectedIndexChanged += ShowFpsTarget;
-            editor.Controls.Add(speedLabel);
-            editor.Controls.Add(speed);
-            editor.Controls.Add(precision);
-            editor.Controls.Add(planLabel);
-            editor.Controls.Add(plan);
-            editor.Controls.Add(resolutionLabel);
-            editor.Controls.Add(resolution);
-            editor.Controls.Add(fpsLabel);
-            editor.Controls.Add(fps);
+            var editorGroup = SettingsLayout.Group(
+                SettingsLayout.SliderCell(speedLabel, speed, null),
+                precision,
+                SettingsLayout.ControlCell(planLabel, plan),
+                SettingsLayout.ControlCell(resolutionLabel, resolution),
+                SettingsLayout.ControlCell(fpsLabel, fps));
+            editor = new Panel { BackColor = Theme.Bg, Size = editorGroup.Size };
+            editor.Controls.Add(editorGroup);
 
+            // Sem jogo escolhido: estado vazio (Surface com borda) com o ícone e o texto centralizados.
+            const int emptyH = 96, emptyTextW = width - 48;
             emptyNote = new Label
             {
                 Text = L.T("Escolha um jogo na lista para dar a ele configurações próprias. Rolagem e USB seguem o modo Performance.", "Pick a game in the list to give it its own settings. Scroll and USB follow Performance mode."),
-                Location = new Point(0, 228),
-                Size = new Size(440, 60),
-                ForeColor = Theme.Faint,
-                Font = Theme.Ui(8.5f),
-                BackColor = Color.Transparent
+                ForeColor = Theme.TextSecondary,
+                Font = Theme.Ui(9f),
+                BackColor = Theme.Surface,
+                TextAlign = ContentAlignment.TopCenter,
+                UseMnemonic = false
             };
+            int emptyTextH = Theme.TextHeight(emptyNote.Text, emptyNote.Font, emptyTextW);
+            int glyphTop = Math.Max(8, (emptyH - 20 - 8 - emptyTextH) / 2);
+            emptyNote.Bounds = new Rectangle(24, glyphTop + 28, emptyTextW, emptyTextH);
+            emptyBox = new EmptyState { Glyph = GlyphKind.Mouse, GlyphTop = glyphTop, Size = new Size(width, emptyH) };
+            emptyBox.Controls.Add(emptyNote);
 
-            foreach (Control c in new Control[] { autoSwitch, listLabel, listHost, nameHost, add, pick, remove, customRow, editor, emptyNote })
+            // Troca automática; a lista com o título (o aviso de linha ampla fica à direita dele); nome e botões; embaixo,
+            // o jogo escolhido (ou o estado vazio) e as configurações próprias dele.
+            int y = SettingsLayout.Place(this, 0, SettingsLayout.Header(L.T("Troca automática", "Automatic switch")), SettingsLayout.Group(autoSwitch));
+            y = SettingsLayout.Place(this, y, listLabel, listHost);
+            y += Theme.Space.InsideGroup;
+            nameHost.Location = new Point(0, y);
+            add.Location = new Point(nameHost.Right + gap, y);
+            pick.Location = new Point(add.Right + gap, y);
+            remove.Location = new Point(pick.Right + gap, y);
+            y = nameHost.Bottom;
+            SettingsLayout.Place(this, y, null, emptyBox);
+            y = SettingsLayout.Place(this, y, null, customGroup);
+            editor.Location = new Point(0, y + Theme.Space.InsideGroup);
+            SettingsLayout.FinishPage(this, editor.Bottom); // o editor aberto passa da altura da página
+
+            foreach (Control c in new Control[] { nameHost, add, pick, remove, editor })
                 Controls.Add(c);
 
             RefreshList(-1);
@@ -688,7 +959,9 @@ namespace MouseModes
             bool has = current != null;
             ShowBroad(has ? current.Name : null);
             customRow.Visible = has;
+            customGroup.Visible = has;
             emptyNote.Visible = !has;
+            emptyBox.Visible = !has;
             if (has)
             {
                 customRow.Title = L.T("Configurações próprias para ", "Own settings for ") + current.Name;
@@ -806,7 +1079,7 @@ namespace MouseModes
                 fpsLabel.RightText = L.T("esta placa não tem limitador", "this card has no limiter");
             else
                 fpsLabel.RightTextOptions = FpsLabelTexts(limiter.Name, choice, choice == 0 ? 0 : FpsCap.Resolve(choice, FpsCap.PrimaryRefresh()), target);
-            fpsLabel.RightColor = limiter == null ? Theme.Faint : Theme.PerfB;
+            fpsLabel.RightColor = limiter == null ? Theme.TextTertiary : Theme.Text;
             fpsLabel.Invalidate();
         }
 
@@ -874,8 +1147,8 @@ namespace MouseModes
             Entry entry = entries[e.Index];
             bool sel = (e.State & DrawItemState.Selected) != 0;
             bool broad = GameListCheck.TooBroad(entry.Name);
-            string own = entry.Custom != null ? L.T("PRÓPRIO", "OWN") : null;
-            string tag = broad ? (own != null ? own + " · " : "") + L.T("AMPLO", "BROAD") : own;
+            string own = entry.Custom != null ? L.T("Próprio", "Own") : null;
+            string tag = broad ? (own != null ? own + " · " : "") + L.T("Amplo", "Broad") : own;
             ListPainter.Draw(e, entry.Name, sel, tag, Theme.PerfA, Theme.PerfB, broad ? (Color?)Theme.Danger : null);
         }
     }
@@ -888,25 +1161,41 @@ namespace MouseModes
         {
             Graphics g = e.Graphics;
             Theme.HighQuality(g);
-            using (var bg = new SolidBrush(Theme.Panel2)) g.FillRectangle(bg, e.Bounds);
-            var r = new RectangleF(e.Bounds.X, e.Bounds.Y + 2, e.Bounds.Width - 2, e.Bounds.Height - 4);
+            ModePalette p = Theme.PaletteFor(a);
+            using (var bg = new SolidBrush(Theme.Surface2)) g.FillRectangle(bg, e.Bounds);
+            var r = new RectangleF(e.Bounds.X + 0.5f, e.Bounds.Y + 1.5f, e.Bounds.Width - 3, e.Bounds.Height - 3);
             if (selected)
             {
-                using (var lb = Theme.Gradient(r, a, b))
-                    Theme.FillRounded(g, r, 7, lb);
+                // Seleção discreta: tinta do modo, barra de 3 px à esquerda e o texto normal (sem gradiente).
+                Theme.FillRounded(g, r, Theme.Radius.Sm, p.Tint);
+                using (var bar = new SolidBrush(p.Fill))
+                    g.FillRectangle(bar, r.X, r.Y + 5, 3, Math.Max(4, r.Height - 10));
             }
             float tagW = 0;
             if (tag != null)
             {
-                SizeF ts = Theme.MeasureSpaced(g, tag, Theme.Ui(6.5f, FontStyle.Bold), 1f);
-                tagW = ts.Width + 14;
-                var badge = new RectangleF(r.Right - tagW - 6, r.Y + (r.Height - 16) / 2f, tagW, 16);
-                Theme.FillRounded(g, badge, 8, selected ? Theme.Alpha(Color.Black, 70) : Theme.Alpha(tagColor ?? a, 50));
-                using (var tb = new SolidBrush(selected ? Color.White : tagColor ?? b))
-                    Theme.DrawSpacedCentered(g, tag, Theme.Ui(6.5f, FontStyle.Bold), tb, badge, 1f);
+                // Selo legível: números na fonte de números; palavras em semibold.
+                bool numeric = tag.Length > 0 && char.IsDigit(tag[0]);
+                Font tagFont = numeric ? Theme.Num(Theme.TypeScale.Caption) : Theme.UiSemibold(Theme.TypeScale.Caption);
+                SizeF ts;
+                using (var format = new StringFormat(StringFormatFlags.NoWrap)) ts = g.MeasureString(tag, tagFont, PointF.Empty, format);
+                float badgeH = Math.Min(r.Height - 4, Math.Max(18f, (float)Math.Ceiling(tagFont.GetHeight(g)) + 3));
+                tagW = ts.Width + 12;
+                var badge = new RectangleF(r.Right - tagW - 6, r.Y + (r.Height - badgeH) / 2f, tagW, badgeH);
+                Color tint = tagColor ?? p.Fill;
+                Color fg = !tagColor.HasValue ? p.OnSurface : tint.ToArgb() == Theme.Danger.ToArgb() ? Theme.DangerText : tint;
+                Color fill = Theme.Alpha(tint, 36);
+                if (numeric && !tagColor.HasValue && !selected)
+                {
+                    // Número (ex.: "144 FPS") é dado, não alerta: selo neutro; só o item escolhido leva a cor da lista.
+                    fill = Theme.Alpha(Color.White, 8);
+                    fg = Theme.TextSecondary;
+                }
+                Theme.FillRounded(g, badge, badgeH / 2f, fill);
+                Theme.DrawText(g, tag, tagFont, fg, badge, StringAlignment.Center, StringAlignment.Center, false);
             }
-            Theme.DrawText(g, text, Theme.Ui(10f), selected ? Color.White : Theme.Text,
-                new RectangleF(r.X + 10, r.Y, r.Width - 22 - tagW, r.Height), StringAlignment.Near, StringAlignment.Center, false);
+            Theme.DrawText(g, text, Theme.Ui(10f), Theme.Text,
+                new RectangleF(r.X + 12, r.Y, r.Width - 24 - tagW, r.Height), StringAlignment.Near, StringAlignment.Center, false);
         }
     }
 
@@ -917,24 +1206,37 @@ namespace MouseModes
         {
             CloseOnEscape = true;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(420, 210);
+            const int width = 420, textX = 76;
 
-            Controls.Add(Note(message, 22, 60, 376, 80, Theme.Muted, 9.5f));
+            // Ícone num círculo (perigo em vermelho; aviso ou informação em âmbar) e a mensagem ao lado, com a altura medida.
+            Controls.Add(new IconBadge { Glyph = GlyphKind.Alert, Tone = danger ? Theme.Danger : Theme.Warning, Location = new Point(20, 60), Size = new Size(40, 40) });
+            Label text = MeasuredNote(message, textX, 60, width - textX - 20, Theme.Text, 10f);
+            // Uma linha só fica no meio do ícone.
+            if (text.Height < 40) text.Top = 60 + (40 - text.Height) / 2;
+            Controls.Add(text);
+
+            // Botões alinhados à direita; a ação (destrutiva ou não) fica na ponta.
+            int buttonsY = Math.Max(text.Bottom, 100) + 24;
+            string okText = confirmText ?? "Ok";
+            int okW = ButtonWidth(104, okText);
+            var ok = new NeonButton
+            {
+                Text = okText,
+                Style = danger ? ButtonStyle.DangerSolid : ButtonStyle.Primary,
+                Location = new Point(width - 20 - okW, buttonsY),
+                Size = new Size(okW, 36)
+            };
+            ok.Click += (s, e) => { DialogResult = DialogResult.OK; Close(); };
             if (confirmText != null)
             {
-                var cancel = new NeonButton { Text = L.T("Cancelar", "Cancel"), Location = new Point(132, 150), Size = new Size(126, 42) };
+                string cancelText = L.T("Cancelar", "Cancel");
+                int cancelW = ButtonWidth(104, cancelText);
+                var cancel = new NeonButton { Text = cancelText, Location = new Point(ok.Left - 8 - cancelW, buttonsY), Size = new Size(cancelW, 36) };
                 cancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; Close(); };
                 Controls.Add(cancel);
             }
-            var ok = new NeonButton
-            {
-                Text = confirmText ?? "Ok",
-                Style = danger ? ButtonStyle.Danger : ButtonStyle.Primary,
-                Location = new Point(272, 150),
-                Size = new Size(126, 42)
-            };
-            ok.Click += (s, e) => { DialogResult = DialogResult.OK; Close(); };
             Controls.Add(ok);
+            ClientSize = new Size(width, buttonsY + 36 + 20);
             FinishLayout();
         }
 
@@ -965,80 +1267,85 @@ namespace MouseModes
         private bool pageScroll; // "uma tela por vez" do Windows: continua assim até a pessoa mexer na régua
         private MouseProfile loaded; // o que a página mostrou ao abrir: o SaveTo grava só o que mudou
 
+        private readonly InfoNote hintNote; // dica da página, sempre no fim
+        private int contentBottom;          // pé do último grupo
+
         /// <param name="keepPlanLabel">
-        /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "ANTERIOR": volta ao plano de antes do Performance.
+        /// Nome da 1ª opção de plano (não trocar). No Dia a dia é "Anterior": volta ao plano de antes do Performance.
         /// </param>
         public ProfilePanel(Color a, Color b, string hint, string keepPlanLabel = null)
         {
             BackColor = Theme.Bg;
+            SettingsLayout.MakeScrollable(this);
+            const int inner = SettingsLayout.Width - SettingsGroup.Inset * 2;
 
-            speedLabel = new SectionLabel { Text = L.T("Velocidade do ponteiro", "Pointer speed"), Location = new Point(0, 8), Size = new Size(440, 20), RightColor = b };
-            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, Location = new Point(-4, 30), Size = new Size(448, 36), AccentA = a, AccentB = b };
-            speedNote = new Label { Location = new Point(0, 68), Size = new Size(440, 20), ForeColor = Theme.Muted, Font = Theme.Ui(8.5f), BackColor = Color.Transparent };
+            speedLabel = SettingsLayout.RowTitle(L.T("Velocidade do ponteiro", "Pointer speed"));
+            speed = new NeonSlider { Minimum = 1, Maximum = 20, Marker = 10, AccentA = a, AccentB = b };
+            speedNote = SettingsLayout.Caption("", inner, SpeedNotes()); // alto o bastante para o texto mais comprido
             speed.ValueChanged += UpdateLabels;
 
-            precision = new ToggleRow
-            {
-                Title = L.T("Aceleração do Windows", "Windows acceleration"),
-                Subtitle = L.T("\"Aprimorar precisão do ponteiro\" (aceleração)", "\"Enhance pointer precision\" (acceleration)"),
-                Location = new Point(0, 98),
-                Size = new Size(440, 60)
-            };
-            precision.SetAccents(a, b);
+            precision = SettingsLayout.Toggle(L.T("Aceleração do Windows", "Windows acceleration"),
+                L.T("\"Aprimorar precisão do ponteiro\" (aceleração)", "\"Enhance pointer precision\" (acceleration)"), a, b);
 
-            scrollLabel = new SectionLabel { Text = L.T("Linhas por giro da roda", "Lines per wheel notch"), Location = new Point(0, 176), Size = new Size(440, 20), RightColor = b };
-            scroll = new NeonSlider { Minimum = 1, Maximum = 20, Location = new Point(-4, 198), Size = new Size(448, 36), AccentA = a, AccentB = b };
+            scrollLabel = SettingsLayout.RowTitle(L.T("Linhas por giro da roda", "Lines per wheel notch"));
+            scroll = new NeonSlider { Minimum = 1, Maximum = 20, AccentA = a, AccentB = b };
             scroll.ValueChanged += () => pageScroll = false; // antes do UpdateLabels: o texto já sai com as linhas
             scroll.ValueChanged += UpdateLabels;
 
-            var planLabel = new SectionLabel { Text = L.T("Plano de energia", "Power plan"), Location = new Point(0, 252), Size = new Size(440, 20) };
+            var planLabel = SettingsLayout.RowTitle(L.T("Plano de energia", "Power plan"));
             plan = new Segmented
             {
-                Options = new[] { keepPlanLabel ?? L.T("MANTER", "KEEP"), L.T("EQUILIBRADO", "BALANCED"), L.T("ALTO", "HIGH"), L.T("MÁXIMO", "ULTIMATE") },
-                Location = new Point(0, 276),
-                Size = new Size(440, 42),
+                Options = new[] { keepPlanLabel ?? L.T("Manter", "Keep"), L.T("Equilibrado", "Balanced"), L.T("Alto", "High"), L.T("Máximo", "Ultimate") },
                 AccentA = a,
                 AccentB = b
             };
 
-            usb = new ToggleRow
-            {
-                Title = L.T("USB sempre ativo", "USB always on"),
-                Subtitle = L.T("Desativa a suspensão seletiva: o mouse nunca \"adormece\"", "Turns off selective suspend: the mouse never \"falls asleep\""),
-                Location = new Point(0, 332),
-                Size = new Size(440, 50)
-            };
-            usb.SetAccents(a, b);
+            usb = SettingsLayout.Toggle(L.T("USB sempre ativo", "USB always on"),
+                L.T("Desativa a suspensão seletiva: o mouse nunca \"adormece\"", "Turns off selective suspend: the mouse never \"falls asleep\""), a, b);
 
-            var hintLabel = new Label
-            {
-                Text = hint,
-                Location = new Point(0, 390),
-                Size = new Size(440, 48),
-                ForeColor = Theme.Faint,
-                Font = Theme.Ui(8.5f),
-                BackColor = Color.Transparent
-            };
+            var pointer = SettingsLayout.Group(
+                SettingsLayout.SliderCell(speedLabel, speed, speedNote),
+                precision,
+                SettingsLayout.SliderCell(scrollLabel, scroll, null));
+            var power = SettingsLayout.Group(SettingsLayout.ControlCell(planLabel, plan), usb);
+            int y = SettingsLayout.Place(this, 0, SettingsLayout.Header(L.T("Ponteiro e rolagem", "Pointer and scrolling")), pointer);
+            contentBottom = SettingsLayout.Place(this, y, SettingsLayout.Header(L.T("Energia", "Power")), power);
 
-            Controls.Add(speedLabel);
-            Controls.Add(speed);
-            Controls.Add(speedNote);
-            Controls.Add(precision);
-            Controls.Add(scrollLabel);
-            Controls.Add(scroll);
-            Controls.Add(planLabel);
-            Controls.Add(plan);
-            Controls.Add(usb);
-            Controls.Add(hintLabel);
+            hintNote = new InfoNote { Text = hint ?? "", Accent = a, Visible = !string.IsNullOrEmpty(hint) };
+            hintNote.Size = new Size(SettingsLayout.Width, InfoNote.HeightFor(hintNote.Text, SettingsLayout.Width));
+            Controls.Add(hintNote);
+            PlaceHint();
+        }
+
+        /// <summary>Mais um grupo de linhas (com cabeçalho) no fim da página; a dica continua depois dele.</summary>
+        public void AddGroup(string header, params Control[] rows)
+        {
+            contentBottom = SettingsLayout.Place(this, contentBottom, SettingsLayout.Header(header), SettingsLayout.Group(rows));
+            PlaceHint();
+        }
+
+        private void PlaceHint()
+        {
+            hintNote.Location = new Point(0, contentBottom + Theme.Space.BetweenGroups);
+            SettingsLayout.FinishPage(this, hintNote.Visible ? hintNote.Bottom : contentBottom);
+        }
+
+        private static string[] SpeedNotes()
+        {
+            return new[]
+            {
+                L.T("1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)", "1:1 — the pointer moves exactly what the sensor reads (recommended for games)"),
+                L.T("Multiplica o movimento: pode pular pixels", "Multiplies movement: may skip pixels"),
+                L.T("Reduz o movimento do sensor", "Reduces the sensor movement")
+            };
         }
 
         private void UpdateLabels()
         {
             int v = speed.Value;
+            string[] notes = SpeedNotes();
             speedLabel.RightText = v + " / 20";
-            speedNote.Text = v == 10
-                ? L.T("1:1 — o ponteiro anda exatamente o que o sensor lê (recomendado para jogos)", "1:1 — the pointer moves exactly what the sensor reads (recommended for games)")
-                : v > 10 ? L.T("Multiplica o movimento: pode pular pixels", "Multiplies movement: may skip pixels") : L.T("Reduz o movimento do sensor", "Reduces the sensor movement");
+            speedNote.Text = v == 10 ? notes[0] : v > 10 ? notes[1] : notes[2];
             scrollLabel.RightText = pageScroll ? L.T("uma tela", "one screen")
                 : scroll.Value + (scroll.Value == 1 ? L.T(" linha", " line") : L.T(" linhas", " lines"));
             speedLabel.Invalidate();
@@ -1098,32 +1405,53 @@ namespace MouseModes
             Selected = new List<string>();
             CloseOnEscape = true;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(460, 560);
+            const int width = 420;
 
-            Controls.Add(Note(L.T("Jogos da Steam e da Epic e programas abertos. Ctrl+clique escolhe vários.", "Steam and Epic games plus open programs. Ctrl+click picks several."), 20, 58, 420, 20, Theme.Muted));
+            Label intro = MeasuredNote(L.T("Jogos da Steam e da Epic e programas abertos. Ctrl+clique escolhe vários.", "Steam and Epic games plus open programs. Ctrl+click picks several."),
+                                       20, 56, width, Theme.TextSecondary, 9f);
+            Controls.Add(intro);
 
-            list = new ListBox
-            {
-                BorderStyle = BorderStyle.None,
-                IntegralHeight = false,
-                DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 30,
-                Font = Theme.Ui(10f),
-                SelectionMode = SelectionMode.MultiExtended
-            };
+            list = PickerList(SelectionMode.MultiExtended);
             list.DrawItem += DrawItem;
             list.DoubleClick += (s, e) => Confirm();
             list.SelectedIndexChanged += (s, e) => list.Invalidate();
-            Controls.Add(new FieldHost(list) { Location = new Point(20, 86), Size = new Size(420, 380), Accent = Theme.PerfB });
+            var listHost = new FieldHost(list) { Location = new Point(20, intro.Bottom + 12), Size = new Size(width, PickerItemHeight * 10 + 20), Accent = Theme.PerfB };
+            Controls.Add(listHost);
 
-            status = Note(L.T("Procurando jogos instalados...", "Looking for installed games..."), 20, 472, 420, 20, Theme.Faint, 8.5f);
+            // Até 2 linhas: "N jogos instalados fora da lista (M já estão nela)."
+            status = MeasuredNote(L.T("Procurando jogos instalados...", "Looking for installed games..."), 20, listHost.Bottom + 8, width, Theme.TextSecondary, 8.5f, 34);
             Controls.Add(status);
 
-            var ok = new NeonButton { Text = L.T("Incluir na lista", "Add to the list"), Style = ButtonStyle.Primary, Location = new Point(20, 500), Size = new Size(420, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            string okText = L.T("Incluir na lista", "Add to the list");
+            int okW = ButtonWidth(140, okText);
+            var ok = new NeonButton { Text = okText, Style = ButtonStyle.Primary, Location = new Point(20 + width - okW, status.Bottom + 12), Size = new Size(okW, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Enabled = false };
+            ClientSize = new Size(460, ok.Bottom + 20);
             ok.Click += (s, e) => Confirm();
+            // Sem nada escolhido o botão fica apagado (o clique já não fazia nada).
+            list.SelectedIndexChanged += (s, e) => ok.Enabled = list.SelectedItems.Count > 0;
             Controls.Add(ok);
 
             FinishLayout();
+        }
+
+        /// <summary>Altura dos itens das listas de escolha (px a 96 dpi), a mesma da lista de jogos dos Ajustes.</summary>
+        internal const int PickerItemHeight = 34;
+
+        /// <summary>Lista no estilo das Configurações: itens de 34 px, só itens inteiros, na escala da janela.</summary>
+        internal static ListBox PickerList(SelectionMode mode)
+        {
+            var list = new ListBox
+            {
+                BorderStyle = BorderStyle.None,
+                IntegralHeight = true,
+                DrawMode = DrawMode.OwnerDrawFixed,
+                ItemHeight = PickerItemHeight,
+                Font = Theme.Ui(10f),
+                SelectionMode = mode
+            };
+            // A altura do item não acompanha a escala da janela sozinha.
+            list.HandleCreated += (s, e) => list.ItemHeight = Math.Max(PickerItemHeight, (int)Math.Round(PickerItemHeight * list.DeviceDpi / 96f));
+            return list;
         }
 
         protected override void OnShown(EventArgs e)
@@ -1151,13 +1479,13 @@ namespace MouseModes
             foreach (InstalledGame g in games)
             {
                 if (!shown.Add(g.Process)) continue;
-                list.Items.Add(new Item { Process = g.Process, Label = g.Name + "  ·  " + g.Process, Tag = g.Store.ToUpperInvariant() });
+                list.Items.Add(new Item { Process = g.Process, Label = g.Name + "  ·  " + g.Process, Tag = g.Store });
             }
             int installed = list.Items.Count;
             foreach (string p in open)
             {
                 if (!shown.Add(p)) continue;
-                list.Items.Add(new Item { Process = p, Label = p, Tag = L.T("ABERTO", "OPEN") });
+                list.Items.Add(new Item { Process = p, Label = p, Tag = L.T("Aberto", "Open") });
             }
             list.EndUpdate();
 
@@ -1196,26 +1524,28 @@ namespace MouseModes
         {
             CloseOnEscape = true;
             StartPosition = FormStartPosition.CenterParent;
-            ClientSize = new Size(400, 520);
+            const int width = 360;
 
-            Controls.Add(Note(L.T("Deixe o programa ou jogo aberto e escolha o processo dele.", "Leave the program or game open and pick its process."), 20, 58, 360, 20, Theme.Muted));
+            Label intro = MeasuredNote(L.T("Deixe o programa ou jogo aberto e escolha o processo dele.", "Leave the program or game open and pick its process."),
+                                       20, 56, width, Theme.TextSecondary, 9f);
+            Controls.Add(intro);
 
-            list = new ListBox
-            {
-                BorderStyle = BorderStyle.None,
-                IntegralHeight = false,
-                DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 30,
-                Font = Theme.Ui(10f)
-            };
+            list = GamePickerForm.PickerList(SelectionMode.One);
             list.Items.AddRange(GameDetector.ListWindowedProcesses().ToArray());
             list.DrawItem += DrawItem;
             list.DoubleClick += (s, e) => Confirm();
             list.SelectedIndexChanged += (s, e) => list.Invalidate();
-            Controls.Add(new FieldHost(list) { Location = new Point(20, 86), Size = new Size(360, 360), Accent = Theme.DailyB });
+            var listHost = new FieldHost(list) { Location = new Point(20, intro.Bottom + 12), Size = new Size(width, GamePickerForm.PickerItemHeight * 10 + 20), Accent = Theme.PerfB };
+            Controls.Add(listHost);
 
-            var ok = new NeonButton { Text = L.T("Adicionar", "Add"), Style = ButtonStyle.Primary, Location = new Point(20, 460), Size = new Size(360, 44) };
+            // Aberto só pela página Turbo (modo Performance): na paleta dela.
+            string okText = L.T("Adicionar", "Add");
+            int okW = ButtonWidth(120, okText);
+            var ok = new NeonButton { Text = okText, Style = ButtonStyle.Primary, Location = new Point(20 + width - okW, listHost.Bottom + 16), Size = new Size(okW, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Enabled = false };
+            ClientSize = new Size(400, ok.Bottom + 20);
             ok.Click += (s, e) => Confirm();
+            // Sem nada escolhido o botão fica apagado (o clique já não fazia nada).
+            list.SelectedIndexChanged += (s, e) => ok.Enabled = list.SelectedIndex >= 0;
             Controls.Add(ok);
 
             FinishLayout();
@@ -1224,7 +1554,7 @@ namespace MouseModes
         private void DrawItem(object sender, DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
-            ListPainter.Draw(e, (string)list.Items[e.Index], (e.State & DrawItemState.Selected) != 0, null, Theme.DailyA, Theme.DailyB);
+            ListPainter.Draw(e, (string)list.Items[e.Index], (e.State & DrawItemState.Selected) != 0, null, Theme.PerfA, Theme.PerfB);
         }
 
         private void Confirm()

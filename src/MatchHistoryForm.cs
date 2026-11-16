@@ -16,6 +16,7 @@ namespace MouseModes
         private readonly Label status;
         private readonly NeonButton open;
         private readonly NeonButton clear;
+        private readonly EmptyHint empty;
         private List<MatchRecord> records = new List<MatchRecord>();
         private MatchReportForm reportForm;
 
@@ -32,37 +33,63 @@ namespace MouseModes
             CloseOnEscape = true;
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
-            ClientSize = new Size(480, 560);
+            const int width = 440, itemHeight = 34, visibleItems = 9;
 
-            Controls.Add(Note(L.T("O Raio-X das últimas " + MatchHistory.MaxRecords + " partidas, guardado só neste PC. Abra uma para ver o " +
-                                  "relatório e a comparação com a anterior do mesmo jogo.",
-                                  "The X-ray of the last " + MatchHistory.MaxRecords + " matches, kept only on this PC. Open one to see the " +
-                                  "report and the comparison with the previous match of the same game."),
-                              20, 56, 440, 36, Theme.Muted, 9f));
+            Label intro = MeasuredNote(L.T("O Raio-X das últimas " + MatchHistory.MaxRecords + " partidas, guardado só neste PC. Abra uma para ver o " +
+                                           "relatório e a comparação com a anterior do mesmo jogo.",
+                                           "The X-ray of the last " + MatchHistory.MaxRecords + " matches, kept only on this PC. Open one to see the " +
+                                           "report and the comparison with the previous match of the same game."),
+                                       20, 56, width, Theme.TextSecondary, 9f);
+            Controls.Add(intro);
 
+            // Mesma lista das Configurações: itens de 34 px, só itens inteiros, seleção em tinta com a barra de 3 px.
             list = new ListBox
             {
                 BorderStyle = BorderStyle.None,
-                IntegralHeight = false,
+                IntegralHeight = true,
                 DrawMode = DrawMode.OwnerDrawFixed,
-                ItemHeight = 30,
+                ItemHeight = itemHeight,
                 Font = Theme.Ui(10f)
             };
+            // A altura do item não acompanha a escala da janela sozinha.
+            list.HandleCreated += (s, e) => list.ItemHeight = Math.Max(itemHeight, (int)Math.Round(itemHeight * list.DeviceDpi / 96f));
             list.DrawItem += DrawItem;
             list.DoubleClick += (s, e) => OpenSelected();
             list.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; OpenSelected(); } };
             list.SelectedIndexChanged += (s, e) => { list.Invalidate(); open.Enabled = list.SelectedIndex >= 0; open.Invalidate(); };
-            Controls.Add(new FieldHost(list) { Location = new Point(20, 98), Size = new Size(440, 330), Accent = Theme.PerfB });
+            var listHost = new FieldHost(list) { Location = new Point(20, intro.Bottom + 12), Size = new Size(width, itemHeight * visibleItems + 20), Accent = Theme.PerfB };
+            // Sem partidas: o estado vazio cobre a lista (o texto de baixo explica).
+            empty = new EmptyHint
+            {
+                Glyph = GlyphKind.Clock,
+                Text = L.T("Nenhuma partida guardada ainda", "No match saved yet"),
+                BackColor = Theme.Surface2,
+                Bounds = new Rectangle(2, 2, width - 4, listHost.Height - 4),
+                Visible = false
+            };
+            listHost.Controls.Add(empty);
+            empty.BringToFront();
+            Controls.Add(listHost);
 
-            status = Note("", 20, 434, 440, 48, Theme.Faint, 8.5f); // até 3 linhas: vazio e histórico desligado
+            // Até 3 linhas: vazio e histórico desligado.
+            string longest = L.T("Nenhuma partida guardada ainda: o Raio-X entra aqui ao fim de cada partida de pelo menos 2 minutos no Performance.",
+                                 "No match saved yet: the X-ray comes here at the end of each match of at least 2 minutes in Performance.") +
+                             L.T(" O histórico está desligado: partidas novas não entram (Ajustes → Privacidade).",
+                                 " The history is off: new matches are not added (Settings → Privacy).");
+            status = MeasuredNote(longest, 20, listHost.Bottom + 8, width, Theme.TextSecondary, 8.5f);
+            status.Text = "";
             Controls.Add(status);
 
-            open = new NeonButton { Text = L.T("Abrir", "Open"), Style = ButtonStyle.Primary, Location = new Point(20, 486), Size = new Size(212, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Enabled = false };
+            // Abrir é a ação da tela (primária, à direita); apagar tudo é destrutivo e fica à esquerda, em vermelho.
+            int buttonsY = status.Bottom + 12;
+            string clearText = L.T("Apagar o histórico", "Delete the history");
+            open = new NeonButton { Text = L.T("Abrir", "Open"), Style = ButtonStyle.Primary, Location = new Point(20 + width - 128, buttonsY), Size = new Size(128, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Enabled = false };
             open.Click += (s, e) => OpenSelected();
-            clear = new NeonButton { Text = L.T("Apagar o histórico", "Delete the history"), Style = ButtonStyle.Danger, Location = new Point(248, 486), Size = new Size(212, 44) };
+            clear = new NeonButton { Text = clearText, Style = ButtonStyle.Danger, Location = new Point(20, buttonsY), Size = new Size(ButtonWidth(150, clearText), 36) };
             clear.Click += (s, e) => ClearAll();
             Controls.Add(open);
             Controls.Add(clear);
+            ClientSize = new Size(480, buttonsY + 36 + 20);
 
             Fill(MatchHistory.Load());
             FinishLayout();
@@ -79,6 +106,8 @@ namespace MouseModes
             if (records.Count > 0) list.SelectedIndex = 0;
             clear.Enabled = records.Count > 0;
             clear.Invalidate();
+            empty.Visible = records.Count == 0;
+            list.Visible = records.Count > 0;
 
             string text = records.Count == 0
                 ? L.T("Nenhuma partida guardada ainda: o Raio-X entra aqui ao fim de cada partida de pelo menos 2 minutos no Performance.",

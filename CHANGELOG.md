@@ -5,6 +5,21 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Visual novo, mais limpo e moderno:** fundo grafite, a cor do modo sólida (laranja no Performance, azul no Dia a
+  dia), sem brilho neon, texto sem caixa alta e números em Bahnschrift. A troca de modo virou um fade curto, sem passar
+  por cores misturadas.
+- **Ajustes em grupos:** as opções de cada página ficam em cartões, com uma barra de rolagem fina, e o Salvar fica na cor
+  da página aberta.
+- **Raio-X em cartões:** FPS médio, 1% low e travadinhas no topo; programas, travadinhas, processador, rede e o antes e
+  depois em cartões separados, com a variação de cada número em verde ou vermelho.
+- **Menu da bandeja escuro**, combinando com as janelas.
+- Diagnóstico, histórico, confirmação e as ferramentas de mouse (polling, clique, mira, DPI, sensibilidade) no mesmo
+  visual. O Registro do Diagnóstico quebra as linhas em vez de cortar o texto.
+
 ## 1.17.0
 
 ### Novidades

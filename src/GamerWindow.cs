@@ -17,8 +17,18 @@ namespace MouseModes
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
         private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
         private const int DWMWCP_ROUND = 2;
+        private const int DWMWA_BORDER_COLOR = 34;
+
+        /// <summary>O Windows 11 desenha a borda (na cor Theme.Border): a janela não pinta a sua.</summary>
+        private bool systemBorder;
 
         protected readonly TitleBar TitleBar;
+
+        /// <summary>A borda de 1 px é a do Windows 11 (a janela não pinta a sua). Vale depois de o handle existir.</summary>
+        protected bool SystemBorder
+        {
+            get { return systemBorder; }
+        }
 
         /// <summary>Esc fecha a janela (para diálogos).</summary>
         protected bool CloseOnEscape { get; set; }
@@ -40,7 +50,7 @@ namespace MouseModes
 
             TitleBar = new TitleBar
             {
-                Title = title.ToUpperInvariant(),
+                Title = title, // sentence case, como o resto da interface
                 ShowMinimize = showMinimize,
                 Dock = DockStyle.Top
             };
@@ -76,8 +86,11 @@ namespace MouseModes
                 DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
                 int round = DWMWCP_ROUND;
                 DwmSetWindowAttribute(Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref round, sizeof(int));
+                // Borda de 1 px do próprio Windows 11, acompanhando o canto arredondado (COLORREF = 0x00BBGGRR).
+                int border = Theme.Border.R | (Theme.Border.G << 8) | (Theme.Border.B << 16);
+                systemBorder = DwmSetWindowAttribute(Handle, DWMWA_BORDER_COLOR, ref border, sizeof(int)) == 0;
             }
-            catch { } // Windows 10 ou outro sistema: ignora
+            catch { } // Windows 10 ou outro sistema: ignora (a janela pinta a borda)
         }
 
         /// <summary>Área de rolagem criada quando a janela não cabe na tela; null enquanto couber.</summary>
@@ -136,18 +149,28 @@ namespace MouseModes
                 AutoScroll = true,
                 BackColor = BackColor,
                 Bounds = new Rectangle(1, bar, ClientSize.Width - 2, ClientSize.Height - bar - 1),
-                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
-                // A margem de baixo também rola: não para colado no último controle.
-                AutoScrollMinSize = new Size(0, contentHeight)
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+            };
+            Theme.DarkScroll(panel); // barra de rolagem escura em vez da clara do Windows
+            // Os controles vão num painel simples da largura de antes, e só ele entra na rolagem: o que passa da borda
+            // direita de propósito (as páginas dos Ajustes, com a barra nativa escondida além dela) fica recortado nele
+            // e não cria rolagem para o lado. A altura dele inclui a margem de baixo, que também rola.
+            var content = new Panel
+            {
+                BackColor = BackColor,
+                Bounds = new Rectangle(0, 0, ClientSize.Width - scrollBar - 2, contentHeight)
             };
             panel.SuspendLayout();
+            content.SuspendLayout();
             foreach (Control c in moving)
             {
                 c.Location = new Point(c.Left - 1, c.Top - bar);
-                panel.Controls.Add(c);
+                content.Controls.Add(c);
             }
+            panel.Controls.Add(content);
             Controls.Add(panel);
-            panel.ResumeLayout(false);
+            content.ResumeLayout(false);
+            panel.ResumeLayout(true); // calcula já a rolagem pelo tamanho do painel de conteúdo
             ResumeLayout(true);
             Scroller = panel;
             return true;
@@ -162,22 +185,80 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
+            if (systemBorder) return;
             using (var pen = new Pen(Theme.Border))
                 e.Graphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
         }
 
-        /// <summary>Texto simples no tema (para notas e descrições).</summary>
+        private readonly HashSet<Control> revealed = new HashSet<Control>();
+
+        /// <summary>
+        /// Mostra uma linha escondida (ex.: o aviso de Raw Input indisponível) no lugar em que ela já está e empurra
+        /// para baixo o que vem depois, com a janela junto. As contas usam a altura atual da linha: valem antes e depois
+        /// da escala de DPI. designHeight e designGap são a altura da linha e o espaço abaixo dela, em px a 96 dpi.
+        /// </summary>
+        protected void RevealPushingDown(Control row, int designHeight, int designGap)
+        {
+            if (row == null || !revealed.Add(row)) return;
+            float k = designHeight > 0 ? row.Height / (float)designHeight : 1f;
+            int delta = row.Height + (int)Math.Round(designGap * k);
+            SuspendLayout();
+            foreach (Control c in Controls)
+                if (c != row && c != TitleBar && c.Top >= row.Top) c.Top += delta;
+            row.Visible = true;
+            // Height, não ClientSize: durante a criação da janela o ClientSize ainda pode vir com a borda padrão.
+            Height += delta;
+            ResumeLayout(false);
+        }
+
+        /// <summary>Largura (px a 96 dpi) de um botão para o texto mais longo da lista, com folga, e no mínimo min.</summary>
+        protected static int ButtonWidth(int min, params string[] texts)
+        {
+            int widest = 0;
+            try
+            {
+                using (Graphics g = Graphics.FromHwnd(IntPtr.Zero))
+                using (var format = new StringFormat(StringFormatFlags.NoWrap))
+                {
+                    float k = g.DpiX / 96f;
+                    foreach (string t in texts)
+                        widest = Math.Max(widest, (int)Math.Ceiling(g.MeasureString(t ?? "", Theme.UiSemibold(Theme.TypeScale.Button), PointF.Empty, format).Width / k));
+                }
+            }
+            catch
+            {
+                foreach (string t in texts) widest = Math.Max(widest, (t ?? "").Length * 8);
+            }
+            return Math.Max(min, widest + 40);
+        }
+
+        /// <summary>
+        /// Texto simples no tema (para notas e descrições). O Label desenha a letra ~2 px depois da borda dele (margem do
+        /// GDI): ele começa 2 px antes de x, para o texto alinhar com a borda dos cartões e com os cabeçalhos em x.
+        /// </summary>
         protected static Label Note(string text, int x, int y, int w, int h, Color color, float size = 8.5f)
         {
             return new Label
             {
                 Text = text,
-                Location = new Point(x, y),
+                Location = new Point(x - TextInset, y),
                 Size = new Size(w, h),
                 ForeColor = color,
                 BackColor = Color.Transparent,
                 Font = Theme.Ui(size)
             };
+        }
+
+        /// <summary>Margem esquerda (px a 96 dpi) que o GDI põe antes do texto de um Label.</summary>
+        protected const int TextInset = 2;
+
+        /// <summary>Como Note, com a altura medida para o texto caber inteiro na largura (quebrado nos espaços).</summary>
+        protected static Label MeasuredNote(string text, int x, int y, int w, Color color, float size = 8.5f, int minHeight = 0)
+        {
+            Label label = Note(text, x, y, w, 10, color, size);
+            label.UseMnemonic = false;
+            label.Height = Math.Max(minHeight, Theme.TextHeight(text, label.Font, w));
+            return label;
         }
     }
 }

@@ -9,7 +9,7 @@ namespace MouseModes
     /// <summary>Conversor de sensibilidade: a mesma mira (cm/360) em outro jogo ou com outro DPI.</summary>
     public class SensitivityForm : GamerWindow
     {
-        private const int OtherIndex = 3; // "OUTRO": o yaw vem do campo
+        private const int OtherIndex = 3; // "Outro": o yaw vem do campo
 
         private readonly AppConfig cfg;
         private readonly Action save;
@@ -22,6 +22,8 @@ namespace MouseModes
         private readonly BigReadout readout;
         private readonly List<Label[]> rows = new List<Label[]>();
         private readonly Label hint;
+        private readonly Card results;
+        private readonly EmptyHint emptyResults;
         /// <summary>O DPI do config que a caixa está mostrando: outra tela pode mudar o config enquanto esta está aberta.</summary>
         private int shownDpi;
 
@@ -33,53 +35,66 @@ namespace MouseModes
             this.save = save;
             this.measureDpi = measureDpi;
             CloseOnEscape = true;
-            ClientSize = new Size(480, 640);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
             Controls.Add(new SectionLabel { Text = L.T("Seu jogo agora", "Your game now"), Location = new Point(20, 56), Size = new Size(440, 20) });
             game = new Segmented
             {
-                Options = new[] { "CS2 · APEX", "VALORANT", "OW2 · COD", L.T("OUTRO", "OTHER") },
-                Location = new Point(20, 80),
-                Size = new Size(440, 40),
+                Options = new[] { "CS2 · Apex", "Valorant", "OW2 · CoD", L.T("Outro", "Other") },
+                Location = new Point(20, 84),
+                Size = new Size(440, 36),
                 AccentA = Theme.PerfA,
                 AccentB = Theme.PerfB
             };
             Controls.Add(game);
 
-            sensBox = AddField(L.T("SENSIBILIDADE", "SENSITIVITY"), 20, 7);
-            dpiBox = AddField("DPI", 132, 5);
-            newDpiBox = AddField(L.T("DPI NOVO", "NEW DPI"), 244, 5);
-            yawBox = AddField(L.T("YAW (OUTRO)", "YAW (OTHER)"), 356, 9);
+            const int fieldsY = 132;
+            sensBox = AddField(L.T("Sensibilidade", "Sensitivity"), 0, fieldsY, 7, L.T("ex.: 1,25", "e.g. 1.25"));
+            dpiBox = AddField("DPI", 1, fieldsY, 5);
+            newDpiBox = AddField(L.T("DPI novo", "New DPI"), 2, fieldsY, 5);
+            yawBox = AddField(L.T("Yaw (outro)", "Yaw (other)"), 3, fieldsY, 9, L.T("ex.: 0,022", "e.g. 0.022"));
             foreach (TextBox box in new[] { dpiBox, newDpiBox })
                 box.KeyPress += (s, e) => { if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar)) e.Handled = true; };
 
-            readout = new BigReadout { Location = new Point(12, 202), Size = new Size(456, 150), Unit = "cm/360", AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            readout = new BigReadout { Location = new Point(12, fieldsY + 62), Size = new Size(456, 146), Unit = "cm/360", AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             Controls.Add(readout);
 
-            Controls.Add(new SectionLabel { Text = L.T("A mesma mira em cada jogo", "The same aim in each game"), Location = new Point(20, 362), Size = new Size(440, 20) });
-            int y = 388;
-            for (int i = 0; i <= Sensitivity.Games.Length; i++)
+            var sameAim = new SectionLabel { Text = L.T("A mesma mira em cada jogo", "The same aim in each game"), Location = new Point(20, readout.Bottom + 8), Size = new Size(440, 20) };
+            Controls.Add(sameAim);
+            // Um cartão com uma linha por jogo; sem sensibilidade, o estado vazio no lugar dele.
+            const int rowH = 32;
+            int count = Sensitivity.Games.Length + 1;
+            results = new Card { Location = new Point(20, sameAim.Bottom + 8), Size = new Size(440, rowH * count + 12) };
+            for (int i = 0; i < count; i++)
             {
-                var name = Note("", 20, y, 300, 26, Theme.Text, 10f);
-                name.TextAlign = ContentAlignment.MiddleLeft;
-                var value = Note("", 320, y, 140, 26, Theme.PerfB, 12f);
-                value.Font = Theme.Ui(12f, FontStyle.Bold);
-                value.TextAlign = ContentAlignment.MiddleRight;
-                Controls.Add(name);
-                Controls.Add(value);
+                int ry = 6 + i * rowH;
+                if (i > 0) results.Controls.Add(new Panel { BackColor = Theme.Border, Bounds = new Rectangle(16, ry, 408, 1) });
+                var name = new Label { Location = new Point(16, ry), Size = new Size(262, rowH), ForeColor = Theme.Text, BackColor = Theme.Surface, Font = Theme.Ui(9.5f), TextAlign = ContentAlignment.MiddleLeft, UseMnemonic = false };
+                var value = new Label { Location = new Point(278, ry), Size = new Size(146, rowH), ForeColor = Theme.Text, BackColor = Theme.Surface, Font = Theme.Ui(11f, FontStyle.Bold), TextAlign = ContentAlignment.MiddleRight, UseMnemonic = false };
+                results.Controls.Add(name);
+                results.Controls.Add(value);
                 rows.Add(new[] { name, value });
-                y += 30;
             }
+            Controls.Add(results);
+            emptyResults = new EmptyHint
+            {
+                Glyph = GlyphKind.Target,
+                Framed = true,
+                Text = L.T("Digite a sensibilidade para ver a equivalência em cada jogo", "Type your sensitivity to see the match in each game"),
+                Bounds = results.Bounds
+            };
+            Controls.Add(emptyResults);
 
-            // 4 linhas: com o "DPI NOVO" diferente, o texto em português passa de 3 linhas (e a 150% ainda mais).
-            hint = Note("", 20, 512, 440, 64, Theme.Faint, 8.5f);
+            // A dica mais longa (com o "DPI novo" diferente) cabe inteira: a altura é medida com ela.
+            string longestHint = Hint() + L.T(" Com 88888 DPI, use os valores acima para a mira não mudar.", " At 88888 DPI, use the values above so your aim does not change.");
+            hint = MeasuredNote(longestHint, 20, results.Bottom + 12, 440, Theme.TextSecondary, 8.5f);
             Controls.Add(hint);
 
-            var measure = new NeonButton { Text = L.T("Medir o DPI real", "Measure the real DPI"), Glyph = GlyphKind.Mouse, Location = new Point(20, 580), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var measure = new NeonButton { Text = L.T("Medir o DPI real", "Measure the real DPI"), Glyph = GlyphKind.Ruler, Location = new Point(20, hint.Bottom + 12), Size = new Size(440, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             measure.Click += (s, e) => { if (this.measureDpi != null) this.measureDpi(); };
             Controls.Add(measure);
+            ClientSize = new Size(480, measure.Bottom + 20);
             // Volta da medição do DPI real: a volta passa a usar o valor medido.
             Activated += (s, e) => SyncDpi();
 
@@ -119,11 +134,23 @@ namespace MouseModes
             base.OnFormClosed(e);
         }
 
-        private TextBox AddField(string label, int x, int maxLength)
+        /// <summary>Campo da coluna (0 a 3) de quatro: rótulo em sentence case e, 6 px abaixo, a caixa de 36 px.</summary>
+        private TextBox AddField(string label, int column, int y, int maxLength, string example = null)
         {
-            Controls.Add(Note(label, x, 128, 104, 18, Theme.Faint, 8f));
-            var box = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(12f), TextAlign = HorizontalAlignment.Center, MaxLength = maxLength };
-            Controls.Add(new FieldHost(box) { Location = new Point(x, 148), Size = new Size(104, 40), Accent = Theme.PerfB });
+            const int width = 101, gap = 12;
+            int x = 20 + column * (width + gap);
+            Controls.Add(new FieldLabel { Text = label, Location = new Point(x, y), Size = new Size(width, 16) });
+            // Números na fonte de números (Bahnschrift), como as leituras; o exemplo do campo vazio em TextTertiary.
+            var box = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.NumField(12f), TextAlign = HorizontalAlignment.Center, MaxLength = maxLength };
+            var host = new FieldHost(box) { Location = new Point(x, y + 22), Size = new Size(width, 36), Accent = Theme.PerfB };
+            if (example != null)
+            {
+                host.PlaceholderFont = Theme.Ui(9f);
+                host.PlaceholderAlign = ContentAlignment.MiddleCenter;
+                host.Placeholder = example;
+                Theme.CueBanner(box, example); // com o foco no campo vazio, o exemplo nativo (o cursor fica visível)
+            }
+            Controls.Add(host);
             return box;
         }
 
@@ -146,11 +173,15 @@ namespace MouseModes
                     ? L.T("informe o yaw do seu jogo", "enter your game's yaw")
                     : L.T("digite a sensibilidade que você usa", "type the sensitivity you use");
                 foreach (Label[] row in rows) { row[0].Text = ""; row[1].Text = ""; }
+                results.Visible = false;
+                emptyResults.Visible = true;
                 hint.Text = Hint();
                 readout.Invalidate();
                 return;
             }
 
+            results.Visible = true;
+            emptyResults.Visible = false;
             if (!int.TryParse(newDpiBox.Text, out newDpi) || newDpi <= 0) newDpi = dpi; // vazio: o mesmo DPI
             double yaw = fromOther ? otherYaw : Sensitivity.Games[game.SelectedIndex].Yaw;
             double cm = Sensitivity.Cm360(sens, yaw, dpi);
@@ -180,7 +211,7 @@ namespace MouseModes
                 if (isOther && !hasOther)
                 {
                     row[0].Text = L.T("Outro jogo: informe o yaw", "Other game: enter its yaw");
-                    row[0].ForeColor = Theme.Faint;
+                    row[0].ForeColor = Theme.TextTertiary;
                     row[1].Text = "";
                     continue;
                 }

@@ -113,7 +113,7 @@ namespace MouseModes
         {
             this.host = host;
             CloseOnEscape = true;
-            ClientSize = new Size(1040, 730);
+            ClientSize = new Size(1040, 720);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
@@ -122,7 +122,7 @@ namespace MouseModes
             arena.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) OnArenaClick(e.Location); };
             Controls.Add(arena);
 
-            dpiBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(12f), TextAlign = HorizontalAlignment.Center, MaxLength = 5 };
+            dpiBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.NumField(12f), TextAlign = HorizontalAlignment.Center, MaxLength = 5 };
             dpiBox.KeyPress += (s, e) =>
             {
                 if (e.KeyChar == '\r') { e.Handled = true; StartRound(); }
@@ -131,14 +131,18 @@ namespace MouseModes
             dpiHost = new FieldHost(dpiBox) { Size = new Size(180, 40), Accent = Theme.PerfB };
             arena.Controls.Add(dpiHost);
 
-            startButton = new NeonButton { Text = L.T("Começar (20 s)", "Start (20 s)"), Style = ButtonStyle.Primary, Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
-            againButton = new NeonButton { Text = L.T("Testar de novo", "Test again"), Location = new Point(20, 656), Size = new Size(240, 48), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Visible = false };
+            // Começar fica no quadro, logo abaixo do campo do DPI (ShowIntro centraliza os dois); Testar de novo, no pé.
+            startButton = new NeonButton { Text = L.T("Começar (20 s)", "Start (20 s)"), Style = ButtonStyle.Primary, Size = new Size(180, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            againButton = new NeonButton { Text = L.T("Testar de novo", "Test again"), Location = new Point(20, 656), Size = new Size(200, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB, Visible = false };
             startButton.Click += (s, e) => StartRound();
             againButton.Click += (s, e) => ShowIntro();
-            Controls.Add(startButton);
+            arena.Controls.Add(startButton);
             Controls.Add(againButton);
 
-            footer = Note("", 280, 660, 740, 44, Theme.Faint, 8.5f);
+            // Nota do pé (até 2 linhas): na largura toda, ou à direita do Testar de novo (PlaceFooter).
+            footer = Note("", 20, 656, 1000, 44, Theme.TextSecondary, 9f);
+            footer.TextAlign = ContentAlignment.MiddleLeft;
+            footer.UseMnemonic = false;
             Controls.Add(footer);
 
             frame = new Timer { Interval = 15 };
@@ -177,8 +181,11 @@ namespace MouseModes
                 int current = host.CurrentDpi();
                 if (current > 0) dpiBox.Text = current.ToString();
             }
-            dpiHost.Location = new Point((arena.Width - dpiHost.Width) / 2, (int)(arena.Height * 0.79f));
+            dpiHost.Location = new Point((arena.Width - dpiHost.Width) / 2, (int)(arena.Height * AimArena.FieldTop));
             dpiHost.Visible = true;
+            // 12 px (na escala da janela) abaixo do campo, que tem 40 px a 96 dpi.
+            startButton.Location = new Point((arena.Width - startButton.Width) / 2, dpiHost.Bottom + (int)Math.Round(dpiHost.Height * 12 / 40f));
+            PlaceFooter(false);
             arena.Cursor = Cursors.Default;
             arena.Mode = AimArena.View.Intro;
             arena.Invalidate();
@@ -201,6 +208,7 @@ namespace MouseModes
             phaseStart = clock.Elapsed.TotalSeconds;
             startButton.Visible = againButton.Visible = false;
             dpiHost.Visible = false;
+            PlaceFooter(false);
             footer.Text = L.T("Acerte o máximo de alvos, rápido e no centro · Esc cancela", "Hit as many targets as you can, fast and centered · Esc cancels");
             arena.Cursor = Cursors.Cross;
             arena.Mode = AimArena.View.Countdown;
@@ -394,10 +402,20 @@ namespace MouseModes
 
             startButton.Visible = false;
             againButton.Visible = true;
+            PlaceFooter(true);
             footer.Text = L.T("Trocou o DPI no programa do mouse? Clique em Testar de novo e informe o novo valor: o resultado entra na tabela. " +
                               "Sugestões são um ponto de partida: repita o teste algumas vezes antes de decidir.",
                               "Changed the DPI in your mouse software? Click Test again and enter the new value: the result goes into the table. " +
                               "Suggestions are a starting point: repeat the test a few times before deciding.");
+        }
+
+        /// <summary>A nota do pé na largura toda, ou à direita do Testar de novo (medidas atuais: valem em qualquer escala).</summary>
+        private void PlaceFooter(bool besideButton)
+        {
+            int margin = againButton.Left;
+            int inset = (int)Math.Round(TextInset * DeviceDpi / 96f); // a margem do GDI antes do texto do Label
+            int left = (besideButton ? againButton.Right + margin : margin) - inset;
+            footer.SetBounds(left, againButton.Top, Math.Max(10, ClientSize.Width - left - margin), againButton.Height);
         }
 
         internal static RoundResult BestOf(List<RoundResult> rounds)
@@ -513,7 +531,7 @@ namespace MouseModes
 
         public AimArena()
         {
-            BackColor = Theme.Panel;
+            BackColor = Theme.Surface;
         }
 
         protected override bool Interactive { get { return false; } }
@@ -532,21 +550,19 @@ namespace MouseModes
             Invalidate();
         }
 
+        /// <summary>Topo do campo do DPI na abertura, em fração da altura do quadro.</summary>
+        internal const float FieldTop = 0.62f;
+
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             g.Clear(Parent != null ? Parent.BackColor : Theme.Bg);
             Theme.HighQuality(g);
             var r = new RectangleF(0.5f, 0.5f, Width - 1, Height - 1);
-            Theme.FillRounded(g, r, 16, Theme.Panel);
-            using (GraphicsPath clip = Theme.Rounded(r, 16))
+            Theme.FillRounded(g, r, Theme.Radius.Lg, Theme.Surface);
+            using (GraphicsPath clip = Theme.Rounded(r, Theme.Radius.Lg))
             {
                 g.SetClip(clip);
-                using (var grid = new Pen(Theme.Alpha(Color.White, 7)))
-                {
-                    for (float x = 0; x < Width; x += 40) g.DrawLine(grid, x, 0, x, Height);
-                    for (float y = 0; y < Height; y += 40) g.DrawLine(grid, 0, y, Width, y);
-                }
                 switch (Mode)
                 {
                     case View.Intro: DrawIntro(g); break;
@@ -556,16 +572,17 @@ namespace MouseModes
                 }
                 g.ResetClip();
             }
-            Theme.StrokeRounded(g, r, 16, Theme.Border, 1f);
+            Theme.StrokeRounded(g, r, Theme.Radius.Lg, Theme.Border, 1f);
         }
 
         private void DrawIntro(Graphics g)
         {
+            float k = g.DpiY / 96f;
             float cx = Width / 2f;
-            DrawTarget(g, new PointF(cx, Height * 0.24f), 46, 1f);
-            var title = Theme.Display(26f);
-            using (var tb = Theme.Gradient(new RectangleF(0, 0, Width, 60), Theme.PerfA, Theme.PerfB))
-                Theme.DrawSpacedCentered(g, L.T("TESTE DE MIRA", "AIM TEST"), title, tb, new RectangleF(0, Height * 0.38f, Width, 50), 2f);
+            DrawTarget(g, new PointF(cx, Height * 0.17f), 40 * k, 1f);
+            // Título em sentence case na fonte de títulos, sem gradiente: o alvo já tem a cor do modo.
+            Theme.DrawText(g, L.T("Teste de mira", "Aim test"), Theme.Title(22f), Theme.Text,
+                new RectangleF(0, Height * 0.29f, Width, 44 * k), StringAlignment.Center, StringAlignment.Center, false);
             Theme.DrawText(g,
                 L.T("Alvos aparecem um de cada vez. Leve o mouse até eles e clique o mais rápido e no centro que conseguir.\n" +
                     "O MouseModes mede se você passa do alvo, se para antes, quantas correções faz e a precisão do clique,\n" +
@@ -573,34 +590,31 @@ namespace MouseModes
                     "Targets show up one at a time. Move the mouse to them and click as fast and as centered as you can.\n" +
                     "MouseModes measures whether you overshoot the target, stop short, how many corrections you make and how precise the click is,\n" +
                     "and at the end it suggests what to change in the DPI."),
-                Theme.Ui(10.5f), Theme.Muted, new RectangleF(60, Height * 0.50f, Width - 120, 90), StringAlignment.Center);
-            using (var lb = new SolidBrush(Theme.Muted))
-                Theme.DrawSpacedCentered(g, L.T("SEU DPI ATUAL", "YOUR CURRENT DPI"), Theme.Ui(7.5f, FontStyle.Bold), lb,
-                    new RectangleF(0, Height * 0.79f - 22, Width, 18), 1.6f);
-            Theme.DrawText(g, L.T("Use a mesma pegada de quando joga · Enter começa · Esc cancela a rodada", "Use the same grip as when you play · Enter starts · Esc cancels the round"), Theme.Ui(9f), Theme.Faint,
-                new RectangleF(0, Height * 0.93f, Width, 24), StringAlignment.Center);
+                Theme.Ui(10f), Theme.TextSecondary, new RectangleF(60, Height * 0.38f, Width - 120, 90 * k), StringAlignment.Center);
+            Theme.DrawText(g, L.T("Seu DPI atual", "Your current DPI"), Theme.UiSemibold(Theme.TypeScale.Caption), Theme.TextSecondary,
+                new RectangleF(0, Height * FieldTop - 24 * k, Width, 18 * k), StringAlignment.Center, StringAlignment.Center, false);
+            Theme.DrawText(g, L.T("Use a mesma pegada de quando joga · Enter começa · Esc cancela a rodada", "Use the same grip as when you play · Enter starts · Esc cancels the round"), Theme.Ui(9f), Theme.TextTertiary,
+                new RectangleF(0, Height - 40 * k, Width, 24 * k), StringAlignment.Center);
         }
 
         private void DrawCountdown(Graphics g)
         {
-            Theme.DrawText(g, RoundLabel, Theme.Display(16f), Theme.Muted, new RectangleF(0, Height * 0.30f, Width, 30), StringAlignment.Center);
-            using (var b = Theme.Gradient(new RectangleF(0, 0, Width, Height), Theme.PerfA, Theme.PerfB, 90f))
-                Theme.DrawSpacedCentered(g, Math.Max(1, CountdownValue).ToString(), Theme.Display(90f), b, new RectangleF(0, Height * 0.36f, Width, 160), 0f);
-            Theme.DrawText(g, L.T("deixe o mouse parado e prepare-se", "keep the mouse still and get ready"), Theme.Ui(10f), Theme.Faint, new RectangleF(0, Height * 0.68f, Width, 24), StringAlignment.Center);
+            Theme.DrawText(g, RoundLabel, Theme.Num(16f), Theme.TextSecondary, new RectangleF(0, Height * 0.30f, Width, 30), StringAlignment.Center);
+            Theme.DrawText(g, Math.Max(1, CountdownValue).ToString(), Theme.Num(90f), Theme.PerformancePalette.Fill,
+                new RectangleF(0, Height * 0.36f, Width, 160), StringAlignment.Center, StringAlignment.Center, false);
+            Theme.DrawText(g, L.T("deixe o mouse parado e prepare-se", "keep the mouse still and get ready"), Theme.Ui(10f), Theme.TextSecondary, new RectangleF(0, Height * 0.68f, Width, 24), StringAlignment.Center);
         }
 
         private void DrawPlaying(Graphics g)
         {
             // Barra de tempo
             var bar = new RectangleF(20, 18, Width - 40, 6);
-            Theme.FillRounded(g, bar, 3, Theme.Panel2);
+            Theme.FillRounded(g, bar, 3, Theme.Surface2);
             var fill = new RectangleF(bar.X, bar.Y, (float)(bar.Width * TimeLeft), bar.Height);
-            if (fill.Width > 1)
-                using (var lb = Theme.Gradient(fill, Theme.PerfA, Theme.PerfB))
-                    Theme.FillRounded(g, fill, 3, lb);
+            if (fill.Width > 1) Theme.FillRounded(g, fill, 3, Theme.PerformancePalette.Fill);
 
-            Theme.DrawText(g, RoundLabel, Theme.Display(11f), Theme.Muted, new RectangleF(20, 30, 300, 22));
-            Theme.DrawText(g, Hits + L.T(" acertos   ", " hits   ") + Misses + L.T(" erros", " misses"), Theme.Display(11f), Theme.Text,
+            Theme.DrawText(g, RoundLabel, Theme.Num(11f), Theme.TextSecondary, new RectangleF(20, 30, 300, 22));
+            Theme.DrawText(g, Hits + L.T(" acertos   ", " hits   ") + Misses + L.T(" erros", " misses"), Theme.Num(11f), Theme.Text,
                 new RectangleF(Width - 320, 30, 300, 22), StringAlignment.Far);
 
             DrawTarget(g, Target, Radius, 1f);
@@ -608,7 +622,7 @@ namespace MouseModes
             if (flashT < 1)
             {
                 float t = (float)flashT;
-                Color c = flashHit ? Color.FromArgb(57, 255, 136) : Theme.Danger;
+                Color c = flashHit ? Theme.Success : Theme.Danger;
                 float rr = (flashHit ? Radius : 8) + t * 26;
                 using (var p = new Pen(Theme.Alpha(c, (int)(220 * (1 - t))), 2.5f))
                     g.DrawEllipse(p, flashAt.X - rr, flashAt.Y - rr, rr * 2, rr * 2);
@@ -617,33 +631,40 @@ namespace MouseModes
 
         private static void DrawTarget(Graphics g, PointF c, float radius, float alpha)
         {
-            for (int i = 3; i >= 1; i--)
-                using (var halo = new SolidBrush(Theme.Alpha(Theme.PerfA, (int)(18 * i * alpha))))
-                    g.FillEllipse(halo, c.X - radius - i * 5, c.Y - radius - i * 5, (radius + i * 5) * 2, (radius + i * 5) * 2);
+            // Sem halo: anel sólido na cor do modo, miolo da cor do quadro e o centro branco.
             var outer = new RectangleF(c.X - radius, c.Y - radius, radius * 2, radius * 2);
-            using (var lb = Theme.Gradient(outer, Theme.PerfA, Theme.PerfB, 45f))
-                g.FillEllipse(lb, outer);
+            using (var b = new SolidBrush(Theme.Alpha(Theme.PerformancePalette.Fill, (int)(255 * alpha))))
+                g.FillEllipse(b, outer);
             float r2 = radius * 0.62f;
-            using (var b = new SolidBrush(Theme.Panel)) g.FillEllipse(b, c.X - r2, c.Y - r2, r2 * 2, r2 * 2);
+            using (var b = new SolidBrush(Theme.Surface)) g.FillEllipse(b, c.X - r2, c.Y - r2, r2 * 2, r2 * 2);
             float r3 = radius * 0.3f;
             using (var b = new SolidBrush(Color.White)) g.FillEllipse(b, c.X - r3, c.Y - r3, r3 * 2, r3 * 2);
+        }
+
+        /// <summary>
+        /// Altura de uma linha de texto: a de projeto (px a 96 dpi) ou a da fonte, se for maior. A fonte é em pontos e
+        /// cresce com a escala do Windows; o retângulo fixo cortaria as letras em 150% e 200%.
+        /// </summary>
+        private static float LineHeight(Graphics g, Font font, float design)
+        {
+            return Math.Max(design, (float)Math.Ceiling(font.GetHeight(g)) + 2);
         }
 
         private void DrawResults(Graphics g)
         {
             float x = 36, y = 28;
-            Theme.DrawSpaced(g, L.T("RESULTADO", "RESULT"), Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
-            y += 24;
+            Theme.DrawText(g, L.T("Resultado", "Result"), Theme.UiSemibold(Theme.TypeScale.Group), Theme.Text, new RectangleF(x, y - 4, 400, LineHeight(g, Theme.UiSemibold(Theme.TypeScale.Group), 24)), wrap: false);
+            y += 26;
 
             // Tabela: uma linha por rodada
             string[] head =
             {
-                "DPI", L.T("PONTOS/MIN", "POINTS/MIN"), L.T("ACERTOS", "HITS"), L.T("ERROS", "MISSES"), L.T("TEMPO MÉDIO", "AVG TIME"),
-                L.T("PASSOU DO ALVO", "OVERSHOT"), L.T("PARADA DO 1º MOV.", "1ST MOVE STOP")
+                "DPI", L.T("Pontos/min", "Points/min"), L.T("Acertos", "Hits"), L.T("Erros", "Misses"), L.T("Tempo médio", "Avg time"),
+                L.T("Passou do alvo", "Overshot"), L.T("Parada do 1º mov.", "1st move stop")
             };
             float[] col = { 0, 150, 290, 390, 480, 620, 770 };
             for (int i = 0; i < head.Length; i++)
-                Theme.DrawSpaced(g, head[i], Theme.Ui(7f, FontStyle.Bold), Theme.Faint, x + col[i], y, 1.2f);
+                Theme.DrawText(g, head[i], Theme.UiSemibold(Theme.TypeScale.Caption), Theme.TextSecondary, new RectangleF(x + col[i], y, 150, LineHeight(g, Theme.UiSemibold(Theme.TypeScale.Caption), 18)), wrap: false);
             y += 22;
             foreach (var r in Rounds)
             {
@@ -651,11 +672,13 @@ namespace MouseModes
                 var row = new RectangleF(x - 12, y - 6, Width - 2 * x + 24, 34);
                 if (best)
                 {
-                    Theme.FillRounded(g, row, 8, Theme.Alpha(Theme.PerfA, 40));
-                    Theme.StrokeRounded(g, row, 8, Theme.Alpha(Theme.PerfA, 160), 1f);
+                    // Como a seleção das listas: tinta do modo e a barra de 3 px à esquerda.
+                    Theme.FillRounded(g, row, Theme.Radius.Sm, Theme.PerformancePalette.Tint);
+                    using (var barBrush = new SolidBrush(Theme.PerformancePalette.Fill))
+                        g.FillRectangle(barBrush, row.X, row.Y + 7, 3, row.Height - 14);
                 }
-                Color fg = best ? Color.White : Theme.Text;
-                Font f = Theme.Display(12f);
+                Color fg = Theme.Text;
+                Font f = Theme.Num(12f);
                 string[] vals =
                 {
                     (r == Best ? "★ " : "") + r.Label,
@@ -667,23 +690,23 @@ namespace MouseModes
                     r.Hits > 0 ? (r.Median(t => t.EndRatio) * 100).ToString("0") + "%" : "—"
                 };
                 for (int i = 0; i < vals.Length; i++)
-                    Theme.DrawText(g, vals[i], f, fg, new RectangleF(x + col[i], y, 150, 24), wrap: false);
+                    Theme.DrawText(g, vals[i], f, fg, new RectangleF(x + col[i], y, 150, LineHeight(g, f, 24)), wrap: false);
                 y += 40;
             }
 
             y += 10;
-            Theme.DrawSpaced(g, L.T("O QUE FAZER", "WHAT TO DO"), Theme.Ui(8f, FontStyle.Bold), Theme.Muted, x, y, 2f);
-            y += 26;
+            Theme.DrawText(g, L.T("O que fazer", "What to do"), Theme.UiSemibold(Theme.TypeScale.Group), Theme.Text, new RectangleF(x, y - 4, 400, LineHeight(g, Theme.UiSemibold(Theme.TypeScale.Group), 24)), wrap: false);
+            y += 28;
             foreach (string line in Advice)
             {
-                using (var dot = new SolidBrush(Theme.PerfB)) g.FillEllipse(dot, x, y + 7, 6, 6);
+                using (var dot = new SolidBrush(Theme.PerformancePalette.Fill)) g.FillEllipse(dot, x, y + 7, 6, 6);
                 SizeF size = g.MeasureString(line, Theme.Ui(10f), (int)(Width - 2 * x - 20));
                 Theme.DrawText(g, line, Theme.Ui(10f), Theme.Text, new RectangleF(x + 16, y, Width - 2 * x - 20, size.Height + 4));
                 y += size.Height + 10;
             }
 
             Theme.DrawText(g, L.T("Parada do 1º movimento: 100% = parou em cima do alvo · acima passa do alvo · abaixo para antes.", "1st move stop: 100% = stopped on the target · above overshoots · below stops short."),
-                Theme.Ui(8.5f), Theme.Faint, new RectangleF(x, Height - 34, Width - 2 * x, 20));
+                Theme.Ui(8.5f), Theme.TextSecondary, new RectangleF(x, Height - 34, Width - 2 * x, 20));
         }
     }
 }
