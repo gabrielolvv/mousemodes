@@ -146,6 +146,29 @@ namespace MouseModes
             if (handler != null) handler(mode, reason, warnings);
         }
 
+        /// <summary>O mouse que o modo aplicou e que o vigia confere; null no Dia a dia (lá o mouse do Windows é o da pessoa).</summary>
+        public MouseProfile ExpectedMouse
+        {
+            get { return Expected(Current, DailyMouseInUse, CurrentProfile, cfg.Daily); }
+        }
+
+        internal static MouseProfile Expected(Mode current, bool dailyMouseInUse, MouseProfile currentProfile, MouseProfile daily)
+        {
+            if (current != Mode.Performance) return null;
+            return dailyMouseInUse ? daily : currentProfile;
+        }
+
+        /// <summary>
+        /// O vigia achou o mouse mudado: aplica de novo o do modo, do mesmo jeito que ele foi aplicado (o do Dia a dia com
+        /// o jogo fora da tela é só da sessão, como no alt-tab). Lança se o Windows recusar.
+        /// </summary>
+        public void ReapplyMouse()
+        {
+            MouseProfile expected = ExpectedMouse;
+            if (expected == null) return;
+            MouseSettings.Apply(expected, !DailyMouseInUse);
+        }
+
         /// <summary>
         /// Opção "mouse do jogo só com o jogo na tela": no Performance, troca só o mouse conforme o jogo
         /// está ou não em primeiro plano. Energia, USB e Turbo continuam como estão.

@@ -104,6 +104,12 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
 - **Game mouse only with the game on screen** (Settings → Performance, off by default): on alt-tab and on the
   desktop, the mouse goes back to the Daily speed and acceleration; back in the game, it uses the Performance one.
   Power, USB and Turbo do not change.
+- **Watch the mouse** (Settings → Performance, on by default): mouse software, macros and syncing sometimes turn
+  acceleration back on or change the speed in the middle of a game. Every 3 s, in Performance, the app checks the
+  Windows mouse and, if it changed, puts the mode's back and says what changed and which open mouse program may have
+  done it (G HUB, Synapse, iCUE, SteelSeries GG...). If it keeps changing (3 times in 10 min), it stops fighting until
+  the next mode switch. With Windows notifications silenced in Performance, the notice shows up when leaving it. In
+  Daily it does not watch: there the Windows mouse is yours.
 - **Automatic switch**: compares the *start* of the process name (`FiveM` matches `FiveM_b3095_GTAProcess`).
   A manual switch wins over the automatic one. A line that catches more than the game (short, or the start of a common
   program, like `cod`, which also catches VS Code's `Code.exe`) asks for confirmation when added and shows as BROAD in

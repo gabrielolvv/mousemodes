@@ -40,6 +40,9 @@ namespace MouseModes
         private bool fpsAdminNoticeLogged;  // já anotou no log que a gravação automática espera o administrador
         private readonly GameExeWatch gameExes = new GameExeWatch(); // processos de cada jogo vistos nesta execução
         private readonly MatchRecorder recorder = new MatchRecorder();
+        private readonly MouseGuard mouseGuard = new MouseGuard();
+        private string guardNoticeTitle, guardNoticeText; // aviso do vigia guardado enquanto as notificações estão silenciadas
+        private ToolTipIcon guardNoticeIcon;
         private readonly ToolStripMenuItem reportItem;
         private readonly ToolStripMenuItem historyItem;
         private readonly WinKeyBlocker winKey;
@@ -309,6 +312,7 @@ namespace MouseModes
         private void CheckGames()
         {
             CheckRunningGame();
+            GuardMouse(); // depois da troca automática: confere o mouse do modo que ficou valendo
             TrackMatch(); // depois da troca automática: ao fim da partida, o Dia a dia já devolveu as notificações
         }
 
@@ -399,6 +403,74 @@ namespace MouseModes
             {
                 modes.Apply(Mode.Performance, L.T("Perfil Performance", "Performance profile"));
             }
+        }
+
+        // ---------------- Vigia do mouse ----------------
+
+        /// <summary>
+        /// No Performance, confere se outro programa mudou o mouse do modo; se mudou, aplica de novo e avisa (o aviso na
+        /// tela só na primeira vez de cada Performance, e ao desistir). No Dia a dia o mouse do Windows é o da pessoa.
+        /// </summary>
+        private void GuardMouse()
+        {
+            if (quitting || !cfg.GuardMouse) return;
+            MouseProfile expected = modes.ExpectedMouse;
+            if (expected == null) return;
+            MouseProfile actual;
+            try { actual = MouseSettings.Read(); }
+            catch (Exception ex) { Log.Error(L.T("Vigia do mouse: ler o mouse", "Mouse watch: read the mouse"), ex); return; }
+
+            GuardAction action = mouseGuard.Check(expected, actual, DateTime.UtcNow);
+            if (action == GuardAction.None) return;
+            string what = MouseGuard.Describe(expected, actual);
+            List<string> culprits = MouseGuard.LikelyCulprits(RunningProcessNames());
+            if (action == GuardAction.GiveUp)
+            {
+                string text = MouseGuard.GaveUpMessage(what, culprits);
+                Log.Warn(L.T("Vigia do mouse: ", "Mouse watch: ") + text);
+                GuardNotice(L.T("Mouse mudado de novo", "Mouse changed again"), text, ToolTipIcon.Warning);
+                return;
+            }
+            try { modes.ReapplyMouse(); }
+            catch (Exception ex)
+            {
+                Log.Error(L.T("Vigia do mouse: aplicar de novo", "Mouse watch: reapply"), ex);
+                return;
+            }
+            string fixedText = MouseGuard.FixedMessage(what, culprits);
+            Log.Warn(L.T("Vigia do mouse: ", "Mouse watch: ") + fixedText);
+            if (mouseGuard.FixesSinceReset == 1)
+                GuardNotice(L.T("Mouse do Performance de volta", "Performance mouse back"), fixedText, ToolTipIcon.Info);
+        }
+
+        /// <summary>
+        /// Avisa já, ou, com as notificações do Windows silenciadas pelo Performance (o aviso não apareceria), guarda para
+        /// mostrar ao sair dele. O mais novo vale: a desistência substitui o "de volta".
+        /// </summary>
+        private void GuardNotice(string title, string text, ToolTipIcon icon)
+        {
+            if (!cfg.ShowNotifications) return;
+            if (cfg.NotificationBackup != null && cfg.NotificationBackup.Active)
+            {
+                guardNoticeTitle = title;
+                guardNoticeText = text;
+                guardNoticeIcon = icon;
+                return;
+            }
+            ShowBalloon(title, text, icon);
+        }
+
+        /// <summary>Nomes dos processos abertos (só para apontar um programa de mouse no aviso).</summary>
+        private static List<string> RunningProcessNames()
+        {
+            var names = new List<string>();
+            foreach (System.Diagnostics.Process p in System.Diagnostics.Process.GetProcesses())
+            {
+                try { names.Add(p.ProcessName); }
+                catch { }
+                finally { p.Dispose(); }
+            }
+            return names;
         }
 
         // ---------------- Raio-X da partida ----------------
@@ -593,6 +665,7 @@ namespace MouseModes
 
         private void OnModeChanged(Mode mode, string reason, List<string> warnings)
         {
+            mouseGuard.Reset(); // modo aplicado (de novo): o vigia começa do zero
             bool perf = mode == Mode.Performance;
             perfItem.Checked = perf;
             dailyItem.Checked = !perf;
@@ -622,6 +695,12 @@ namespace MouseModes
             modes.SetGameFocused(GameFocused());
             if (!perf)
             {
+                if (guardNoticeText != null)
+                {
+                    // As notificações voltaram (ApplyExtras): o aviso do vigia que ficou esperando aparece agora.
+                    if (cfg.ShowNotifications) ShowBalloon(guardNoticeTitle, guardNoticeText, guardNoticeIcon);
+                    guardNoticeText = null;
+                }
                 ShowPendingUpdate();       // saiu do jogo: agora pode avisar da versão nova
                 InstallReadyUpdate(false); // ou instalar a que já foi baixada
             }
