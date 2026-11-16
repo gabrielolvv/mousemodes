@@ -63,6 +63,11 @@ namespace MouseModes
         public int StutterCount { get; set; }
         /// <summary>As piores travadinhas, em ordem de tempo.</summary>
         public List<Stutter> Worst { get; set; }
+        /// <summary>
+        /// Os quadros vieram do driver de vídeo (jogo em Vulkan ou OpenGL), não do Present do DirectX: a hora de cada um é a
+        /// de quando o quadro chegou ao driver, um pouco menos precisa.
+        /// </summary>
+        public bool FromDriver { get; set; }
 
         /// <summary>"144 FPS de média · 1% low 92 FPS · 7 travadinhas"</summary>
         public string Summary()
@@ -312,9 +317,10 @@ namespace MouseModes
     }
 
     /// <summary>
-    /// Lê, durante a partida, o momento em que cada processo entrega um quadro para a tela: os eventos de Present do
-    /// DirectX 9 ao 12 (os mesmos que o PresentMon usa), por uma sessão de rastreamento do Windows (ETW) em tempo real.
-    /// Não entra no jogo nem mexe nele. Jogos em Vulkan ou OpenGL não aparecem.
+    /// Lê, durante a partida, o momento em que cada processo entrega um quadro para a tela, por uma sessão de rastreamento
+    /// do Windows (ETW) em tempo real: os eventos de Present do DirectX 9 ao 12 e, para os jogos em Vulkan ou OpenGL, que
+    /// não passam por eles, os eventos de apresentação do driver de vídeo (DxgKrnl). São os mesmos que o PresentMon usa.
+    /// Não entra no jogo nem mexe nele.
     /// </summary>
     public sealed class FrameProbe
     {
@@ -349,6 +355,40 @@ namespace MouseModes
         private const ushort DxgiPresentStart = 42;
         private const ushort DxgiPresentMpoStart = 55;
         private const ushort D3D9PresentStart = 1;
+
+        /// <summary>Microsoft-Windows-DxgKrnl: o driver de vídeo. Por ele passam também os quadros de Vulkan e OpenGL.</summary>
+        internal static readonly Guid DriverProvider = new Guid("802EC45A-1E99-4B83-9920-87C98277BA9D");
+        /// <summary>PresentHistory_Start: quadro em janela, sem borda ou em flip independente (o caminho comum hoje).</summary>
+        internal const ushort DriverPresentHistory = 171;
+        /// <summary>Flip_Info: quadro em tela cheia exclusiva.</summary>
+        internal const ushort DriverFlip = 168;
+        /// <summary>FlipMultiPlaneOverlay_Info: quadro em tela cheia por um plano de sobreposição (MPO).</summary>
+        internal const ushort DriverFlipOverlay = 252;
+        private static readonly ushort[] DriverEvents = { DriverPresentHistory, DriverFlip, DriverFlipOverlay };
+        /// <summary>Palavras-chave Base e Present do DxgKrnl: o Windows 11 tem a Present, que estreita o que o driver gera.</summary>
+        private const ulong DriverKeywordBase = 0x1;
+        private const ulong DriverKeywordPresent = 0x8000000;
+        private const int Windows11Build = 22000;
+        private const uint EventFilterTypeEventId = 0x80000200;
+        private const uint EnablePropertyIgnoreKeyword0 = 0x10;
+        private const uint EnableTraceParametersVersion2 = 2;
+
+        /// <summary>
+        /// De onde veio o quadro. O Present do DirectX tem a hora exata da chamada do jogo. Os do driver chegam um pouco
+        /// depois e cada tipo de apresentação gera o seu evento, então cada um fica numa lista separada: misturar os tipos
+        /// contaria o mesmo quadro duas vezes.
+        /// </summary>
+        internal const int SourceRuntime = 0;
+        internal const int SourcePresentHistory = 1;
+        internal const int SourceFlip = 2;
+        internal const int SourceFlipOverlay = 3;
+        private const int SourceCount = 4;
+        /// <summary>
+        /// Dois flips do driver na mesma lista com menos que isto (ms) são o mesmo quadro, registrado uma vez por plano da
+        /// tela. As cópias saem juntas; 0,05 ms é 20 mil FPS, então nenhum quadro de verdade cai aqui.
+        /// </summary>
+        internal const double DriverDuplicateMs = 0.05;
+
         /// <summary>Teto por processo (perto de 2 h a 300 FPS): uma partida eterna não come a memória.</summary>
         internal const int MaxFramesPerProcess = 2000000;
 
@@ -470,6 +510,27 @@ namespace MouseModes
             public uint BuffersLost;
         }
 
+        /// <summary>ENABLE_TRACE_PARAMETERS (versão 2): só para passar o filtro de eventos do driver.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct EnableTraceParameters
+        {
+            public uint Version;
+            public uint EnableProperty;
+            public uint ControlFlags;
+            public Guid SourceId;
+            public IntPtr EnableFilterDesc;
+            public uint FilterDescCount;
+        }
+
+        /// <summary>EVENT_FILTER_DESCRIPTOR: o Ptr é sempre de 64 bits, mesmo no app de 32.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct EventFilterDescriptor
+        {
+            public ulong Ptr;
+            public uint Size;
+            public uint Type;
+        }
+
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate void EventRecordCallback(IntPtr eventRecord);
 
@@ -511,9 +572,17 @@ namespace MouseModes
         [DllImport("advapi32.dll")]
         private static extern int CloseTrace(ulong traceHandle);
 
+        /// <summary>Os quadros de um processo vindos de uma fonte e o carimbo do último evento dela.</summary>
+        private sealed class Track
+        {
+            public List<FrameSample> Frames;
+            public long Last;
+            public bool HasLast;
+        }
+
         private readonly object gate = new object();
-        private readonly Dictionary<int, List<FrameSample>> byProcess = new Dictionary<int, List<FrameSample>>();
-        private readonly Dictionary<int, long> lastPresent = new Dictionary<int, long>();
+        /// <summary>Por processo, uma lista por fonte (índice SourceRuntime, SourcePresentHistory...); null = nada dela.</summary>
+        private readonly Dictionary<int, Track[]> tracks = new Dictionary<int, Track[]>();
         private readonly Dictionary<int, string> names = new Dictionary<int, string>();
         /// <summary>Processos que já têm nome e não são da lista de jogos: os quadros deles não são guardados.</summary>
         private readonly HashSet<int> ignored = new HashSet<int>();
@@ -565,8 +634,17 @@ namespace MouseModes
             if (code != 0) return L.T("o Windows não abriu a leitura dos quadros (código ", "Windows did not open frame reading (code ") + code + ")";
 
             Guid dxgi = DxgiProvider, d3d9 = D3D9Provider;
-            EnableTraceEx2(session, ref dxgi, EventControlCodeEnableProvider, TraceLevelInformation, ulong.MaxValue, 0, 0, IntPtr.Zero);
-            EnableTraceEx2(session, ref d3d9, EventControlCodeEnableProvider, TraceLevelInformation, ulong.MaxValue, 0, 0, IntPtr.Zero);
+            int dxgiCode = EnableTraceEx2(session, ref dxgi, EventControlCodeEnableProvider, TraceLevelInformation, ulong.MaxValue, 0, 0, IntPtr.Zero);
+            int d3d9Code = EnableTraceEx2(session, ref d3d9, EventControlCodeEnableProvider, TraceLevelInformation, ulong.MaxValue, 0, 0, IntPtr.Zero);
+            // O driver é extra: se o Windows não deixar, o DirectX continua sendo lido e só Vulkan e OpenGL ficam de fora.
+            DriverError = EnableDriver(session, WindowsChecks.WindowsBuild());
+            if (DriverError != null)
+            {
+                if (dxgiCode != 0 && d3d9Code != 0)
+                    return L.T("o Windows não ligou a leitura dos quadros (código ", "Windows did not turn on frame reading (code ") + dxgiCode + ")";
+                Log.Warn(L.T("Caça-travadinhas: quadros de Vulkan e OpenGL não serão lidos (", "Stutter finder: Vulkan and OpenGL frames will not be read (") +
+                         DriverError + ")");
+            }
 
             var logfile = new EventTraceLogfile
             {
@@ -593,11 +671,88 @@ namespace MouseModes
             return null;
         }
 
+        /// <summary>Por que os quadros de Vulkan e OpenGL não estão sendo lidos (o Windows recusou o driver); null se estão.</summary>
+        public string DriverError { get; private set; }
+
+        /// <summary>
+        /// Liga os eventos de apresentação do driver de vídeo, só os três que interessam (filtro por número do evento),
+        /// do jeito do PresentMon: sem o filtro, o driver despeja milhares de eventos por segundo. null se ligou.
+        /// </summary>
+        private static string EnableDriver(ulong session, int build)
+        {
+            byte[] filter = EventIdFilter(DriverEvents);
+            IntPtr ids = Marshal.AllocHGlobal(filter.Length);
+            IntPtr descriptor = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(EventFilterDescriptor)));
+            IntPtr parameters = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(EnableTraceParameters)));
+            try
+            {
+                Marshal.Copy(filter, 0, ids, filter.Length);
+                Marshal.StructureToPtr(new EventFilterDescriptor
+                {
+                    Ptr = IntPtr.Size == 8 ? (ulong)ids.ToInt64() : (uint)ids.ToInt32(), // sem estender o sinal no app de 32 bits
+                    Size = (uint)filter.Length,
+                    Type = EventFilterTypeEventId
+                }, descriptor, false);
+                Marshal.StructureToPtr(new EnableTraceParameters
+                {
+                    Version = EnableTraceParametersVersion2,
+                    EnableProperty = EnablePropertyIgnoreKeyword0,
+                    EnableFilterDesc = descriptor,
+                    FilterDescCount = 1
+                }, parameters, false);
+                Guid provider = DriverProvider;
+                ulong keywords = DriverKeywords(build);
+                int code = EnableTraceEx2(session, ref provider, EventControlCodeEnableProvider, TraceLevelInformation, keywords, keywords, 0, parameters);
+                return code == 0 ? null : L.T("o Windows recusou o driver de vídeo, código ", "Windows refused the graphics driver, code ") + code;
+            }
+            catch (Exception ex)
+            {
+                return ex.Message;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(parameters);
+                Marshal.FreeHGlobal(descriptor);
+                Marshal.FreeHGlobal(ids);
+            }
+        }
+
+        /// <summary>
+        /// As palavras-chave do DxgKrnl, iguais nas duas máscaras (qualquer e todas): Base e Present no Windows 11, só Base
+        /// antes dele (o Windows 10 não tem a Present). Nunca a de desempenho (0x4000...), que pesa no driver.
+        /// </summary>
+        internal static ulong DriverKeywords(int build)
+        {
+            return build >= Windows11Build ? DriverKeywordBase | DriverKeywordPresent : DriverKeywordBase;
+        }
+
+        /// <summary>EVENT_FILTER_EVENT_ID: FilterIn = 1 (só estes), um byte reservado, a quantidade e os números, em 16 bits.</summary>
+        internal static byte[] EventIdFilter(ushort[] events)
+        {
+            var bytes = new byte[4 + 2 * events.Length];
+            bytes[0] = 1;
+            bytes[2] = (byte)events.Length;
+            bytes[3] = (byte)(events.Length >> 8);
+            for (int i = 0; i < events.Length; i++)
+            {
+                bytes[4 + 2 * i] = (byte)events[i];
+                bytes[5 + 2 * i] = (byte)(events[i] >> 8);
+            }
+            return bytes;
+        }
+
         /// <summary>
         /// Para de ler e devolve os quadros de cada processo (só os que entregaram quadros). Depois disso nada mais é
         /// acrescentado às listas devolvidas, mesmo que o Windows ainda entregue um evento atrasado.
         /// </summary>
         public Dictionary<int, List<FrameSample>> Stop()
+        {
+            HashSet<int> fromDriver;
+            return Stop(out fromDriver);
+        }
+
+        /// <summary>Como Stop(), dizendo também quais processos tiveram os quadros lidos do driver (Vulkan, OpenGL).</summary>
+        public Dictionary<int, List<FrameSample>> Stop(out HashSet<int> fromDriver)
         {
             lock (gate) stopped = true;
             if (session != 0) StopSession(session);
@@ -611,7 +766,36 @@ namespace MouseModes
             if (reader != null && reader != Thread.CurrentThread) reader.Join(ReaderJoinMs);
             reader = null;
             GC.KeepAlive(callback);
-            lock (gate) return new Dictionary<int, List<FrameSample>>(byProcess);
+            var result = new Dictionary<int, List<FrameSample>>();
+            fromDriver = new HashSet<int>();
+            lock (gate)
+            {
+                var counts = new int[SourceCount];
+                foreach (KeyValuePair<int, Track[]> pair in tracks)
+                {
+                    for (int s = 0; s < SourceCount; s++)
+                        counts[s] = pair.Value[s] != null && pair.Value[s].Frames != null ? pair.Value[s].Frames.Count : 0;
+                    int source = PickSource(counts);
+                    if (counts[source] == 0) continue;
+                    result[pair.Key] = pair.Value[source].Frames;
+                    if (source != SourceRuntime) fromDriver.Add(pair.Key);
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Qual lista de um processo vale, pela quantidade de quadros de cada fonte. O jogo em DirectX gera também os
+        /// eventos do driver, mais ou menos um por quadro: com o DirectX tendo pelo menos metade do que o driver viu, vale
+        /// o DirectX, que tem a hora exata. Sem ele (Vulkan, OpenGL), vale o tipo de evento do driver com mais quadros.
+        /// </summary>
+        internal static int PickSource(int[] counts)
+        {
+            int driver = -1;
+            for (int s = SourceRuntime + 1; s < counts.Length; s++)
+                if (counts[s] > 0 && (driver < 0 || counts[s] > counts[driver])) driver = s;
+            if (driver < 0) return SourceRuntime;
+            return counts[SourceRuntime] * 2L >= counts[driver] ? SourceRuntime : driver;
         }
 
         /// <summary>
@@ -648,7 +832,7 @@ namespace MouseModes
         {
             var pending = new List<int>();
             lock (gate)
-                foreach (int pid in byProcess.Keys)
+                foreach (int pid in tracks.Keys)
                     if (!names.ContainsKey(pid)) pending.Add(pid);
             foreach (int pid in pending)
             {
@@ -659,8 +843,7 @@ namespace MouseModes
                     names[pid] = name;
                     if (games != null && !GameBooster.Matches(name, games))
                     {
-                        byProcess.Remove(pid);
-                        lastPresent.Remove(pid);
+                        tracks.Remove(pid);
                         ignored.Add(pid);
                     }
                 }
@@ -717,14 +900,14 @@ namespace MouseModes
             try
             {
                 ushort id = (ushort)Marshal.ReadInt16(record, 40);
-                if (id != DxgiPresentStart && id != DxgiPresentMpoStart && id != D3D9PresentStart) return;
+                if (id != DxgiPresentStart && id != DxgiPresentMpoStart && id != D3D9PresentStart &&
+                    id != DriverPresentHistory && id != DriverFlip && id != DriverFlipOverlay) return;
                 var provider = (Guid)Marshal.PtrToStructure(record + 24, typeof(Guid));
-                bool present = provider == DxgiProvider ? id == DxgiPresentStart || id == DxgiPresentMpoStart
-                             : provider == D3D9Provider && id == D3D9PresentStart;
-                if (!present) return;
+                int source = SourceOf(provider, id);
+                if (source < 0) return;
                 int pid = Marshal.ReadInt32(record, 12);
                 long stamp = Marshal.ReadInt64(record, 16);
-                Add(pid, stamp);
+                Add(pid, stamp, source);
             }
             catch
             {
@@ -732,21 +915,44 @@ namespace MouseModes
             }
         }
 
-        /// <summary>Um Present do processo, com o carimbo no relógio QPC.</summary>
-        internal void Add(int pid, long stamp)
+        /// <summary>A fonte de um evento (SourceRuntime, SourcePresentHistory...), ou -1 se não é um quadro.</summary>
+        internal static int SourceOf(Guid provider, ushort id)
+        {
+            if (provider == DxgiProvider) return id == DxgiPresentStart || id == DxgiPresentMpoStart ? SourceRuntime : -1;
+            if (provider == D3D9Provider) return id == D3D9PresentStart ? SourceRuntime : -1;
+            if (provider == DriverProvider)
+            {
+                if (id == DriverPresentHistory) return SourcePresentHistory;
+                if (id == DriverFlip) return SourceFlip;
+                if (id == DriverFlipOverlay) return SourceFlipOverlay;
+            }
+            return -1;
+        }
+
+        /// <summary>Um quadro do processo, com o carimbo no relógio QPC e a fonte (por padrão, o Present do DirectX).</summary>
+        internal void Add(int pid, long stamp, int source = SourceRuntime)
         {
             lock (gate)
             {
                 if (stopped || ignored.Contains(pid)) return;
-                long before;
-                FrameSample sample;
-                if (lastPresent.TryGetValue(pid, out before) && ToSample(stamp, before, qpcStart, qpcPerSecond, out sample))
+                Track[] mine;
+                if (!tracks.TryGetValue(pid, out mine)) tracks[pid] = mine = new Track[SourceCount];
+                Track track = mine[source] ?? (mine[source] = new Track());
+                if (track.HasLast)
                 {
-                    List<FrameSample> list;
-                    if (!byProcess.TryGetValue(pid, out list)) byProcess[pid] = list = new List<FrameSample>();
-                    if (list.Count < MaxFramesPerProcess) list.Add(sample);
+                    // O driver pode registrar o mesmo flip mais de uma vez (um por plano da tela): colado no anterior é
+                    // repetição, não quadro novo. O PresentHistory não repete, e o Present do DirectX nunca.
+                    bool flip = source == SourceFlip || source == SourceFlipOverlay;
+                    if (flip && stamp > track.Last && (stamp - track.Last) * 1000.0 / qpcPerSecond < DriverDuplicateMs) return;
+                    FrameSample sample;
+                    if (ToSample(stamp, track.Last, qpcStart, qpcPerSecond, out sample))
+                    {
+                        if (track.Frames == null) track.Frames = new List<FrameSample>();
+                        if (track.Frames.Count < MaxFramesPerProcess) track.Frames.Add(sample);
+                    }
                 }
-                lastPresent[pid] = stamp;
+                track.Last = stamp;
+                track.HasLast = true;
             }
         }
 
@@ -767,12 +973,25 @@ namespace MouseModes
         /// <summary>Os quadros do jogo: o processo da lista de jogos que mais entregou quadros. null se nenhum.</summary>
         internal static List<FrameSample> GameFrames(Dictionary<int, List<FrameSample>> byProcess, Dictionary<int, string> names, IList<string> games)
         {
+            int pid;
+            return GameFrames(byProcess, names, games, out pid);
+        }
+
+        /// <summary>Como o outro, dizendo também de qual processo são os quadros (0 se nenhum).</summary>
+        internal static List<FrameSample> GameFrames(Dictionary<int, List<FrameSample>> byProcess, Dictionary<int, string> names, IList<string> games,
+                                                     out int pid)
+        {
             List<FrameSample> best = null;
+            pid = 0;
             foreach (KeyValuePair<int, List<FrameSample>> pair in byProcess)
             {
                 string name;
                 if (!names.TryGetValue(pair.Key, out name) || !GameBooster.Matches(name, games)) continue;
-                if (best == null || pair.Value.Count > best.Count) best = pair.Value;
+                if (best == null || pair.Value.Count > best.Count)
+                {
+                    best = pair.Value;
+                    pid = pair.Key;
+                }
             }
             return best;
         }

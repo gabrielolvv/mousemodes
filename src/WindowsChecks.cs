@@ -158,7 +158,7 @@ namespace MouseModes
                 return k != null ? k.GetValue(name) : null;
         }
 
-        private static int WindowsBuild()
+        internal static int WindowsBuild()
         {
             try
             {

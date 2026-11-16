@@ -430,16 +430,28 @@ namespace MouseModes
             if (frames != null)
             {
                 Dictionary<int, string> names = frames.Names;
-                Dictionary<int, List<FrameSample>> byProcess = frames.Stop();
+                HashSet<int> fromDriver;
+                Dictionary<int, List<FrameSample>> byProcess = frames.Stop(out fromDriver);
+                string driverError = frames.DriverError;
                 frames = null;
-                List<FrameSample> gameFrames = FrameProbe.GameFrames(byProcess, names, games);
+                int gamePid;
+                List<FrameSample> gameFrames = FrameProbe.GameFrames(byProcess, names, games, out gamePid);
                 report.Frames = FrameStats.Analyze(gameFrames, report.Bursts, report.CpuBursts, samples,
                                                    report.CpuSpeed != null ? report.CpuSpeed.All : null);
-                if (report.Frames == null)
-                    report.FramesMissing = L.T("o jogo não entregou quadros pelo DirectX 9–12 (Vulkan e OpenGL ainda não são lidos)",
-                                               "the game did not deliver frames through DirectX 9–12 (Vulkan and OpenGL are not read yet)");
+                if (report.Frames != null) report.Frames.FromDriver = fromDriver.Contains(gamePid);
+                else report.FramesMissing = NoFramesReason(driverError);
             }
             return report.Duration >= MinDuration ? report : null;
+        }
+
+        /// <summary>Por que o jogo ficou sem quadros: com o driver lido, não entregou nenhum; sem ele, Vulkan e OpenGL ficaram de fora.</summary>
+        internal static string NoFramesReason(string driverError)
+        {
+            if (driverError == null)
+                return L.T("nenhum quadro do jogo chegou, nem pelo DirectX nem pelo driver de vídeo (Vulkan, OpenGL)",
+                           "no game frames arrived, neither through DirectX nor through the graphics driver (Vulkan, OpenGL)");
+            return L.T("o jogo não entregou quadros pelo DirectX 9–12, e a leitura de Vulkan e OpenGL não abriu (",
+                       "the game did not deliver frames through DirectX 9–12, and Vulkan and OpenGL reading did not open (") + driverError + ")";
         }
 
         /// <summary>O jogo, o próprio app e os processos do Windows ficam de fora: o relatório é sobre o que dá para mudar.</summary>

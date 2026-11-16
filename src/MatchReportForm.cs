@@ -86,7 +86,11 @@ namespace MouseModes
                                   "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1 " +
                                   "(you can turn it off in Settings → Privacy). ") +
                               (report.Frames != null
-                                  ? L.T("Os quadros vêm do rastreamento do Windows, sem entrar no jogo.", "Frames come from Windows tracing, without touching the game.")
+                                  ? L.T("Os quadros vêm do rastreamento do Windows, sem entrar no jogo.", "Frames come from Windows tracing, without touching the game.") +
+                                    (report.Frames.FromDriver
+                                        ? L.T(" Jogo em Vulkan ou OpenGL: quadros lidos no driver de vídeo, com a hora de cada um um pouco menos precisa.",
+                                              " Vulkan or OpenGL game: frames read at the graphics driver, with each one's time slightly less precise.")
+                                        : "")
                                   : L.T("O FPS só é medido com a permissão do Caça-travadinhas (Ajustes → Geral).", "FPS is only measured with the Stutter finder permission (Settings → General).")),
                               20, y, 440, 32, Theme.Faint, 8f);
             footer.Height = TextRenderer.MeasureText(footer.Text, footer.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
@@ -110,8 +114,11 @@ namespace MouseModes
             y += 24;
             if (frames == null)
             {
-                Controls.Add(Note(L.T("Quadros não medidos: ", "Frames not measured: ") + report.FramesMissing + ".", 20, y, 440, 34, Theme.Faint, 8.5f));
-                return y + 40;
+                // Altura medida: o motivo pode ser longo (a mensagem de erro do Windows) e não pode sair cortado.
+                Label missing = Note(L.T("Quadros não medidos: ", "Frames not measured: ") + report.FramesMissing + ".", 20, y, 440, 34, Theme.Faint, 8.5f);
+                missing.Height = TextRenderer.MeasureText(missing.Text, missing.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+                Controls.Add(missing);
+                return y + missing.Height + 6;
             }
             Controls.Add(Note(frames.Summary(), 20, y, 440, 20, Theme.Text, 9.5f));
             y += 24;

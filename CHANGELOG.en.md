@@ -4,6 +4,16 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Stutter finder for Vulkan and OpenGL**: games that do not use DirectX (Minecraft Java, Doom, those running on
+  Vulkan) now get FPS, 1% low and stutters in the X-ray. Frames are read from the graphics driver's present events,
+  as PresentMon does; each one's time is slightly less precise than DirectX's, and the report says when that was the
+  case. DirectX games are read as before. Not tested on a real game yet: `tools/frame-driver-check.ps1` runs that
+  test.
+
 ## 1.13.0
 
 ### New
