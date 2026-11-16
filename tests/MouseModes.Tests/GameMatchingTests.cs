@@ -190,5 +190,78 @@ namespace MouseModes.Tests
             Assert.Same(cfg.Performance, cfg.PerformanceFor("cs2"));
             Assert.Same(cfg.Performance, cfg.PerformanceFor(null));
         }
+
+        [Theory]
+        [InlineData("s")]                 // pega Steam, Spotify, slack...
+        [InlineData("cs")]                // curta demais
+        [InlineData("cod")]               // Call of Duty é cod.exe, mas "cod" também pega o VS Code (Code.exe)
+        [InlineData("Steam")]             // o launcher não é o jogo
+        [InlineData("Riot")]              // o cliente da Riot, não o VALORANT
+        [InlineData("Over.exe")]          // pega o Overwolf
+        [InlineData("disc")]
+        public void GameListCheck_FlagsLinesThatCatchMoreThanTheGame(string entry)
+        {
+            Assert.True(GameListCheck.TooBroad(entry));
+            Assert.NotNull(GameListCheck.Warning(entry, null));
+        }
+
+        [Theory]
+        [InlineData("cs2")]
+        [InlineData("Overwatch")]
+        [InlineData("VALORANT-Win64-Shipping")]
+        [InlineData("javaw")]
+        [InlineData("Minecraft")]
+        [InlineData("")]
+        [InlineData("  .exe  ")]
+        public void GameListCheck_LeavesGoodLinesAlone(string entry)
+        {
+            Assert.False(GameListCheck.TooBroad(entry));
+            Assert.Null(GameListCheck.Warning(entry, new[] { "cs2", "Overwatch", "javaw" }));
+        }
+
+        [Fact]
+        public void GameListCheck_DefaultGameListHasNoBroadLine()
+        {
+            AppConfig cfg = AppConfig.CreateDefault(); // a lista de quem acabou de instalar; só lê o mouse do Windows
+            Assert.NotEmpty(cfg.Games);
+            foreach (string game in cfg.Games)
+                Assert.False(GameListCheck.TooBroad(game), game);
+        }
+
+        [Fact]
+        public void GameListCheck_SaysWhatTheLineAlsoCatches()
+        {
+            Assert.Equal(new[] { "Code" }, GameListCheck.AlsoCatches("cod", null).ToArray());
+            Assert.Equal(new[] { "steam", "steamwebhelper" }, GameListCheck.AlsoCatches("steam.exe", null).ToArray());
+
+            // Linha curta: os abertos agora que começam com ela também entram, sem repetir e na ordem.
+            List<string> hits = GameListCheck.AlsoCatches("sp", new[] { "SpaceGame", "Spotify", "notepad" });
+            Assert.Equal(new[] { "SpaceGame", "Spotify" }, hits.ToArray());
+            // Linha comprida: o que está aberto não conta (pode ser o próprio jogo).
+            Assert.Empty(GameListCheck.AlsoCatches("SpaceGame", new[] { "SpaceGame" }));
+
+            string warning = GameListCheck.Warning("s", new[] { "SuperGame" });
+            Assert.Contains("SuperGame", warning);
+            Assert.Contains("\"s\"", warning);
+        }
+
+        [Fact]
+        public void GameListCheck_ExamplesLeaveOutWhatNeverCountsAsAGame()
+        {
+            // Só lê os processos abertos. O explorer (pasta do Windows) nunca liga o Performance: não é exemplo.
+            List<string> open = GameDetector.ListWindowedGameCandidates();
+            Assert.DoesNotContain(open, name => string.Equals(name, "explorer", System.StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public void GameListCheck_ListsAtMostFourNames()
+        {
+            Assert.Equal("a, b", GameListCheck.Names(new List<string> { "a", "b" }));
+            string many = GameListCheck.Names(new List<string> { "a", "b", "c", "d", "e", "f" });
+            Assert.StartsWith("a, b, c, d", many);
+            Assert.Contains("2", many); // "e mais 2" / "and 2 more"
+            Assert.DoesNotContain("f", many);
+            Assert.Equal("FortniteClient-Win6…", GameListCheck.Names(new List<string> { "FortniteClient-Win64-Shipping" }));
+        }
     }
 }

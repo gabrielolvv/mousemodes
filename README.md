@@ -97,7 +97,8 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
   Turbo não mudam.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
-  A troca manual vence a automática.
+  A troca manual vence a automática. Uma linha que pega mais que o jogo (curta, ou começo de um programa comum, como
+  `cod`, que também pega o `Code.exe` do VS Code) pede confirmação ao incluir e aparece como AMPLO na lista.
 - **Buscar jogos** (Ajustes → Jogos → Buscar): lista os jogos instalados pela Steam e pela Epic, além dos programas
   abertos, para incluir vários de uma vez. O app escolhe como processo o maior `.exe` da pasta do jogo, sem
   desinstaladores, launchers e anti-cheat; se errar, dá para corrigir o nome à mão.
