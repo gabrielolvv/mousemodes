@@ -64,7 +64,7 @@ namespace MouseModes
         {
             uint flags = persist ? SPIF_UPDATEINIFILE | SPIF_SENDCHANGE : 0;
 
-            int speed = Math.Max(1, Math.Min(20, p.PointerSpeed));
+            int speed = ClampSpeed(p.PointerSpeed);
             Check(SpiPtr(SPI_SETMOUSESPEED, 0, new IntPtr(speed), flags), L.T("a velocidade do ponteiro", "the pointer speed"));
 
             // Valores padrão do Windows quando a precisão está ligada: 6, 10, 1.
@@ -88,7 +88,19 @@ namespace MouseModes
         internal static uint ScrollToWindows(int lines)
         {
             if (lines == MouseProfile.PageScroll) return WHEEL_PAGESCROLL;
-            return (uint)Math.Max(1, Math.Min(100, lines));
+            return (uint)NormalizeScroll(lines);
+        }
+
+        /// <summary>A velocidade como o Windows guarda (1–20): um config editado à mão pode ter outra.</summary>
+        internal static int ClampSpeed(int speed)
+        {
+            return Math.Max(1, Math.Min(20, speed));
+        }
+
+        /// <summary>As linhas de rolagem como o Windows guarda (1–100, ou a tela por vez).</summary>
+        internal static int NormalizeScroll(int lines)
+        {
+            return lines == MouseProfile.PageScroll ? lines : Math.Max(1, Math.Min(100, lines));
         }
 
         /// <summary>Texto da rolagem para o log e o Diagnóstico ("3" ou "uma tela").</summary>

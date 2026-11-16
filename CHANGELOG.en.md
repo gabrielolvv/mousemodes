@@ -4,6 +4,16 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Watch the mouse** (Settings → Performance, on by default): if another program turns acceleration back on, changes
+  the speed or the scroll during Performance, the app puts the mode's mouse back within 3 s and says what changed and
+  which open mouse program may have done it (G HUB, Synapse, iCUE...). If it keeps changing (3 times in 10 min), it
+  stops fighting until the next mode switch. With notifications silenced in Performance, the notice shows up when
+  leaving it. It does not watch in Daily.
+
 ## 1.16.0
 
 ### New

@@ -104,6 +104,12 @@ namespace MouseModes
         /// </summary>
         public bool MouseOnlyWhenGameFocused { get; set; }
 
+        /// <summary>
+        /// Vigia do mouse: no Performance, se outro programa mudar a velocidade, a aceleração ou a rolagem, o app aplica de
+        /// novo as do modo e avisa.
+        /// </summary>
+        public bool GuardMouse { get; set; }
+
         // ---- Durante o jogo (só no Performance) ----
 
         public bool BlockWinKey { get; set; }
@@ -332,6 +338,7 @@ namespace MouseModes
             AutoUpdate = true;
             MeasureNetwork = true;
             KeepMatchHistory = true;
+            GuardMouse = true;
         }
 
         /// <summary>Perfil a usar no Performance: o do jogo aberto, se ele tiver um próprio.</summary>

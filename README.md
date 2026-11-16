@@ -96,6 +96,12 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
 - **Mouse do jogo só com o jogo na tela** (Ajustes → Performance, desligado por padrão): no alt-tab e no desktop,
   o mouse volta à velocidade e aceleração do Dia a dia; ao voltar ao jogo, usa o do Performance. Energia, USB e
   Turbo não mudam.
+- **Vigiar o mouse** (Ajustes → Performance, ligado por padrão): software de mouse, macros e sincronizações às vezes
+  religam a aceleração ou mudam a velocidade no meio do jogo. A cada 3 s, no Performance, o app confere o mouse do
+  Windows e, se mudou, aplica de novo o do modo e avisa o que mudou e qual programa de mouse aberto pode ter sido
+  (G HUB, Synapse, iCUE, SteelSeries GG...). Se continuar mudando (3 vezes em 10 min), ele para de brigar até a
+  próxima troca de modo. Com as notificações do Windows silenciadas no Performance, o aviso aparece ao sair dele. No
+  Dia a dia não vigia: lá o mouse do Windows é o seu.
 - **Troca automática**: compara o *começo* do nome do processo (`FiveM` pega `FiveM_b3095_GTAProcess`).
   A troca manual vence a automática. Uma linha que pega mais que o jogo (curta, ou começo de um programa comum, como
   `cod`, que também pega o `Code.exe` do VS Code) pede confirmação ao incluir e aparece como AMPLO na lista.

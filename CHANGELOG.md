@@ -5,6 +5,16 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Vigiar o mouse** (Ajustes → Performance, ligado por padrão): se outro programa religar a aceleração, mudar a
+  velocidade ou a rolagem durante o Performance, o app aplica de novo o mouse do modo em até 3 s e avisa o que mudou e
+  qual programa de mouse aberto pode ter sido (G HUB, Synapse, iCUE...). Se continuar mudando (3 vezes em 10 min), ele
+  para de brigar até a próxima troca de modo. Com as notificações silenciadas no Performance, o aviso aparece ao sair
+  dele. No Dia a dia não vigia.
+
 ## 1.16.0
 
 ### Novidades

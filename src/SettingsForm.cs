@@ -14,6 +14,7 @@ namespace MouseModes
         private readonly ProfilePanel dailyPanel;
         private readonly GamesPanel gamesPanel;
         private readonly ToggleRow focusRow;
+        private readonly ToggleRow guardRow;
         private readonly NavItem[] nav;
         private readonly Panel[] pages;
         private readonly NeonButton save;
@@ -63,9 +64,13 @@ namespace MouseModes
                     "Tip: speed 10 without acceleration = 1:1 movement. Tune sensitivity with the mouse DPI and inside the game. " +
                     "Games with their own settings (Games tab) use theirs."));
             perfPanel.LoadProfile(cfg.Performance);
-            focusRow = MakeRow(L.T("Mouse do jogo só com o jogo na tela", "Game mouse only with the game on screen"), L.T("No alt-tab e no desktop, usa o mouse do Dia a dia", "On alt-tab and the desktop, uses the Daily mouse"), pa, pb, 474, 60);
+            focusRow = MakeRow(L.T("Mouse do jogo só com o jogo na tela", "Game mouse only with the game on screen"), L.T("No alt-tab e no desktop, usa o mouse do Dia a dia", "On alt-tab and the desktop, uses the Daily mouse"), pa, pb, 444, 50);
             focusRow.Switch.SetChecked(cfg.MouseOnlyWhenGameFocused, false);
             perfPanel.Controls.Add(focusRow);
+            guardRow = MakeRow(L.T("Vigiar o mouse", "Watch the mouse"),
+                L.T("Desfaz se outro programa mexer no mouse no Performance", "Undoes it if another program changes the mouse in Performance"), pa, pb, 498, 50);
+            guardRow.Switch.SetChecked(cfg.GuardMouse, false);
+            perfPanel.Controls.Add(guardRow);
 
             dailyPanel = new ProfilePanel(a, b,
                 L.T("Acompanha o mouse do Windows e volta ao fechar o jogo ou ao sair do app. " +
@@ -471,6 +476,7 @@ namespace MouseModes
             gamesPanel.SaveTo(cfg);
 
             cfg.MouseOnlyWhenGameFocused = focusRow.Switch.Checked;
+            cfg.GuardMouse = guardRow.Switch.Checked;
             cfg.AppsToClose = ReadList(appsToClose);
             cfg.BoostGamePriority = boostRow.Switch.Checked;
             cfg.BlockWinKey = winKeyRow.Switch.Checked;
@@ -1000,15 +1006,15 @@ namespace MouseModes
                 Title = L.T("USB sempre ativo", "USB always on"),
                 Subtitle = L.T("Desativa a suspensão seletiva: o mouse nunca \"adormece\"", "Turns off selective suspend: the mouse never \"falls asleep\""),
                 Location = new Point(0, 332),
-                Size = new Size(440, 60)
+                Size = new Size(440, 50)
             };
             usb.SetAccents(a, b);
 
             var hintLabel = new Label
             {
                 Text = hint,
-                Location = new Point(0, 408),
-                Size = new Size(440, 54),
+                Location = new Point(0, 390),
+                Size = new Size(440, 48),
                 ForeColor = Theme.Faint,
                 Font = Theme.Ui(8.5f),
                 BackColor = Color.Transparent
