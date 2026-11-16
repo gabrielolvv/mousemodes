@@ -338,6 +338,29 @@ namespace MouseModes
             return name;
         }
 
+        /// <summary>
+        /// Os processos com janela aberta que a troca automática poderia tomar por jogo (CanBeGame: fora da pasta do
+        /// Windows, nesta sessão). Exemplos para o aviso de linha curta: o explorer, que nunca conta, não aparece.
+        /// </summary>
+        public static List<string> ListWindowedGameCandidates()
+        {
+            var names = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+            int session = MySession;
+            string windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            foreach (Process proc in Process.GetProcesses())
+            {
+                try
+                {
+                    if (proc.MainWindowHandle != IntPtr.Zero &&
+                        CanBeGame(proc.ProcessName, proc.SessionId, session, ImagePath(proc.Id), windowsDir))
+                        names.Add(proc.ProcessName);
+                }
+                catch { }
+                finally { proc.Dispose(); }
+            }
+            return new List<string>(names);
+        }
+
         /// <summary>Processos com janela aberta, para facilitar achar o nome do jogo.</summary>
         public static List<string> ListWindowedProcesses()
         {
@@ -352,6 +375,90 @@ namespace MouseModes
                 finally { proc.Dispose(); }
             }
             return new List<string>(names);
+        }
+    }
+
+    /// <summary>
+    /// Confere se uma linha da lista de jogos pega mais que o jogo. Cada linha vale como começo do nome do processo, e
+    /// quem bate com ela liga o Performance sozinho, ganha prioridade alta e não é acalmado nem fechado: uma linha como
+    /// "s" ou "cod" pega também o Steam, o Spotify ou o VS Code (Code.exe).
+    /// </summary>
+    public static class GameListCheck
+    {
+        /// <summary>Linhas com menos letras que isto pegam qualquer programa que comece assim.</summary>
+        internal const int MinLength = 3;
+
+        /// <summary>
+        /// Programas que não são jogo e costumam estar abertos junto com ele (nome do processo, sem ".exe"). Os da pasta
+        /// do Windows (explorer, notepad...) ficam de fora: a troca automática já não os conta como jogo.
+        /// </summary>
+        internal static readonly string[] CommonApps =
+        {
+            "chrome", "msedge", "firefox", "opera", "brave", "vivaldi",
+            "Discord", "Spotify", "Teams", "ms-teams", "slack", "WhatsApp", "Telegram", "Zoom",
+            "steam", "steamwebhelper", "EpicGamesLauncher", "EpicWebHelper", "Battle.net", "RiotClientServices", "RiotClientUx",
+            "EADesktop", "UbisoftConnect", "upc", "GalaxyClient", "Overwolf", "Medal", "obs64",
+            "lghub", "RazerAppEngine", "iCUE", "SteelSeriesGG", "NVIDIA app", "RadeonSoftware", "Code", "MouseModes"
+        };
+
+        /// <summary>A linha é ampla demais (curta ou começo de um programa comum). Barata: serve para desenhar a lista.</summary>
+        public static bool TooBroad(string entry)
+        {
+            string prefix = GameDetector.Normalize(entry);
+            if (prefix.Length == 0) return false;
+            return prefix.Length < MinLength || AlsoCatches(entry, null).Count > 0;
+        }
+
+        /// <summary>
+        /// Os programas que a linha também pega: os comuns que começam com ela e, se ela for curta, os abertos agora
+        /// (<paramref name="openNow"/>) que começam com ela. Sem repetir, na ordem em que aparecem.
+        /// </summary>
+        public static List<string> AlsoCatches(string entry, IEnumerable<string> openNow)
+        {
+            var hits = new List<string>();
+            string prefix = GameDetector.Normalize(entry);
+            if (prefix.Length == 0) return hits;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<string>();
+            if (openNow != null && prefix.Length < MinLength) candidates.AddRange(openNow);
+            candidates.AddRange(CommonApps);
+            foreach (string name in candidates)
+            {
+                if (string.IsNullOrEmpty(name) || !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) continue;
+                if (seen.Add(name)) hits.Add(name);
+            }
+            return hits;
+        }
+
+        /// <summary>
+        /// O aviso para quem inclui a linha: o que ela também pega (até 4 nomes) e o que isso causa. null se a linha é boa.
+        /// </summary>
+        public static string Warning(string entry, IEnumerable<string> openNow)
+        {
+            string prefix = GameDetector.Normalize(entry);
+            if (!TooBroad(prefix)) return null;
+            List<string> hits = AlsoCatches(prefix, openNow);
+            string what;
+            if (prefix.Length < MinLength)
+                // Curta: os abertos agora são exemplos (um deles pode ser o próprio jogo), não "também pega".
+                what = L.T("\"" + prefix + "\" é curta demais: pega todo programa cujo nome comece assim",
+                           "\"" + prefix + "\" is too short: it catches every program whose name starts like that") +
+                       (hits.Count > 0 ? L.T(" (como ", " (like ") + Names(hits) + ")" : "") + ".";
+            else
+                what = L.T("\"" + prefix + "\" também pega ", "\"" + prefix + "\" also catches ") + Names(hits) + ".";
+            return what + L.T(" Com esses programas abertos, o Performance liga sozinho e eles ganham prioridade alta. Prefira o nome inteiro do jogo.",
+                              " With those programs open, Performance turns on by itself and they get high priority. Prefer the game's full name.");
+        }
+
+        /// <summary>"Steam, Spotify e mais 2": até 4 nomes, cada um com até 20 letras (o aviso cabe na caixa).</summary>
+        internal static string Names(List<string> hits)
+        {
+            const int shown = 4, longest = 20;
+            var names = new List<string>();
+            for (int i = 0; i < hits.Count && i < shown; i++)
+                names.Add(hits[i].Length > longest ? hits[i].Substring(0, longest - 1) + "…" : hits[i]);
+            string text = string.Join(", ", names.ToArray());
+            return hits.Count <= shown ? text : text + L.T(" e mais ", " and ") + (hits.Count - shown) + L.T("", " more");
         }
     }
 }

@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Broad line warning in the game list** (Settings → Games): each line counts as the start of the process name, and a
+  line like `s` or `cod` also catches Steam, Spotify or VS Code (`Code.exe`). With them open, Performance turned on by
+  itself and they got high priority. Now adding such a line asks for confirmation, saying what else it catches, and
+  the ones already in the list show as BROAD.
+
 ## 1.14.0
 
 ### New

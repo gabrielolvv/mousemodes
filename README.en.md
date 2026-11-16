@@ -105,7 +105,9 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   desktop, the mouse goes back to the Daily speed and acceleration; back in the game, it uses the Performance one.
   Power, USB and Turbo do not change.
 - **Automatic switch**: compares the *start* of the process name (`FiveM` matches `FiveM_b3095_GTAProcess`).
-  A manual switch wins over the automatic one.
+  A manual switch wins over the automatic one. A line that catches more than the game (short, or the start of a common
+  program, like `cod`, which also catches VS Code's `Code.exe`) asks for confirmation when added and shows as BROAD in
+  the list.
 - **Find games** (Settings → Games → Find): lists the games installed through Steam and Epic, plus the open programs,
   to add several at once. The app picks the largest `.exe` in the game folder as the process, skipping uninstallers,
   launchers and anti-cheat; if it gets it wrong, you can fix the name by hand.

@@ -79,6 +79,43 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void GamesPanel_AsksBeforeAddingABroadLineAndKeepsGoodOnesQuiet()
+        {
+            var cfg = new AppConfig();
+            using (var panel = new GamesPanel(cfg, null))
+            {
+                var asked = new System.Collections.Generic.List<string>();
+                bool answer = false;
+                panel.ConfirmBroad = warning => { asked.Add(warning); return answer; };
+                panel.OpenNow = () => new System.Collections.Generic.List<string> { "SomeGame" };
+                MethodInfo add = typeof(GamesPanel).GetMethod("AddName", BindingFlags.NonPublic | BindingFlags.Instance);
+
+                var nameBox = Field<System.Windows.Forms.TextBox>(panel, "nameBox");
+                nameBox.Text = "cs2.exe";
+                add.Invoke(panel, new object[] { nameBox.Text }); // boa: entra sem perguntar e a caixa se esvazia
+                Assert.Empty(asked);
+                Assert.Equal("", nameBox.Text);
+
+                nameBox.Text = "steam";
+                add.Invoke(panel, new object[] { nameBox.Text }); // ampla, e a pessoa cancela: não entra e fica na caixa
+                Assert.Single(asked);
+                Assert.Contains("steamwebhelper", asked[0]);
+                Assert.Equal("steam", nameBox.Text);
+
+                answer = true;
+                add.Invoke(panel, new object[] { "So" }); // curta, a pessoa confirma: entra
+                Assert.Equal(2, asked.Count);
+                Assert.Contains("SomeGame", asked[1]);
+
+                add.Invoke(panel, new object[] { "so" }); // já está na lista: não pergunta de novo
+                Assert.Equal(2, asked.Count);
+
+                panel.SaveTo(cfg);
+                Assert.Equal(new[] { "cs2", "So" }, cfg.Games.ToArray());
+            }
+        }
+
+        [Fact]
         public void FpsTargetText_ShowsTheExeTheCapGoesTo()
         {
             var cfg = new AppConfig();

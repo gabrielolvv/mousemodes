@@ -542,6 +542,7 @@ namespace MouseModes
         private readonly List<Entry> entries = new List<Entry>();
         private readonly ToggleRow autoSwitch;
         private readonly ListBox list;
+        private readonly SectionLabel listLabel;
         private readonly TextBox nameBox;
         private readonly ToggleRow customRow;
         private readonly Panel editor;
@@ -575,7 +576,7 @@ namespace MouseModes
             autoSwitch.Switch.SetChecked(cfg.AutoSwitch, false);
             autoLoaded = cfg.AutoSwitch;
 
-            var listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 64), Size = new Size(440, 20) };
+            listLabel = new SectionLabel { Text = L.T("Jogos (começo do nome do processo)", "Games (start of the process name)"), Location = new Point(0, 64), Size = new Size(440, 20), RightColor = Theme.Danger };
             list = new ListBox
             {
                 BorderStyle = BorderStyle.None,
@@ -589,7 +590,14 @@ namespace MouseModes
             var listHost = new FieldHost(list) { Location = new Point(0, 88), Size = new Size(440, 80), Accent = b };
 
             nameBox = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(10f) };
-            nameBox.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddName(nameBox.Text); } };
+            nameBox.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode != Keys.Enter) return;
+                e.SuppressKeyPress = true;
+                // Depois da tecla: o aviso de linha ampla abre uma caixa, e aberta aqui dentro o Enter ainda chegaria à
+                // caixa de texto (o bipe de erro do Windows).
+                BeginInvoke((Action)(() => AddName(nameBox.Text)));
+            };
             var nameHost = new FieldHost(nameBox) { Location = new Point(0, 176), Size = new Size(196, 38), Accent = b };
             var add = new NeonButton { Text = L.T("Incluir", "Add"), Location = new Point(204, 176), Size = new Size(74, 38), AccentA = a, AccentB = b };
             var pick = new NeonButton { Text = L.T("Buscar", "Find"), Location = new Point(284, 176), Size = new Size(78, 38), AccentA = a, AccentB = b };
@@ -667,6 +675,7 @@ namespace MouseModes
             CommitEditor();
             current = index >= 0 && index < entries.Count ? entries[index] : null;
             bool has = current != null;
+            ShowBroad(has ? current.Name : null);
             customRow.Visible = has;
             emptyNote.Visible = !has;
             if (has)
@@ -677,6 +686,31 @@ namespace MouseModes
                 LoadEditor();
             }
             editor.Visible = has && current.Custom != null;
+        }
+
+        /// <summary>No título da lista, o que a linha selecionada também pega (vazio se ela é boa).</summary>
+        private void ShowBroad(string entry)
+        {
+            List<string> hits = entry != null && GameListCheck.TooBroad(entry) ? GameListCheck.AlsoCatches(entry, null) : null;
+            if (hits == null) listLabel.RightText = "";
+            else if (hits.Count == 0) listLabel.RightText = L.T("curta demais", "too short");
+            else
+                listLabel.RightTextOptions = new[]
+                {
+                    L.T("também pega ", "also catches ") + GameListCheck.Names(hits),
+                    L.T("pega ", "catches ") + hits[0] + (hits.Count > 1 ? L.T(" e mais ", " and ") + (hits.Count - 1) + L.T("", " more") : ""),
+                    L.T("pega demais", "too broad")
+                };
+            listLabel.Invalidate();
+        }
+
+        /// <summary>Pergunta se inclui uma linha ampla mesmo assim (o aviso é o texto). Os testes trocam a pergunta.</summary>
+        internal Func<string, bool> ConfirmBroad;
+
+        private bool AskBroad(string warning)
+        {
+            if (ConfirmBroad != null) return ConfirmBroad(warning);
+            return ConfirmDialog.Ask(FindForm(), L.T("Linha ampla demais", "Line too broad"), warning, L.T("Incluir assim", "Add anyway"));
         }
 
         private void OnCustomToggled()
@@ -782,11 +816,23 @@ namespace MouseModes
             int existing = entries.FindIndex(e => string.Equals(e.Name, name, StringComparison.OrdinalIgnoreCase));
             if (existing < 0)
             {
+                // Uma linha que pega mais que o jogo (curta, ou começo do Steam, do navegador...) pede confirmação.
+                string warning = GameListCheck.TooBroad(name) ? GameListCheck.Warning(name, OpenNowForWarning()) : null;
+                if (warning != null && !AskBroad(warning)) return; // fica na caixa para corrigir
                 entries.Add(new Entry { Name = name });
                 existing = entries.Count - 1;
             }
             nameBox.Text = "";
             RefreshList(existing);
+        }
+
+        /// <summary>Os programas com janela aberta, só para dar exemplos no aviso de linha curta. Os testes trocam.</summary>
+        internal Func<List<string>> OpenNow;
+
+        private List<string> OpenNowForWarning()
+        {
+            try { return OpenNow != null ? OpenNow() : GameDetector.ListWindowedGameCandidates(); }
+            catch { return null; }
         }
 
         private void RemoveSelected()
@@ -816,14 +862,18 @@ namespace MouseModes
             if (e.Index < 0 || e.Index >= entries.Count) return;
             Entry entry = entries[e.Index];
             bool sel = (e.State & DrawItemState.Selected) != 0;
-            ListPainter.Draw(e, entry.Name, sel, entry.Custom != null ? L.T("PRÓPRIO", "OWN") : null, Theme.PerfA, Theme.PerfB);
+            bool broad = GameListCheck.TooBroad(entry.Name);
+            string own = entry.Custom != null ? L.T("PRÓPRIO", "OWN") : null;
+            string tag = broad ? (own != null ? own + " · " : "") + L.T("AMPLO", "BROAD") : own;
+            ListPainter.Draw(e, entry.Name, sel, tag, Theme.PerfA, Theme.PerfB, broad ? (Color?)Theme.Danger : null);
         }
     }
 
     /// <summary>Desenho dos itens das listas no tema escuro.</summary>
     public static class ListPainter
     {
-        public static void Draw(DrawItemEventArgs e, string text, bool selected, string tag, Color a, Color b)
+        /// <param name="tagColor">Cor da etiqueta quando ela é um aviso (null = as cores da lista).</param>
+        public static void Draw(DrawItemEventArgs e, string text, bool selected, string tag, Color a, Color b, Color? tagColor = null)
         {
             Graphics g = e.Graphics;
             Theme.HighQuality(g);
@@ -840,8 +890,8 @@ namespace MouseModes
                 SizeF ts = Theme.MeasureSpaced(g, tag, Theme.Ui(6.5f, FontStyle.Bold), 1f);
                 tagW = ts.Width + 14;
                 var badge = new RectangleF(r.Right - tagW - 6, r.Y + (r.Height - 16) / 2f, tagW, 16);
-                Theme.FillRounded(g, badge, 8, selected ? Theme.Alpha(Color.Black, 70) : Theme.Alpha(a, 50));
-                using (var tb = new SolidBrush(selected ? Color.White : b))
+                Theme.FillRounded(g, badge, 8, selected ? Theme.Alpha(Color.Black, 70) : Theme.Alpha(tagColor ?? a, 50));
+                using (var tb = new SolidBrush(selected ? Color.White : tagColor ?? b))
                     Theme.DrawSpacedCentered(g, tag, Theme.Ui(6.5f, FontStyle.Bold), tb, badge, 1f);
             }
             Theme.DrawText(g, text, Theme.Ui(10f), selected ? Color.White : Theme.Text,

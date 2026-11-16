@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Aviso de linha ampla na lista de jogos** (Ajustes → Jogos): cada linha vale como começo do nome do processo, e uma
+  linha como `s` ou `cod` também pega o Steam, o Spotify ou o VS Code (`Code.exe`). Com eles abertos, o Performance
+  ligava sozinho e eles ganhavam prioridade alta. Agora incluir uma linha assim pede confirmação, dizendo o que mais ela
+  pega, e as que já estão na lista aparecem como AMPLO.
+
 ## 1.14.0
 
 ### Novidades
