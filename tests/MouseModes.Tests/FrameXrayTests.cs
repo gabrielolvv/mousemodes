@@ -288,6 +288,140 @@ namespace MouseModes.Tests
         }
 
         [Fact]
+        public void Probe_ReadsVulkanAndOpenGLFromTheDriverAndKeepsDirectXFromThePresent()
+        {
+            // 1 = jogo em Vulkan (só o driver); 2 = jogo em DirectX (o Present e, junto, o driver, um evento por quadro).
+            var names = new Dictionary<int, string> { { 1, "doom" }, { 2, "cs2" } };
+            var probe = new FrameProbe(pid => { string n; return names.TryGetValue(pid, out n) ? n : null; });
+            long t = System.Diagnostics.Stopwatch.GetTimestamp();
+            long frame = System.Diagnostics.Stopwatch.Frequency / 100; // 10 ms
+            for (int i = 1; i <= 11; i++)
+            {
+                probe.Add(1, t + i * frame, FrameProbe.SourcePresentHistory);
+                probe.Add(2, t + i * frame);
+                probe.Add(2, t + i * frame + frame / 20, FrameProbe.SourcePresentHistory); // o driver, 0,5 ms depois
+            }
+
+            HashSet<int> fromDriver;
+            Dictionary<int, List<FrameSample>> byProcess = probe.Stop(out fromDriver);
+
+            Assert.Equal(10, byProcess[1].Count);
+            Assert.Equal(10, byProcess[1][0].Ms, 3);
+            Assert.Equal(10, byProcess[2].Count);
+            Assert.Equal(new[] { 1 }, new List<int>(fromDriver).ToArray()); // o DirectX segue valendo para quem tem
+            int gamePid;
+            Assert.Same(byProcess[1], FrameProbe.GameFrames(byProcess, names, new List<string> { "doom" }, out gamePid));
+            Assert.Equal(1, gamePid);
+        }
+
+        [Fact]
+        public void Probe_CountsADriverFrameRepeatedOnAnotherPlaneOnlyOnce()
+        {
+            var probe = new FrameProbe(pid => "game");
+            long t = System.Diagnostics.Stopwatch.GetTimestamp();
+            long frame = System.Diagnostics.Stopwatch.Frequency / 100; // 10 ms
+            long repeat = System.Diagnostics.Stopwatch.Frequency / 100000; // 0,01 ms: o mesmo flip em outro plano
+            for (int i = 1; i <= 6; i++)
+            {
+                probe.Add(7, t + i * frame, FrameProbe.SourceFlipOverlay);
+                probe.Add(7, t + i * frame + repeat, FrameProbe.SourceFlipOverlay);
+            }
+
+            List<FrameSample> frames = probe.Stop()[7];
+
+            Assert.Equal(5, frames.Count);
+            foreach (FrameSample f in frames) Assert.Equal(10, f.Ms, 3);
+        }
+
+        [Theory]
+        [InlineData(FrameProbe.SourcePresentHistory)]
+        [InlineData(FrameProbe.SourceFlip)]
+        [InlineData(FrameProbe.SourceFlipOverlay)]
+        public void Probe_KeepsEveryDriverFrameOfAnUncappedGame(int source)
+        {
+            // Minecraft Java sem limite, a 3000 FPS: 0,33 ms por quadro não é repetição.
+            var probe = new FrameProbe(pid => "javaw");
+            long t = System.Diagnostics.Stopwatch.GetTimestamp();
+            long frame = System.Diagnostics.Stopwatch.Frequency / 3000;
+            for (int i = 1; i <= 301; i++) probe.Add(9, t + i * frame, source);
+
+            List<FrameSample> frames = probe.Stop()[9];
+
+            Assert.Equal(300, frames.Count);
+            Assert.InRange(frames[0].Ms, 0.32, 0.34);
+        }
+
+        [Theory]
+        [InlineData(new[] { 100, 0, 0, 0 }, FrameProbe.SourceRuntime)]              // só DirectX
+        [InlineData(new[] { 100, 100, 0, 0 }, FrameProbe.SourceRuntime)]            // DirectX e o driver junto: vale o DirectX
+        [InlineData(new[] { 60, 100, 0, 0 }, FrameProbe.SourceRuntime)]             // o driver viu um pouco mais (cópias da janela)
+        [InlineData(new[] { 3, 100, 0, 0 }, FrameProbe.SourcePresentHistory)]       // Vulkan com um Present de DirectX perdido
+        [InlineData(new[] { 0, 0, 100, 0 }, FrameProbe.SourceFlip)]                 // OpenGL em tela cheia exclusiva
+        [InlineData(new[] { 0, 40, 0, 100 }, FrameProbe.SourceFlipOverlay)]         // o tipo do driver com mais quadros
+        [InlineData(new[] { 0, 0, 0, 0 }, FrameProbe.SourceRuntime)]                // nada
+        public void PickSource_PrefersDirectXAndElseTheDriverKindWithMostFrames(int[] counts, int expected)
+        {
+            Assert.Equal(expected, FrameProbe.PickSource(counts));
+        }
+
+        [Fact]
+        public void SourceOf_TakesOnlyTheFrameEventsOfEachProvider()
+        {
+            var dxgi = new Guid("CA11C036-0102-4A2D-A6AD-F03CFED5D3C9");
+            var d3d9 = new Guid("783ACA0A-790E-4D7F-8451-AA850511C6B9");
+            Assert.Equal(FrameProbe.SourceRuntime, FrameProbe.SourceOf(dxgi, 42));
+            Assert.Equal(FrameProbe.SourceRuntime, FrameProbe.SourceOf(dxgi, 55));
+            Assert.Equal(FrameProbe.SourceRuntime, FrameProbe.SourceOf(d3d9, 1));
+            Assert.Equal(FrameProbe.SourcePresentHistory, FrameProbe.SourceOf(FrameProbe.DriverProvider, 171));
+            Assert.Equal(FrameProbe.SourceFlip, FrameProbe.SourceOf(FrameProbe.DriverProvider, 168));
+            Assert.Equal(FrameProbe.SourceFlipOverlay, FrameProbe.SourceOf(FrameProbe.DriverProvider, 252));
+            // O mesmo número em outro provedor não é quadro.
+            Assert.Equal(-1, FrameProbe.SourceOf(dxgi, 171));
+            Assert.Equal(-1, FrameProbe.SourceOf(FrameProbe.DriverProvider, 42));
+            Assert.Equal(-1, FrameProbe.SourceOf(d3d9, 42));
+            Assert.Equal(-1, FrameProbe.SourceOf(Guid.Empty, 1));
+        }
+
+        [Fact]
+        public void DriverFilter_AsksWindowsForOnlyTheThreeFrameEvents()
+        {
+            // EVENT_FILTER_EVENT_ID: FilterIn = 1, reservado, quantidade 3 e os números 171, 168 e 252, em 16 bits.
+            Assert.Equal(new byte[] { 1, 0, 3, 0, 171, 0, 168, 0, 252, 0 },
+                         FrameProbe.EventIdFilter(new ushort[] { 171, 168, 252 }));
+            Assert.Equal(new byte[] { 1, 0, 1, 0, 0x34, 0x12 }, FrameProbe.EventIdFilter(new ushort[] { 0x1234 }));
+
+            // Base e Present no Windows 11; só Base antes. Nunca a palavra de desempenho do driver.
+            Assert.Equal(0x8000001UL, FrameProbe.DriverKeywords(22000));
+            Assert.Equal(0x8000001UL, FrameProbe.DriverKeywords(26200));
+            Assert.Equal(0x1UL, FrameProbe.DriverKeywords(19045));
+            Assert.Equal(0x1UL, FrameProbe.DriverKeywords(0));
+        }
+
+        [Fact]
+        public void DriverFilter_StructuresHaveTheWindowsLayout()
+        {
+            Type parameters = typeof(FrameProbe.EnableTraceParameters);
+            bool x64 = IntPtr.Size == 8;
+            Assert.Equal(x64 ? 48 : 36, System.Runtime.InteropServices.Marshal.SizeOf(parameters));
+            Assert.Equal(x64 ? 32 : 28, System.Runtime.InteropServices.Marshal.OffsetOf(parameters, "EnableFilterDesc").ToInt32());
+            Assert.Equal(x64 ? 40 : 32, System.Runtime.InteropServices.Marshal.OffsetOf(parameters, "FilterDescCount").ToInt32());
+            Type descriptor = typeof(FrameProbe.EventFilterDescriptor);
+            Assert.Equal(16, System.Runtime.InteropServices.Marshal.SizeOf(descriptor));
+            Assert.Equal(8, System.Runtime.InteropServices.Marshal.OffsetOf(descriptor, "Size").ToInt32());
+            Assert.Equal(12, System.Runtime.InteropServices.Marshal.OffsetOf(descriptor, "Type").ToInt32());
+        }
+
+        [Fact]
+        public void NoFramesReason_SaysWhenVulkanAndOpenGLCouldNotBeRead()
+        {
+            Assert.Contains("Vulkan", MatchRecorder.NoFramesReason(null));
+            Assert.DoesNotContain("5)", MatchRecorder.NoFramesReason(null));
+            string refused = MatchRecorder.NoFramesReason("código 5");
+            Assert.Contains("DirectX 9–12", refused);
+            Assert.EndsWith("(código 5)", refused);
+        }
+
+        [Fact]
         public void FramePermission_CommandTellsAlreadyInApartAndTreatsAlreadyOutAsSuccess()
         {
             string add = FramePermission.Command(true, "S-1-5-21-1-2-3-1001");

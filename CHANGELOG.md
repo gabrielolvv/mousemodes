@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Caça-travadinhas em Vulkan e OpenGL**: jogos que não usam o DirectX (Minecraft Java, Doom, os que rodam em
+  Vulkan) passam a ter FPS, 1% low e travadinhas no Raio-X. Os quadros são lidos nos eventos de apresentação do
+  driver de vídeo, como o PresentMon faz; a hora de cada um é um pouco menos precisa que a do DirectX, e o relatório
+  avisa quando foi assim. Jogos em DirectX continuam lidos como antes.
+
 ## 1.13.0
 
 ### Novidades

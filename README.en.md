@@ -139,12 +139,13 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   time. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures what
   weighed, not FPS.
 - **Stutter finder** (in the Match X-ray; Settings → General → Allow): measures every frame the game delivers to the
-  screen (DirectX 9 to 12 Present events, like PresentMon) and shows at the end of the match the average FPS, the 1%
+  screen (DirectX 9 to 12 Present events and, for Vulkan or OpenGL games, the graphics driver's present events, like
+  PresentMon) and shows at the end of the match the average FPS, the 1%
   low and the stutters, with what stood out at the time: a program using a lot of CPU, another reading/writing the
   disk or the internet not answering. If nothing in the background explains it, it says it may be the game itself
   (shaders, loading). It does not touch the game. Windows only lets administrators or the "Performance Log Users"
   group read frames: the Allow button adds your account to the group once (it asks for the administrator) and applies
-  after signing out and back in; the same button removes it. Vulkan and OpenGL games are not read yet.
+  after signing out and back in; the same button removes it.
 - **CPU during the match** (in the X-ray): the CPU's average speed compared with its nominal speed and the stretches
   when it was throttled, read every 3 s from the Windows counters (the Task Manager ones). It counts as throttling
   when the processor's own limit is below 90% (heat, battery) or the speed is below 85% of nominal while the CPU is

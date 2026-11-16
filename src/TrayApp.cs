@@ -439,6 +439,7 @@ namespace MouseModes
             {
                 var worst = frames.Worst.ConvertAll(FrameReport.Describe);
                 Log.Info(L.T("Caça-travadinhas: ", "Stutter finder: ") + frames.Summary() +
+                         (frames.FromDriver ? L.T(" (pelo driver de vídeo: Vulkan/OpenGL)", " (from the graphics driver: Vulkan/OpenGL)") : "") +
                          (worst.Count == 0 ? "" : " [" + string.Join("; ", worst.ToArray()) + "]"));
             }
             else if (report.FramesMissing != null)
