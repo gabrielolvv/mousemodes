@@ -161,6 +161,9 @@ namespace MouseModes
         /// <summary>Raio-X da rede: um ping por segundo ao roteador e ao 1.1.1.1 durante a partida. Desligado, não sai ping.</summary>
         public bool MeasureNetwork { get; set; }
 
+        /// <summary>Guarda o Raio-X de cada partida no histórico (só neste PC, em %APPDATA%\MouseModes\history).</summary>
+        public bool KeepMatchHistory { get; set; }
+
         /// <summary>
         /// A permissão do Caça-travadinhas foi pedida neste PC (a conta entrou no grupo "Performance Log Users"): até sair e
         /// entrar de novo na conta, a tela avisa que falta isso. Só deste PC.
@@ -328,6 +331,7 @@ namespace MouseModes
             CheckForUpdates = true;
             AutoUpdate = true;
             MeasureNetwork = true;
+            KeepMatchHistory = true;
         }
 
         /// <summary>Perfil a usar no Performance: o do jogo aberto, se ele tiver um próprio.</summary>

@@ -4,6 +4,16 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Previous matches** (tray icon): the X-ray of each match is kept on this PC (the last 100), and the "Last match
+  X-ray" is still there after closing the app. Each report compares with the previous match of the same game, in
+  average FPS, 1% low, stutters per hour, ping, loss and CPU throttling, and says which app settings changed between
+  them: you can see whether turning on calm background or the FPS limit really helped. Turn it on and off in
+  Settings → Privacy; the list has the button to delete everything.
+
 ## 1.15.0
 
 ### New

@@ -140,6 +140,10 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   router got worse too) or the internet (everything was fine up to the router), and who was using a lot of data at the
   time. It stays in the tray icon → Last match X-ray. It only reads, without administrator rights; it measures what
   weighed, not FPS.
+- **Previous matches** (tray icon): the X-ray of the last 100 matches is kept on this PC. Each report compares with the
+  previous match of the same game (average FPS, 1% low, stutters per hour, ping, loss, CPU throttling) and says which
+  app settings changed between them, to see whether turning on calm background or the FPS limit really helped. You can
+  turn it off and delete it in Settings → Privacy and in the list itself.
 - **Stutter finder** (in the Match X-ray; Settings → General → Allow): measures every frame the game delivers to the
   screen (DirectX 9 to 12 Present events and, for Vulkan or OpenGL games, the graphics driver's present events, like
   PresentMon) and shows at the end of the match the average FPS, the 1%
@@ -260,8 +264,8 @@ each of them off in Settings → Privacy:
 - **Network X-ray**: during a match (Performance with a listed game open), one ping per second to your router and to
   1.1.1.1 (Cloudflare), with no content.
 
-Settings and the log of what the app does stay on this PC, in `%APPDATA%\MouseModes`. The installer shows this
-notice before installing.
+Settings, the log of what the app does and the match history stay on this PC, in `%APPDATA%\MouseModes`. The installer
+shows this notice before installing.
 
 ## License
 

@@ -36,6 +36,7 @@ namespace MouseModes
         private readonly ToggleRow updateRow;
         private readonly ToggleRow autoUpdateRow;
         private readonly ToggleRow networkRow;
+        private readonly ToggleRow historyRow;
         private Label framesStatus;
         private NeonButton framesButton;
         private readonly HotkeyBox hotkeyBox;
@@ -170,12 +171,12 @@ namespace MouseModes
                                    "o instalador é baixado da Release do GitHub.\n" +
                                    "• Durante a partida, com o Raio-X da rede ligado: um ping por segundo ao seu roteador e ao 1.1.1.1 " +
                                    "(Cloudflare), sem conteúdo.\n" +
-                                   "• Mais nada: sem conta e sem telemetria. As configurações e o registro ficam neste PC, em %APPDATA%\\MouseModes.",
+                                   "• Mais nada: sem conta e sem telemetria. As configurações, o registro e o histórico das partidas ficam neste PC, em %APPDATA%\\MouseModes.",
                                    "• Once a day, a request to the GitHub releases page, to know whether there is a new version; when updating, " +
                                    "the installer is downloaded from the GitHub Release.\n" +
                                    "• During a match, with the network X-ray on: one ping per second to your router and to 1.1.1.1 " +
                                    "(Cloudflare), with no content.\n" +
-                                   "• Nothing else: no account and no telemetry. Settings and the log stay on this PC, in %APPDATA%\\MouseModes."),
+                                   "• Nothing else: no account and no telemetry. Settings, the log and the match history stay on this PC, in %APPDATA%\\MouseModes."),
                                0, 24, 440, 150, Theme.Muted, 9f);
             updateRow = MakeRow(L.T("Avisar sobre versão nova", "Notify about new versions"), L.T("Uma vez por dia consulta o GitHub; nunca durante o jogo", "Checks GitHub once a day; never during a game"), a, b, 184, 50);
             updateRow.Switch.SetChecked(cfg.CheckForUpdates, false);
@@ -185,12 +186,15 @@ namespace MouseModes
             networkRow = MakeRow(L.T("Medir a rede no Raio-X", "Measure the network in the X-ray"),
                 L.T("Um ping por segundo ao roteador e ao 1.1.1.1, só na partida", "One ping per second to the router and 1.1.1.1, only in a match"), a, b, 292, 50);
             networkRow.Switch.SetChecked(cfg.MeasureNetwork, false);
+            historyRow = MakeRow(L.T("Guardar o histórico das partidas", "Keep the match history"),
+                L.T("As últimas 100 partidas, só neste PC (bandeja → Partidas)", "The last 100 matches, only on this PC (tray → Previous)"), a, b, 346, 50);
+            historyRow.Switch.SetChecked(cfg.KeepMatchHistory, false);
             var privacyNote = Note(L.T("Desligando as duas primeiras, o app não fala com o GitHub sozinho (Procurar versão nova, no ícone da " +
                                        "bandeja, continua funcionando). O código está aberto no GitHub para quem quiser conferir.",
                                        "With the first two off, the app does not talk to GitHub by itself (Check for a new version, in the tray " +
                                        "icon, still works). The code is open on GitHub for anyone who wants to check."),
-                                   0, 352, 440, 48, Theme.Faint, 8.5f);
-            foreach (Control c in new Control[] { outLabel, outNote, updateRow, autoUpdateRow, networkRow, privacyNote })
+                                   0, 406, 440, 48, Theme.Faint, 8.5f);
+            foreach (Control c in new Control[] { outLabel, outNote, updateRow, autoUpdateRow, networkRow, historyRow, privacyNote })
                 privacyPanel.Controls.Add(c);
 
             pages = new Panel[] { perfPanel, dailyPanel, gamesPanel, turboPanel, generalPanel, privacyPanel };
@@ -479,6 +483,7 @@ namespace MouseModes
             cfg.CheckForUpdates = updateRow.Switch.Checked;
             cfg.AutoUpdate = autoUpdateRow.Switch.Checked;
             cfg.MeasureNetwork = networkRow.Switch.Checked;
+            cfg.KeepMatchHistory = historyRow.Switch.Checked;
             // Uma das opções fixas fica como índice; qualquer outra vira atalho livre (as fixas seguem de reserva).
             int choice = HotkeyWindow.ChoiceIndex(hotkeyBox.Mods, hotkeyBox.Key);
             if (choice >= 0)

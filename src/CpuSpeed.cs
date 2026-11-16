@@ -48,6 +48,24 @@ namespace MouseModes
 
         public bool Limited { get { return LimitedSeconds > 0; } }
 
+        private double batterySeconds;
+
+        /// <summary>
+        /// Quanto do freio foi na bateria. Vem dos trechos (All) quando eles existem; no histórico, que não guarda os
+        /// trechos todos, vem do valor gravado.
+        /// </summary>
+        public double BatterySeconds
+        {
+            get
+            {
+                if (All == null) return batterySeconds;
+                double seconds = 0;
+                foreach (CpuSlowdown d in All) if (d.OnBattery) seconds += d.Seconds;
+                return seconds;
+            }
+            set { batterySeconds = value; }
+        }
+
         /// <summary>"em média a 112% da velocidade nominal · freado 4 min (até 62%)"</summary>
         public string Summary()
         {
@@ -67,8 +85,7 @@ namespace MouseModes
         {
             if (!Limited)
                 return L.T("O processador não foi segurado por calor nem por energia.", "The CPU was not held back by heat or power.");
-            double onBattery = 0;
-            foreach (CpuSlowdown d in All) if (d.OnBattery) onBattery += d.Seconds;
+            double onBattery = BatterySeconds;
             const string BatteryPt = "o Windows segura o processador na bateria para poupar carga; na tomada ele roda solto.";
             const string BatteryEn = "Windows holds the CPU back on battery to save charge; plugged in, it runs freely.";
             if (onBattery >= LimitedSeconds)

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -20,7 +21,10 @@ namespace MouseModes
         private readonly Action changed;
 
         /// <param name="changed">Chamado quando a pessoa muda algo (para gravar o config).</param>
-        public MatchReportForm(MatchReport report, AppConfig cfg, Action changed) : base(L.T("Raio-X da partida", "Match X-ray"), true)
+        /// <param name="record">A mesma partida no histórico, com os ajustes que valiam nela (null = sem comparação).</param>
+        /// <param name="previous">A partida anterior do mesmo jogo no histórico (null se não há).</param>
+        public MatchReportForm(MatchReport report, AppConfig cfg, Action changed, MatchRecord record = null, MatchRecord previous = null)
+            : base(L.T("Raio-X da partida", "Match X-ray"), true)
         {
             this.cfg = cfg;
             this.changed = changed;
@@ -32,14 +36,17 @@ namespace MouseModes
             title.Font = Theme.Ui(14f, FontStyle.Bold);
             Controls.Add(title);
             int count = report.Culprits.Count;
-            Controls.Add(Note(count == 0
+            // A data da partida vai nesta linha (no título não cabe com nomes como VALORANT-Win64-Shipping).
+            Label subtitle = Note((record != null ? record.When() + "  ·  " : "") + (count == 0
                 ? L.T("Nada pesou em segundo plano durante a partida.", "Nothing weighed on the PC in the background during the match.")
                 : count == 1
                     ? L.T("1 programa pesou em segundo plano durante a partida:", "1 program weighed on the PC in the background during the match:")
-                    : L.T(count + " programas pesaram em segundo plano durante a partida:", count + " programs weighed on the PC in the background during the match:"),
-                20, 86, 440, 20, Theme.Muted, 9f));
+                    : L.T(count + " programas pesaram em segundo plano durante a partida:", count + " programs weighed on the PC in the background during the match:")),
+                20, 86, 440, 20, Theme.Muted, 9f);
+            subtitle.Height = Math.Max(20, Measure(subtitle));
+            Controls.Add(subtitle);
 
-            int y = 116;
+            int y = 86 + subtitle.Height + 10;
             foreach (Culprit c in report.Culprits)
             {
                 AddRow(c, y);
@@ -80,6 +87,7 @@ namespace MouseModes
             y = AddFrames(report, y);
             if (report.CpuSpeed != null) y = AddCpuSpeed(report.CpuSpeed, y);
             if (report.Network != null) y = AddNetwork(report.Network, y);
+            if (record != null) y = AddComparison(record, previous, y);
 
             var footer = Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
                                   "(dá para desligar em Ajustes → Privacidade). ",
@@ -157,6 +165,61 @@ namespace MouseModes
                 y += 22;
             }
             return y + 6;
+        }
+
+        /// <summary>
+        /// Antes e depois: os números da partida ao lado dos da anterior do mesmo jogo e os ajustes que mudaram entre as
+        /// duas, para ver se uma mudança ajudou. Devolve o y seguinte.
+        /// </summary>
+        private int AddComparison(MatchRecord record, MatchRecord previous, int y)
+        {
+            if (previous == null)
+            {
+                // Só diz "primeira no histórico" se esta partida está mesmo gravada (não apagada, gravação que deu certo).
+                if (!cfg.KeepMatchHistory || record.FilePath == null) return y;
+                Label first = Note(L.T("Primeira partida deste jogo no histórico: a próxima vai ser comparada com esta.",
+                                       "First match of this game in the history: the next one will be compared with this one."),
+                                   20, y, 440, 18, Theme.Faint, 8.5f);
+                first.Height = Measure(first);
+                Controls.Add(first);
+                return y + first.Height + 10;
+            }
+            Controls.Add(new SectionLabel
+            {
+                Text = L.T("Antes e depois", "Before and after"),
+                RightText = L.T("anterior: ", "previous: ") + previous.When() + " · " + MatchReport.FormatDuration(TimeSpan.FromSeconds(previous.DurationSeconds)),
+                RightColor = Theme.Faint,
+                Location = new Point(20, y),
+                Size = new Size(440, 20)
+            });
+            y += 24;
+            foreach (ComparisonLine line in MatchComparison.Results(record, previous))
+            {
+                Color color = line.Better > 0 ? Theme.DailyB : line.Better < 0 ? Theme.PerfB : Theme.Muted;
+                Controls.Add(Note(line.Text, 20, y, 440, 18, color, 9f));
+                y += 20;
+            }
+            List<string> changes = MatchComparison.SettingChanges(record.Settings, previous.Settings);
+            string settings = record.Settings == null || previous.Settings == null
+                ? L.T("Os ajustes de uma das partidas não foram guardados.", "The settings of one of the matches were not saved.")
+                : changes.Count == 0
+                    ? L.T("Nenhum ajuste do app mudou desde a anterior.", "No app setting changed since the previous one.")
+                    : L.T("Mudou desde a anterior: ", "Changed since the previous one: ") + string.Join("; ", changes.ToArray()) + ".";
+            Label changed = Note(settings, 20, y + 4, 440, 18, Theme.Text, 8.5f);
+            changed.Height = Measure(changed);
+            Controls.Add(changed);
+            y += changed.Height + 8;
+            Label caveat = Note(L.T("Mapa, servidor e cena também mudam esses números: compare algumas partidas antes de concluir.",
+                                    "Map, server and scene also change these numbers: compare a few matches before concluding."),
+                                20, y, 440, 18, Theme.Faint, 8f);
+            caveat.Height = Measure(caveat);
+            Controls.Add(caveat);
+            return y + caveat.Height + 10;
+        }
+
+        private static int Measure(Label label)
+        {
+            return TextRenderer.MeasureText(label.Text, label.Font, new Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
         }
 
         /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>

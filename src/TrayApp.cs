@@ -41,6 +41,7 @@ namespace MouseModes
         private readonly GameExeWatch gameExes = new GameExeWatch(); // processos de cada jogo vistos nesta execução
         private readonly MatchRecorder recorder = new MatchRecorder();
         private readonly ToolStripMenuItem reportItem;
+        private readonly ToolStripMenuItem historyItem;
         private readonly WinKeyBlocker winKey;
         private readonly ForegroundWatcher foreground;
 
@@ -51,7 +52,10 @@ namespace MouseModes
         private SensitivityForm sensForm;
         private DpiMeasureForm dpiForm;
         private MatchReportForm reportForm;
-        private MatchReport lastReport;     // Raio-X da última partida (só enquanto o app estiver aberto)
+        private MatchReport lastReport;     // Raio-X da última partida (desta execução ou a mais nova do histórico)
+        private MatchRecord lastRecord;     // a mesma partida no formato do histórico, com os ajustes que valiam nela
+        private MatchSettings matchSettings; // os ajustes do começo da partida em andamento
+        private MatchHistoryForm historyForm;
         private DiagnosticsForm diagForm;
         private IntPtr iconHandle = IntPtr.Zero;
         private string currentGame;
@@ -162,6 +166,9 @@ namespace MouseModes
             menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), null, (s, e) => OpenSettings()));
             reportItem = new ToolStripMenuItem(L.T("Raio-X da última partida...", "Last match X-ray..."), null, (s, e) => OpenReport()) { Enabled = false };
             menu.Items.Add(reportItem);
+            historyItem = new ToolStripMenuItem(L.T("Partidas anteriores...", "Previous matches..."), null, (s, e) => OpenHistory()) { Enabled = false };
+            menu.Items.Add(historyItem);
+            LoadLastMatch();
             menu.Items.Add(new ToolStripMenuItem(L.T("Diagnóstico...", "Diagnostics..."), null, (s, e) => OpenDiagnostics()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Procurar versão nova", "Check for a new version"), null, (s, e) => CheckForUpdate(true)));
             menu.Items.Add(LanguageMenu());
@@ -407,6 +414,7 @@ namespace MouseModes
                     recorder.MeasureNetwork = cfg.MeasureNetwork; // desligado em Ajustes → Privacidade: nenhum ping
                     recorder.MeasureFrames = FramePermission.Allowed; // Caça-travadinhas: só com a permissão do Windows
                     recorder.Start(currentGame);
+                    matchSettings = MatchSettings.From(cfg, currentGame); // o que valia no começo, para comparar com a próxima
                 }
                 recorder.Sample(cfg.Games);
             }
@@ -421,6 +429,12 @@ namespace MouseModes
             MatchReport report = recorder.Stop();
             if (report == null) return; // curta demais
             lastReport = report;
+            lastRecord = MatchRecord.From(report, matchSettings ?? MatchSettings.From(cfg, report.Game), DateTime.UtcNow);
+            if (cfg.KeepMatchHistory && MatchHistory.Save(lastRecord) != null)
+            {
+                historyItem.Enabled = true;
+                if (historyForm != null && !historyForm.IsDisposed) historyForm.Fill(MatchHistory.Load());
+            }
             reportItem.Enabled = true;
 
             var lines = report.Culprits.ConvertAll(c => c.Name + " (" + MatchReport.Describe(c) + ")");
@@ -530,9 +544,51 @@ namespace MouseModes
         {
             if (lastReport == null) return;
             if (reportForm != null && !reportForm.IsDisposed) reportForm.Close();
-            reportForm = new MatchReportForm(lastReport, cfg, SaveConfig);
+            MatchRecord previous = lastRecord != null ? MatchHistory.Previous(MatchHistory.Load(), lastRecord) : null;
+            reportForm = new MatchReportForm(lastReport, cfg, SaveConfig, lastRecord, previous);
             reportForm.Show();
             reportForm.Activate();
+        }
+
+        /// <summary>Ao abrir o app: a partida mais nova do histórico vira o "Raio-X da última partida".</summary>
+        private void LoadLastMatch()
+        {
+            List<MatchRecord> history = MatchHistory.Load();
+            historyItem.Enabled = history.Count > 0;
+            if (history.Count == 0) return;
+            lastRecord = history[0];
+            lastReport = lastRecord.ToReport();
+            reportItem.Enabled = true;
+        }
+
+        private void OpenHistory()
+        {
+            if (historyForm != null && !historyForm.IsDisposed)
+            {
+                historyForm.Fill(MatchHistory.Load());
+                historyForm.Activate();
+                return;
+            }
+            historyForm = new MatchHistoryForm(cfg, SaveConfig, OnHistoryCleared);
+            historyForm.Show();
+            historyForm.Activate();
+        }
+
+        /// <summary>A pessoa apagou o histórico: a última partida também sai da bandeja (ela estava nele).</summary>
+        private void OnHistoryCleared()
+        {
+            List<MatchRecord> left = MatchHistory.Load();
+            historyItem.Enabled = left.Count > 0;
+            if (reportForm != null && !reportForm.IsDisposed) reportForm.Close();
+            if (left.Count > 0)
+            {
+                lastRecord = left[0];
+                lastReport = lastRecord.ToReport();
+                return;
+            }
+            lastRecord = null;
+            lastReport = null;
+            reportItem.Enabled = false;
         }
 
         private void OnModeChanged(Mode mode, string reason, List<string> warnings)
