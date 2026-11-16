@@ -135,7 +135,8 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   ou a internet sem responder. Se nada em segundo plano explica, ele diz que pode ser do próprio jogo (shaders,
   carregamento). Não entra no jogo. O Windows só deixa ler os quadros para administradores ou para o grupo
   "Performance Log Users": o botão Permitir põe a sua conta no grupo uma vez (pede o administrador) e vale depois de
-  sair e entrar de novo na conta; o mesmo botão tira.
+  sair e entrar de novo na conta; o mesmo botão tira. A leitura de Vulkan e OpenGL ainda não foi testada num jogo de
+  verdade: quem tiver um pode rodar o `tools/frame-driver-check.ps1` com o jogo aberto e mandar o resultado numa issue.
 - **Processador na partida** (no Raio-X): a velocidade média do processador em relação à nominal e os trechos em que
   ele foi freado, lidos a cada 3 s pelos contadores do Windows (os do Gerenciador de Tarefas). Conta como freio o
   limite do próprio processador abaixo de 90% (calor, bateria) ou a velocidade abaixo de 85% da nominal com o

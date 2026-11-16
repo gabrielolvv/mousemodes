@@ -145,7 +145,9 @@ Everything goes back to normal when you leave Performance, quit the app or shut 
   disk or the internet not answering. If nothing in the background explains it, it says it may be the game itself
   (shaders, loading). It does not touch the game. Windows only lets administrators or the "Performance Log Users"
   group read frames: the Allow button adds your account to the group once (it asks for the administrator) and applies
-  after signing out and back in; the same button removes it.
+  after signing out and back in; the same button removes it. Vulkan and OpenGL reading has not been tested on a real
+  game yet: if you have one, you can run `tools/frame-driver-check.ps1` with the game open and send the result in an
+  issue.
 - **CPU during the match** (in the X-ray): the CPU's average speed compared with its nominal speed and the stretches
   when it was throttled, read every 3 s from the Windows counters (the Task Manager ones). It counts as throttling
   when the processor's own limit is below 90% (heat, battery) or the speed is below 85% of nominal while the CPU is
