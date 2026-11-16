@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Medidor de polling e teste de clique mais precisos**: o mouse passa a ser lido numa thread própria, de prioridade
+  alta, que marca a hora de cada leitura assim que o Windows a entrega. Antes a hora era a de quando a tela chegava na
+  leitura, e uma pausa da tela (a checagem de jogos, um redesenho) inflava a variação do polling ou acusava clique
+  duplo que não existiu.
+
 ## 1.12.0
 
 ### Novidades

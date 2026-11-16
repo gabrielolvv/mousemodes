@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **More accurate polling meter and click test**: the mouse is now read on its own high-priority thread, which
+  timestamps each reading as soon as Windows delivers it. Before, the time was when the screen got to the reading, and
+  a screen pause (the game check, a repaint) inflated the polling jitter or reported a double click that never
+  happened.
+
 ## 1.12.0
 
 ### New
