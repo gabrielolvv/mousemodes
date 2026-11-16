@@ -4,7 +4,7 @@
 
 2. Raio-X da rede: durante a partida (modo Performance com um jogo da lista aberto), o app manda um ping por segundo ao seu roteador e ao 1.1.1.1 (Cloudflare), sem conteúdo, para medir a latência.
 
-3. Mais nada: sem conta, sem telemetria, sem anúncios. As configurações e o registro do que o app faz ficam neste PC, em %APPDATA%\MouseModes.
+3. Mais nada: sem conta, sem telemetria, sem anúncios. As configurações, o registro do que o app faz e o histórico das partidas ficam neste PC, em %APPDATA%\MouseModes.
 
 Para desligar: abra o MouseModes > Ajustes > Privacidade. Lá dá para desligar a consulta de versão nova, a instalação sozinha e o Raio-X da rede.
 
@@ -17,7 +17,7 @@ WHAT MOUSEMODES SENDS OVER THE INTERNET
 
 2. Network X-ray: during a match (Performance mode with a listed game open), the app sends one ping per second to your router and to 1.1.1.1 (Cloudflare), with no content, to measure latency.
 
-3. Nothing else: no account, no telemetry, no ads. Settings and the log of what the app does stay on this PC, in %APPDATA%\MouseModes.
+3. Nothing else: no account, no telemetry, no ads. Settings, the log of what the app does and the match history stay on this PC, in %APPDATA%\MouseModes.
 
 To turn it off: open MouseModes > Settings > Privacy. You can turn off the new version check, self-update and the network X-ray there.
 

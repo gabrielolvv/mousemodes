@@ -188,9 +188,9 @@ Section "Uninstall"
   Delete "$DESKTOP\${APPNAME}.lnk"
   DeleteRegKey HKCU "${UNINSTKEY}"
 
-  ; Configurações e registro ficam, a menos que a pessoa queira apagar.
+  ; Configurações, registro e histórico das partidas ficam, a menos que a pessoa queira apagar.
   IfSilent done
-  MessageBox MB_YESNO|MB_ICONQUESTION "Apagar também as configurações e o registro do ${APPNAME}?$\r$\n($APPDATA\${APPNAME})" IDNO done
+  MessageBox MB_YESNO|MB_ICONQUESTION "Apagar também as configurações, o registro e o histórico das partidas do ${APPNAME}?$\r$\n($APPDATA\${APPNAME})" IDNO done
     RMDir /r "$APPDATA\${APPNAME}"
   done:
 SectionEnd

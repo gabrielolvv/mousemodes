@@ -129,6 +129,10 @@ Tudo volta ao normal ao sair do Performance, ao fechar o app ou ao desligar o PC
   calmo. A parte da rede mostra ping, jitter e perda, os piores picos e de onde vieram: do Wi-Fi ou da sua rede (o
   roteador também piorou) ou da internet (até o roteador estava tudo bem), e quem usava muitos dados na hora. Fica no
   ícone da bandeja → Raio-X da última partida. Só lê, sem administrador; mede quem pesou, não o FPS.
+- **Partidas anteriores** (ícone da bandeja): o Raio-X das últimas 100 partidas fica guardado neste PC. Cada relatório
+  compara com a partida anterior do mesmo jogo (FPS médio, 1% low, travadinhas por hora, ping, perda, processador
+  freado) e diz quais ajustes do app mudaram entre uma e outra, para ver se ligar o segundo plano calmo ou o limite de
+  FPS ajudou de verdade. Dá para desligar e apagar em Ajustes → Privacidade e na própria lista.
 - **Caça-travadinhas** (no Raio-X da partida; Ajustes → Geral → Permitir): mede cada quadro que o jogo entrega para a
   tela (eventos de Present do DirectX 9 ao 12 e, nos jogos em Vulkan ou OpenGL, os de apresentação do driver de vídeo,
   como o PresentMon) e mostra no fim da partida o FPS médio, o 1% low e
@@ -250,8 +254,8 @@ desligar em Ajustes → Privacidade:
 - **Raio-X da rede**: durante a partida (Performance com um jogo da lista aberto), um ping por segundo ao seu roteador
   e ao 1.1.1.1 (Cloudflare), sem conteúdo.
 
-As configurações e o registro do que o app faz ficam neste PC, em `%APPDATA%\MouseModes`. O instalador mostra este
-aviso antes de instalar.
+As configurações, o registro do que o app faz e o histórico das partidas ficam neste PC, em `%APPDATA%\MouseModes`. O
+instalador mostra este aviso antes de instalar.
 
 ## Licença
 

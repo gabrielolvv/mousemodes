@@ -5,6 +5,16 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Partidas anteriores** (ícone da bandeja): o Raio-X de cada partida fica guardado neste PC (as últimas 100), e o
+  "Raio-X da última partida" continua lá depois de fechar o app. Cada relatório compara com a partida anterior do mesmo
+  jogo, em FPS médio, 1% low, travadinhas por hora, ping, perda e processador freado, e diz quais ajustes do app
+  mudaram entre uma e outra: dá para ver se ligar o segundo plano calmo ou o limite de FPS ajudou de verdade. Liga e
+  desliga em Ajustes → Privacidade; a lista tem o botão para apagar tudo.
+
 ## 1.15.0
 
 ### Novidades
