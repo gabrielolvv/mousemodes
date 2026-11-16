@@ -69,8 +69,12 @@ namespace MouseModes.Tests
                 int screenThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
                 bool wrongThread = false;
                 string error;
+                // O registro é de verdade: se alguém mexer no mouse durante o teste, essas leituras também chegam. Só
+                // contam as que o teste manda, marcadas com um deslocamento que mouse nenhum produz.
+                const int marker = 123457;
                 Assert.True(raw.Register(form, true, (dx, dy, f, t) =>
                 {
+                    if (dx != marker) return;
                     if (System.Threading.Thread.CurrentThread.ManagedThreadId != screenThread) wrongThread = true;
                     got.Add(t);
                 }, out error), error);
@@ -78,7 +82,7 @@ namespace MouseModes.Tests
                 // Como a thread do mouse faz: entrega de outra thread, com a hora de cada leitura.
                 var sender = new System.Threading.Thread(() =>
                 {
-                    for (long t = 1; t <= 500; t++) RawMouse.Post(1, 0, 0, t);
+                    for (long t = 1; t <= 500; t++) RawMouse.Post(marker, 0, 0, t);
                 });
                 sender.Start();
                 sender.Join();
