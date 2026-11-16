@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Culpado por núcleo** (Caça-travadinhas): além de quem usa 20% do processador inteiro, o Raio-X agora aponta o
+  programa que, na hora da travadinha, subiu para quase um núcleo inteiro bem acima do próprio uso na partida (ou
+  abriu no meio já ocupando um núcleo). Num processador de 16 threads, um núcleo inteiro é só 6% do todo e passava
+  despercebido. Quem pesa o tempo todo, como o navegador, não vira causa de toda travadinha.
+
 ## 1.12.0
 
 ### Novidades

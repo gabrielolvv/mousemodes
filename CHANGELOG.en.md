@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Per-core culprit** (Stutter finder): besides programs using 20% of the whole CPU, the X-ray now points to the
+  program that, at the time of the stutter, jumped to almost a whole core, well above its own usage during the match
+  (or opened midway already keeping a core busy). On a 16-thread CPU, a whole core is only 6% of the total and went
+  unnoticed. Programs that are heavy all the time, like the browser, do not become the cause of every stutter.
+
 ## 1.12.0
 
 ### New

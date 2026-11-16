@@ -128,6 +128,109 @@ namespace MouseModes.Tests
             Assert.Equal(100.0 / 3, burst.Percent, 3);
         }
 
+        /// <summary>Uma partida de leituras a cada 3 s num processador de 16 threads; cada linha: uso em núcleos por programa.</summary>
+        private static MatchReport Cores(params Dictionary<string, double>[] intervals)
+        {
+            var t0 = new DateTime(2026, 11, 16, 20, 0, 0, DateTimeKind.Utc);
+            const long Second = TimeSpan.TicksPerSecond;
+            var stats = new MatchStats(t0, 16);
+            var ticks = new Dictionary<string, long>();
+            var pids = new Dictionary<string, int>();
+            var first = new List<ProcessSample>();
+            foreach (string name in intervals[0].Keys)
+            {
+                pids[name] = pids.Count + 1;
+                ticks[name] = 0;
+                first.Add(Cpu(pids[name], name, 0));
+            }
+            stats.Add(t0, first);
+            for (int i = 0; i < intervals.Length; i++)
+            {
+                var samples = new List<ProcessSample>();
+                foreach (KeyValuePair<string, double> use in intervals[i])
+                {
+                    if (!pids.ContainsKey(use.Key)) { pids[use.Key] = pids.Count + 1; ticks[use.Key] = 0; } // abriu agora
+                    else ticks[use.Key] += (long)(use.Value * 3 * Second);
+                    samples.Add(Cpu(pids[use.Key], use.Key, ticks[use.Key]));
+                }
+                stats.Add(t0.AddSeconds(3 * (i + 1)), samples);
+            }
+            return stats.Finish("cs2");
+        }
+
+        private static Dictionary<string, double> Use(params object[] nameAndCores)
+        {
+            var d = new Dictionary<string, double>();
+            for (int i = 0; i < nameAndCores.Length; i += 2) d[(string)nameAndCores[i]] = Convert.ToDouble(nameAndCores[i + 1]);
+            return d;
+        }
+
+        [Fact]
+        public void MatchStats_BlamesAProgramWhoseCoreUseJumps()
+        {
+            // 16 threads: o Updater sai de 5% de um núcleo para um núcleo inteiro (só 6% do todo) e é apontado.
+            MatchReport report = Cores(Use("Updater", 0.05, "chrome", 0.3), Use("Updater", 0.05, "chrome", 0.3),
+                                       Use("Updater", 0.05, "chrome", 0.3), Use("Updater", 1.0, "chrome", 0.3));
+            CpuBurst burst = Assert.Single(report.CpuBursts);
+            Assert.Equal("Updater", burst.Name);
+            Assert.Equal(12, burst.At);
+            Assert.Equal(100.0 / 16, burst.Percent, 3);
+            Assert.Equal(100.0, burst.CorePercent, 3);
+            Assert.Equal("nessa hora o Updater ocupava 100% de um núcleo do processador",
+                         FrameStats.CauseOf(new Stutter { At = 13, Ms = 90 }, null, report.CpuBursts, null));
+        }
+
+        [Fact]
+        public void MatchStats_DoesNotBlameAProgramThatIsAlwaysHeavy()
+        {
+            // O navegador ocupando 1,2 núcleo a partida inteira não vira causa de toda travadinha.
+            MatchReport report = Cores(Use("chrome", 1.2), Use("chrome", 1.2), Use("chrome", 1.25), Use("chrome", 1.2), Use("chrome", 1.3));
+            Assert.Empty(report.CpuBursts);
+        }
+
+        [Fact]
+        public void MatchStats_FindsTheProgramThatJumpedEvenBehindAHeavierOne()
+        {
+            // O navegador pesa mais o tempo todo, mas quem subiu nessa hora foi o Updater.
+            MatchReport report = Cores(Use("chrome", 1.2, "Updater", 0.02), Use("chrome", 1.2, "Updater", 0.02),
+                                       Use("chrome", 1.2, "Updater", 0.02), Use("chrome", 1.2, "Updater", 0.95));
+            CpuBurst burst = Assert.Single(report.CpuBursts);
+            Assert.Equal("Updater", burst.Name);
+            Assert.Equal(95.0, burst.CorePercent, 3);
+        }
+
+        [Fact]
+        public void MatchStats_BlamesAProgramThatOpensInTheMiddleAlreadyBusy()
+        {
+            MatchReport report = Cores(Use("chrome", 0.3), Use("chrome", 0.3, "Defrag", 0), Use("chrome", 0.3, "Defrag", 0.9));
+            CpuBurst burst = Assert.Single(report.CpuBursts);
+            Assert.Equal("Defrag", burst.Name);
+        }
+
+        [Fact]
+        public void DescribeCpu_SaysCoreOnlyWhenTheWholeProcessorWasNotTheProblem()
+        {
+            Assert.Equal("nessa hora o chrome usava 34% do processador", FrameStats.DescribeCpu(new CpuBurst(1, "chrome", 34, 544)));
+            Assert.Equal("nessa hora o chrome usava 34% do processador", FrameStats.DescribeCpu(new CpuBurst(1, "chrome", 34)));
+            Assert.Equal("nessa hora o Updater ocupava 95% de um núcleo do processador", FrameStats.DescribeCpu(new CpuBurst(1, "Updater", 6, 95)));
+            Assert.Equal("nessa hora o Updater ocupava mais de um núcleo inteiro do processador",
+                         FrameStats.DescribeCpu(new CpuBurst(1, "Updater", 9, 140)));
+            Assert.Equal("nessa hora o Updater ocupava 100% de um núcleo do processador",
+                         FrameStats.DescribeCpu(new CpuBurst(1, "Updater", 6.5, 104)));
+        }
+
+        [Theory]
+        [InlineData(100, 5.0, 3, false, true)]    // subiu 20 vezes
+        [InlineData(100, 50.0, 3, false, false)]  // só 2 vezes a média
+        [InlineData(70, null, 0, true, false)]    // abaixo de 80% de um núcleo
+        [InlineData(90, null, 0, true, true)]     // abriu no meio já ocupando um núcleo
+        [InlineData(90, null, 0, false, false)]   // aberto desde o começo, sem média ainda
+        [InlineData(90, 5.0, 1, false, false)]    // ainda sem média suficiente
+        public void CoreSpike_NeedsAJumpOverTheProgramsOwnAverage(double core, double? average, int intervals, bool midMatch, bool expected)
+        {
+            Assert.Equal(expected, MatchStats.CoreSpike(core, average, intervals, midMatch));
+        }
+
         [Fact]
         public void ToSample_ConvertsQpcStampsToSecondsAndMs()
         {

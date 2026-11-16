@@ -99,7 +99,16 @@ namespace MouseModes
             public long Cpu;
             public long Io;
             public double Peak;
+            public double CoreSum;    // soma do uso em núcleos (1 núcleo = 100) nos intervalos já vistos
+            public int Intervals;     // intervalos com leitura deste programa
+            public int FirstInterval; // em que intervalo da partida ele apareceu
         }
+
+        /// <summary>Um programa só conta pelo núcleo quando sobe pelo menos isto acima da própria média na partida.</summary>
+        internal const double CoreSpikeFactor = 3.0;
+        /// <summary>Intervalos de média que um programa aberto desde o começo precisa ter antes de contar pelo núcleo.</summary>
+        internal const int CoreBaselineIntervals = 2;
+        private int intervalIndex;
 
         private readonly int processors;
         private readonly DateTime started;
@@ -138,7 +147,7 @@ namespace MouseModes
                 long io = Math.Max(0, s.IoBytes - before.IoBytes);
 
                 Total total;
-                if (!totals.TryGetValue(s.Name, out total)) totals[s.Name] = total = new Total();
+                if (!totals.TryGetValue(s.Name, out total)) totals[s.Name] = total = new Total { FirstInterval = intervalIndex };
                 total.Cpu += cpu;
                 total.Io += io;
                 long sum;
@@ -155,7 +164,7 @@ namespace MouseModes
                 if (pair.Value > most) { busiest = pair.Key; most = pair.Value; }
             if (busiest != null && most >= BurstBytes) bursts.Add(new IoBurst((at - started).TotalSeconds, busiest, most));
 
-            if (interval > 0)
+            if (interval > 0 && intervalCpu.Count > 0)
             {
                 string heaviest = null;
                 double heaviestPercent = 0;
@@ -166,11 +175,54 @@ namespace MouseModes
                     if (percent > total.Peak) total.Peak = percent;
                     if (percent > heaviestPercent) { heaviest = pair.Key; heaviestPercent = percent; }
                 }
+                double seconds = (at - started).TotalSeconds;
                 if (heaviest != null && heaviestPercent >= FrameStats.CpuBurstPercent)
-                    cpuBursts.Add(new CpuBurst((at - started).TotalSeconds, heaviest, Math.Min(100.0, heaviestPercent)));
+                {
+                    cpuBursts.Add(new CpuBurst(seconds, heaviest, Math.Min(100.0, heaviestPercent), heaviestPercent * processors));
+                }
+                else
+                {
+                    // Pelo núcleo, só quem se destacou agora: subiu bem acima da própria média, ou abriu no meio da
+                    // partida já ocupando um núcleo. Quem pesa o tempo todo (navegador, Docker) não vira causa de toda
+                    // travadinha, nem esconde o programa que de fato subiu nessa hora.
+                    string spiked = null;
+                    double spikedCore = 0;
+                    foreach (KeyValuePair<string, long> pair in intervalCpu)
+                    {
+                        double core = pair.Value / interval * 100.0;
+                        Total t = totals[pair.Key];
+                        double? average = t.Intervals > 0 ? t.CoreSum / t.Intervals : (double?)null;
+                        if (core > spikedCore && CoreSpike(core, average, t.Intervals, t.FirstInterval > 0))
+                        {
+                            spiked = pair.Key;
+                            spikedCore = core;
+                        }
+                    }
+                    if (spiked != null) cpuBursts.Add(new CpuBurst(seconds, spiked, spikedCore / processors, spikedCore));
+                }
+                foreach (KeyValuePair<string, long> pair in intervalCpu)
+                {
+                    Total total = totals[pair.Key];
+                    total.CoreSum += pair.Value / interval * 100.0;
+                    total.Intervals++;
+                }
+                intervalIndex++;
             }
             previous = current;
             last = at;
+        }
+
+        /// <summary>
+        /// O programa se destacou pelo núcleo neste intervalo? Precisa de quase um núcleo inteiro e: ter subido pelo
+        /// menos CoreSpikeFactor vezes acima da própria média; ou, sem média ainda, ter aberto no meio da partida.
+        /// Quem está aberto desde o começo precisa de CoreBaselineIntervals de média antes.
+        /// </summary>
+        internal static bool CoreSpike(double corePercent, double? average, int intervals, bool openedMidMatch)
+        {
+            if (corePercent < FrameStats.CpuBurstCorePercent) return false;
+            if (intervals == 0) return openedMidMatch;
+            if (intervals < CoreBaselineIntervals && !openedMidMatch) return false;
+            return corePercent >= CoreSpikeFactor * (average ?? 0);
         }
 
         public MatchReport Finish(string game)
