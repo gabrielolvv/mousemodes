@@ -26,14 +26,19 @@ namespace MouseModes
     {
         public double At;
         public string Name;
+        /// <summary>Do processador inteiro (todos os núcleos = 100).</summary>
         public double Percent;
+        /// <summary>De um núcleo (um núcleo inteiro = 100; passa de 100 com vários). 0 = não informado.</summary>
+        public double CorePercent;
 
-        public CpuBurst(double at, string name, double percent)
+        public CpuBurst(double at, string name, double percent, double corePercent = 0)
         {
             At = at;
             Name = name;
             Percent = percent;
+            CorePercent = corePercent;
         }
+
     }
 
     /// <summary>Uma travadinha: um ou mais quadros muito mais lentos que o normal, em menos de 1 s.</summary>
@@ -95,6 +100,11 @@ namespace MouseModes
         private const double CauseWindow = 3.0;
         /// <summary>Processador de um programa, no intervalo, que conta como "estava pesando" na hora de uma travadinha.</summary>
         internal const double CpuBurstPercent = 20.0;
+        /// <summary>
+        /// O mesmo, medido em um núcleo: quase um núcleo inteiro conta, se o programa se destacou nessa hora
+        /// (MatchStats.CoreSpike). Num processador de 16 threads, um programa num núcleo inteiro é só 6% do todo.
+        /// </summary>
+        internal const double CpuBurstCorePercent = 80.0;
 
         /// <summary>Travadinha: quadro com pelo menos 2,5 × o normal e 20 ms a mais.</summary>
         internal static double Threshold(double medianMs)
@@ -165,6 +175,23 @@ namespace MouseModes
             return 1000.0 / (sum / count);
         }
 
+        /// <summary>
+        /// "nessa hora o chrome usava 34% do processador"; ou, quando o que pesou foi um núcleo só (abaixo de 20% do
+        /// todo), "nessa hora o Updater ocupava 95% de um núcleo do processador".
+        /// </summary>
+        internal static string DescribeCpu(CpuBurst b)
+        {
+            if (b.Percent >= CpuBurstPercent || b.CorePercent < CpuBurstCorePercent)
+                return L.T("nessa hora o ", "meanwhile ") + b.Name + L.T(" usava ", " used ") + Math.Round(b.Percent) +
+                       L.T("% do processador", "% of the CPU");
+            // Até ~1 núcleo (a leitura oscila uns pontos acima de 100): "de um núcleo"; bem mais que isso, "mais de um".
+            if (b.CorePercent >= 110)
+                return L.T("nessa hora o ", "meanwhile ") + b.Name + L.T(" ocupava mais de um núcleo inteiro do processador",
+                                                                        " kept more than one whole CPU core busy");
+            return L.T("nessa hora o ", "meanwhile ") + b.Name + L.T(" ocupava ", " kept ") + Math.Round(Math.Min(100, b.CorePercent)) +
+                   L.T("% de um núcleo do processador", "% of one CPU core busy");
+        }
+
         /// <summary>O que mais se destacou perto da travadinha: processador, depois disco, depois a rede.</summary>
         internal static string CauseOf(Stutter s, IList<IoBurst> io, IList<CpuBurst> cpu, IList<NetSample> net,
                                        IList<CpuSlowdown> slowdowns = null)
@@ -173,9 +200,7 @@ namespace MouseModes
             if (cpu != null)
                 foreach (CpuBurst b in cpu)
                     if (Math.Abs(b.At - s.At) <= CauseWindow && (topCpu == null || b.Percent > topCpu.Value.Percent)) topCpu = b;
-            if (topCpu != null)
-                return L.T("nessa hora o ", "meanwhile ") + topCpu.Value.Name + L.T(" usava ", " used ") +
-                       Math.Round(topCpu.Value.Percent) + L.T("% do processador", "% of the CPU");
+            if (topCpu != null) return DescribeCpu(topCpu.Value);
 
             // Um programa pesado vem antes: é o que dá para mudar. O freio explica a travadinha quando nada mais explica.
             CpuSlowdown slow = CpuSpeedStats.During(slowdowns, s.At);
