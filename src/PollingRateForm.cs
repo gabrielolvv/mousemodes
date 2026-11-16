@@ -18,6 +18,7 @@ namespace MouseModes
         private static readonly int[] StandardRates = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
         private readonly Stopwatch clock = Stopwatch.StartNew();
+        private readonly long clockStart = Stopwatch.GetTimestamp(); // a hora das leituras vem nesta escala
         private readonly List<double> intervals = new List<double>();
         private readonly BigReadout readout;
         private readonly ChipRow chips;
@@ -102,11 +103,12 @@ namespace MouseModes
             base.OnFormClosed(e);
         }
 
-        private void OnRawInput(int dx, int dy, ushort buttons)
+        private void OnRawInput(int dx, int dy, ushort buttons, long timestamp)
         {
             if (dx == 0 && dy == 0) return; // clique ou roda, não é movimento
 
-            double now = clock.Elapsed.TotalMilliseconds;
+            // A hora em que o Windows entregou a leitura (thread do mouse), não a hora em que a tela chegou nela.
+            double now = (timestamp - clockStart) * 1000.0 / Stopwatch.Frequency;
             if (lastEventMs >= 0)
             {
                 double delta = now - lastEventMs;

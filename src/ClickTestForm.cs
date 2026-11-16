@@ -29,7 +29,7 @@ namespace MouseModes
         private static readonly ushort[] UpFlags = { RawMouse.LeftUp, RawMouse.RightUp, RawMouse.MiddleUp, RawMouse.Button4Up, RawMouse.Button5Up };
 
         private readonly RawMouse raw = new RawMouse();
-        private readonly Stopwatch clock = Stopwatch.StartNew();
+        private readonly long clockStart = Stopwatch.GetTimestamp(); // a hora das leituras vem nesta escala
         private readonly ButtonTile[] tiles = new ButtonTile[5];
         private readonly double[] lastDown = { -1, -1, -1, -1, -1 };
         private readonly double[] minGhost = { double.MaxValue, double.MaxValue, double.MaxValue, double.MaxValue, double.MaxValue };
@@ -84,7 +84,7 @@ namespace MouseModes
             base.OnHandleCreated(e);
             string error;
             // Sem "sink": só conta clique com esta tela em primeiro plano.
-            if (!raw.Register(this, false, (dx, dy, flags) => { if (flags != 0) HandleButtons(flags); }, out error))
+            if (!raw.Register(this, false, (dx, dy, flags, timestamp) => { if (flags != 0) HandleButtons(flags, timestamp); }, out error))
             {
                 summary.Warning = true;
                 summary.Title = L.T("Raw Input indisponível", "Raw Input unavailable");
@@ -99,9 +99,10 @@ namespace MouseModes
             base.OnFormClosed(e);
         }
 
-        private void HandleButtons(ushort flags)
+        private void HandleButtons(ushort flags, long timestamp)
         {
-            double now = clock.Elapsed.TotalMilliseconds;
+            // A hora em que o Windows entregou o clique (thread do mouse): uma pausa da tela não junta dois cliques.
+            double now = (timestamp - clockStart) * 1000.0 / Stopwatch.Frequency;
             for (int i = 0; i < 5; i++)
             {
                 if ((flags & DownFlags[i]) != 0)

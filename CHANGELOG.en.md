@@ -12,6 +12,10 @@ Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub
   program that, at the time of the stutter, jumped to almost a whole core, well above its own usage during the match
   (or opened midway already keeping a core busy). On a 16-thread CPU, a whole core is only 6% of the total and went
   unnoticed. Programs that are heavy all the time, like the browser, do not become the cause of every stutter.
+- **More accurate polling meter and click test**: the mouse is now read on its own high-priority thread, which
+  timestamps each reading as soon as Windows delivers it. Before, the time was when the screen got to the reading, and
+  a screen pause (the game check, a repaint) inflated the polling jitter or reported a double click that never
+  happened.
 
 ## 1.12.0
 
