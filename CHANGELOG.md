@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Gráfico da partida no Raio-X:** um cartão novo, "A partida no tempo", mostra o FPS médio e o 1% low ao longo da
+  partida, o ping logo abaixo, as travadinhas e as perdas marcadas no momento em que aconteceram e os trechos com o
+  processador freado. Passando o mouse, aparece o minuto com o FPS e o ping daquele ponto. O gráfico fica guardado no
+  histórico; partidas gravadas antes desta versão abrem sem ele.
+
 ## 1.19.0
 
 ### Novidades

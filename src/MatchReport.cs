@@ -44,6 +44,8 @@ namespace MouseModes
         public string FramesMissing { get; set; }
         /// <summary>A velocidade do processador e quando ele foi freado (calor, energia, bateria); null se não deu para ler.</summary>
         public CpuSpeedReport CpuSpeed { get; set; }
+        /// <summary>A partida no tempo (FPS, ping, travadinhas, freio), para o gráfico; null se não houve FPS nem ping.</summary>
+        public MatchTimeline Timeline { get; set; }
 
         /// <summary>"47 min" ou "1 h 05 min".</summary>
         public static string FormatDuration(TimeSpan duration)
@@ -427,6 +429,7 @@ namespace MouseModes
                 if (report.Network != null) report.Network.Vpn = vpn;
             }
             report.FramesMissing = framesError;
+            List<FrameSample> gameFrames = null;
             if (frames != null)
             {
                 Dictionary<int, string> names = frames.Names;
@@ -435,13 +438,21 @@ namespace MouseModes
                 string driverError = frames.DriverError;
                 frames = null;
                 int gamePid;
-                List<FrameSample> gameFrames = FrameProbe.GameFrames(byProcess, names, games, out gamePid);
+                gameFrames = FrameProbe.GameFrames(byProcess, names, games, out gamePid);
                 report.Frames = FrameStats.Analyze(gameFrames, report.Bursts, report.CpuBursts, samples,
                                                    report.CpuSpeed != null ? report.CpuSpeed.All : null);
                 if (report.Frames != null) report.Frames.FromDriver = fromDriver.Contains(gamePid);
                 else report.FramesMissing = NoFramesReason(driverError);
             }
-            return report.Duration >= MinDuration ? report : null;
+            if (report.Duration < MinDuration) return null;
+            // Com poucos quadros (ou ping bloqueado) o relatório diz que não mediu: o gráfico também fica sem essa série,
+            // para não contradizer o "não mediu".
+            report.Timeline = MatchTimeline.Build(report.Frames != null ? gameFrames : null,
+                                                  report.Network != null ? samples : null,
+                                                  report.Frames != null ? report.Frames.All : null,
+                                                  report.CpuSpeed != null ? report.CpuSpeed.All : null,
+                                                  report.Duration.TotalSeconds);
+            return report;
         }
 
         /// <summary>Por que o jogo ficou sem quadros: com o driver lido, não entregou nenhum; sem ele, Vulkan e OpenGL ficaram de fora.</summary>

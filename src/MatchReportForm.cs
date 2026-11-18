@@ -76,6 +76,7 @@ namespace MouseModes
             }
 
             y = AddPrograms(report, y);
+            y = AddTimeline(report, y);
             y = AddFrames(report, y);
             if (report.CpuSpeed != null) y = AddCpuSpeed(report.CpuSpeed, y);
             if (report.Network != null) y = AddNetwork(report.Network, y);
@@ -235,6 +236,48 @@ namespace MouseModes
                                                 "Makes background programs lighter during the game without closing any (Settings → Turbo)."),
                                       Pad, calm.Bottom + 8, Inner, Theme.TextSecondary, 8.5f);
             return EndCard(card, y, calmNote.Bottom + 2);
+        }
+
+        /// <summary>
+        /// A partida no tempo: FPS, 1% low, travadinhas, freio e ping num gráfico, com a legenda só do que existe. Partida
+        /// antiga (sem a série) ou sem nada medido não ganha o cartão. Devolve o y seguinte.
+        /// </summary>
+        private int AddTimeline(MatchReport report, int y)
+        {
+            MatchTimeline timeline = report.Timeline;
+            if (timeline == null || !timeline.HasData) return y;
+            int cy;
+            Card card = StartCard(L.T("A partida no tempo", "The match over time"),
+                                  L.T("um ponto a cada ", "one point every ") + TimelineChart.Seconds(timeline.BucketSeconds), out cy);
+            var chart = new TimelineChart { Location = new Point(Pad, cy), Size = new Size(Inner, TimelineChart.PreferredHeight) };
+            chart.SetData(timeline, report.Duration.TotalSeconds);
+            card.Controls.Add(chart);
+            cy = chart.Bottom + 6;
+
+            List<LegendItem> items = LegendFor(timeline);
+            var legend = new ChartLegend { Location = new Point(Pad, cy), Size = new Size(Inner, ChartLegend.HeightFor(items, Inner)) };
+            legend.SetItems(items);
+            card.Controls.Add(legend);
+            return EndCard(card, y, legend.Bottom + 2);
+        }
+
+        /// <summary>Os itens da legenda, só das séries que a partida tem (as cores são as do TimelineChart).</summary>
+        internal static List<LegendItem> LegendFor(MatchTimeline timeline)
+        {
+            var items = new List<LegendItem>();
+            if (timeline.Points.Exists(p => p.HasFps))
+            {
+                items.Add(new LegendItem(L.T("FPS e 1% low", "FPS and 1% low"), Theme.PaletteFor(Theme.PerfA).Fill));
+                if (timeline.Stutters != null && timeline.Stutters.Count > 0) items.Add(new LegendItem(L.T("Travadinha", "Stutter"), Theme.Warning));
+            }
+            if (timeline.Slowdowns != null && timeline.Slowdowns.Count > 0)
+                items.Add(new LegendItem(L.T("Processador freado", "CPU throttled"), Theme.Alpha(Theme.Warning, TimelineChart.SlowdownAlpha), true)
+                          { Outline = Theme.Alpha(Theme.Warning, 90) });
+            bool ping = timeline.Points.Exists(p => p.HasPing);
+            if (ping) items.Add(new LegendItem("Ping", Theme.DailyPalette.OnSurface));
+            // Sem nenhum ping medido o gráfico não tem faixa de ping (nem as marcas de perda): a legenda também não.
+            if (ping && timeline.Points.Exists(p => p.Lost > 0)) items.Add(new LegendItem(L.T("Perda", "Lost ping"), Theme.Danger)); // ao lado do Ping: "Ping perdido" não cabe na linha
+            return items;
         }
 
         /// <summary>Caça-travadinhas: as piores travadinhas com o que havia na hora (os números ficam na faixa do alto).</summary>

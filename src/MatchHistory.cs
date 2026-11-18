@@ -52,7 +52,8 @@ namespace MouseModes
     /// </summary>
     public class MatchRecord
     {
-        internal const int CurrentSchema = 1;
+        /// <summary>2: com a partida no tempo (Timeline). Só informativo: ninguém decide nada por ele ao ler.</summary>
+        internal const int CurrentSchema = 2;
 
         public MatchRecord()
         {
@@ -73,6 +74,8 @@ namespace MouseModes
         public CpuSpeedReport CpuSpeed { get; set; }
         /// <summary>null numa partida gravada sem os ajustes.</summary>
         public MatchSettings Settings { get; set; }
+        /// <summary>A partida no tempo, para o gráfico; null numa partida gravada antes dela existir (schema 1).</summary>
+        public MatchTimeline Timeline { get; set; }
 
         /// <summary>De onde foi lido (null se ainda não foi gravado).</summary>
         [XmlIgnore]
@@ -91,7 +94,8 @@ namespace MouseModes
                 FramesMissing = report.FramesMissing,
                 Network = report.Network,
                 CpuSpeed = report.CpuSpeed,
-                Settings = settings
+                Settings = settings,
+                Timeline = report.Timeline
             };
         }
 
@@ -108,7 +112,8 @@ namespace MouseModes
                 Frames = Fix(Frames),
                 FramesMissing = FramesMissing,
                 Network = Fix(Network),
-                CpuSpeed = Fix(CpuSpeed)
+                CpuSpeed = Fix(CpuSpeed),
+                Timeline = Fix(Timeline)
             };
         }
 
@@ -129,6 +134,16 @@ namespace MouseModes
         {
             if (c != null && c.Worst == null) c.Worst = new List<CpuSlowdown>();
             return c;
+        }
+
+        // A série em si continua null quando não existe (partida antiga): só as listas de dentro viram vazias.
+        private static MatchTimeline Fix(MatchTimeline t)
+        {
+            if (t == null) return null;
+            if (t.Points == null) t.Points = new List<TimelinePoint>();
+            if (t.Stutters == null) t.Stutters = new List<double>();
+            if (t.Slowdowns == null) t.Slowdowns = new List<TimelineSpan>();
+            return t;
         }
 
         /// <summary>"16/11 21:40" na hora local.</summary>

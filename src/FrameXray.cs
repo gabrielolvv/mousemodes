@@ -68,6 +68,8 @@ namespace MouseModes
         /// de quando o quadro chegou ao driver, um pouco menos precisa.
         /// </summary>
         public bool FromDriver { get; set; }
+        /// <summary>Todas as travadinhas, em ordem de tempo (para o gráfico da partida). Não vai para o histórico.</summary>
+        internal List<Stutter> All { get; set; }
 
         /// <summary>"144 FPS de média · 1% low 92 FPS · 7 travadinhas"</summary>
         public string Summary()
@@ -167,7 +169,8 @@ namespace MouseModes
                 Low01Fps = LowFps(sorted, 0.001),
                 MedianMs = median,
                 StutterCount = stutters.Count,
-                Worst = worst
+                Worst = worst,
+                All = stutters
             };
         }
 
