@@ -26,7 +26,7 @@ CS
 mcs -target:winexe -platform:anycpu -optimize+ -langversion:7 -warn:4 -warnaserror+ \
     -win32icon:src/app.ico \
     -nostdlib -r:$A/mscorlib.dll -r:$A/System.dll -r:$A/System.Core.dll \
-    -r:$A/System.Windows.Forms.dll -r:$A/System.Drawing.dll -r:$A/System.Xml.dll \
+    -r:$A/System.Windows.Forms.dll -r:$A/System.Drawing.dll -r:$A/System.Xml.dll -r:$A/Accessibility.dll \
     -out:dist/MouseModes.exe src/*.cs src/obj/Version.g.cs
 echo "app: dist/MouseModes.exe ($VERSION)"
 
