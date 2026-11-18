@@ -4,7 +4,7 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
-## Next version
+## 1.19.0
 
 ### New
 
