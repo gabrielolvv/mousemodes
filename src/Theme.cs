@@ -641,32 +641,34 @@ namespace MouseModes
         /// <summary>
         /// Faixa única com divisórias verticais: em cada coluna, o valor na fonte de números (Text) e o rótulo em
         /// sentence case logo abaixo (TextSecondary). band = fundo da faixa (Surface por padrão; Surface2 sobre um cartão).
+        /// k multiplica as medidas internas (respiros, raio, traços) para desenhar num bitmap de dpi maior (MatchShare);
+        /// as fontes já seguem o dpi do Graphics.
         /// </summary>
         public static void DrawChips(Graphics g, RectangleF area, string[] labels, string[] values, Color accent, Color? band = null,
-                                     float valueSize = TypeScale.NumM)
+                                     float valueSize = TypeScale.NumM, float k = 1f)
         {
             int n = labels.Length;
             if (n == 0) return;
-            FillRounded(g, area, Radius.Md, band ?? Surface);
-            StrokeRounded(g, area, Radius.Md, Border, 1f);
+            FillRounded(g, area, Radius.Md * k, band ?? Surface);
+            StrokeRounded(g, area, Radius.Md * k, Border, k);
             float w = area.Width / n;
             Font valueFont = Num(valueSize);
             Font labelFont = Ui(TypeScale.Caption);
             float valueH = (float)Math.Ceiling(valueFont.GetHeight(g));
             float labelH = (float)Math.Ceiling(labelFont.GetHeight(g));
-            float top = area.Y + Math.Max(2f, (area.Height - valueH - labelH + 2) / 2f);
-            using (var divider = new Pen(Divider, 1f))
+            float top = area.Y + Math.Max(2f * k, (area.Height - valueH - labelH + 2 * k) / 2f);
+            using (var divider = new Pen(Divider, k))
             {
                 for (int i = 0; i < n; i++)
                 {
                     float x = area.X + i * w;
-                    if (i > 0) g.DrawLine(divider, x, area.Y + 9, x, area.Bottom - 9);
-                    var col = new RectangleF(x + 12, top, w - 16, valueH);
+                    if (i > 0) g.DrawLine(divider, x, area.Y + 9 * k, x, area.Bottom - 9 * k);
+                    var col = new RectangleF(x + 12 * k, top, w - 16 * k, valueH);
                     string value = values != null && i < values.Length ? values[i] : "";
                     // Sem leitura ("—"): apagado, como o "—" do número grande.
                     bool empty = value.Trim().Length == 0 || value.Trim() == "—";
                     DrawText(g, value, valueFont, empty ? TextTertiary : Text, col, wrap: false);
-                    DrawText(g, labels[i], labelFont, TextSecondary, new RectangleF(x + 12, top + valueH - 2, w - 16, labelH), wrap: false);
+                    DrawText(g, labels[i], labelFont, TextSecondary, new RectangleF(x + 12 * k, top + valueH - 2 * k, w - 16 * k, labelH), wrap: false);
                 }
             }
         }

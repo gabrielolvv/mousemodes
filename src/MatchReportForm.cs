@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
@@ -102,9 +103,100 @@ namespace MouseModes
             var close = new NeonButton { Text = L.T("Fechar", "Close"), Location = new Point(Edge + CardWidth - 120, y), Size = new Size(120, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             close.Click += (s, e) => Close();
             Controls.Add(close);
+            AddCopy(report, record, close);
             ClientSize = new Size(480, close.Bottom + 20);
 
             FinishLayout();
+        }
+
+        // ---------------------------------------------------------------- copiar para compartilhar
+
+        private string copyText, copiedText, copyFailedText;
+        private Timer copiedTimer;
+
+        /// <summary>Para onde o "Copiar" manda a partida: a área de transferência do Windows; os testes trocam por uma falsa.</summary>
+        internal IClipboardTarget ShareTarget { get; set; }
+
+        /// <summary>O botão "Copiar", à esquerda do Fechar.</summary>
+        internal NeonButton CopyButton { get; private set; }
+
+        /// <summary>O aviso de que não deu para copiar (vazio até acontecer).</summary>
+        internal Label CopyWarning { get; private set; }
+
+        /// <summary>
+        /// "Copiar" à esquerda do Fechar: põe a imagem e o texto da partida na área de transferência. Deu certo, o botão diz
+        /// "Copiado" por 2 s; não deu (outro programa segurando a área de transferência), um aviso curto à esquerda.
+        /// </summary>
+        private void AddCopy(MatchReport report, MatchRecord record, NeonButton close)
+        {
+            ShareTarget = SystemClipboardTarget.Instance;
+            copyText = L.T("Copiar", "Copy");
+            copiedText = L.T("Copiado", "Copied");
+            int width = ButtonWidth(96, copyText, copiedText);
+            CopyButton = new NeonButton
+            {
+                Text = copyText,
+                Location = new Point(close.Left - 12 - width, close.Top),
+                Size = new Size(width, close.Height),
+                AccentA = Theme.PerfA,
+                AccentB = Theme.PerfB,
+                AccessibleName = copyText,
+                AccessibleDescription = L.T("Copia a imagem e o texto da partida para colar no Discord ou onde quiser.",
+                                            "Copies the match image and text to paste on Discord or anywhere you like.")
+            };
+            Controls.Add(CopyButton);
+
+            // O aviso ocupa o resto da linha, à esquerda, centrado na altura dos botões.
+            // Medido com o texto e deixado vazio até a cópia falhar (vazio não desenha nada).
+            copyFailedText = L.T("Não deu para copiar. Tente de novo.", "Couldn't copy. Try again.");
+            CopyWarning = MeasuredNote(copyFailedText, Edge, close.Top, CopyButton.Left - 12 - Edge, Theme.Warning, 8.5f);
+            CopyWarning.Top = close.Top + Math.Max(0, (close.Height - CopyWarning.Height) / 2);
+            CopyWarning.Text = "";
+            Controls.Add(CopyWarning);
+
+            // O timer é da janela: descartado com ela (Dispose), sem disparar depois de fechar.
+            copiedTimer = new Timer { Interval = 2000 };
+            copiedTimer.Tick += (s, e) => RestoreCopyButton();
+            CopyButton.Click += (s, e) => CopyMatch(report, record);
+        }
+
+        /// <summary>Copia a partida e mostra o resultado. Devolve se deu certo.</summary>
+        private bool CopyMatch(MatchReport report, MatchRecord record)
+        {
+            bool ok;
+            try
+            {
+                ok = MatchShare.Copy(report, record, ShareTarget);
+            }
+            catch (Exception ex) when (ex is ExternalException || ex is OutOfMemoryException || ex is InvalidOperationException || ex is ArgumentException)
+            {
+                Log.Info(L.T("Compartilhar: não deu para copiar a partida (", "Share: could not copy the match (") + ex.Message + ")");
+                ok = false;
+            }
+            copiedTimer.Stop();
+            CopyWarning.Text = ok ? "" : copyFailedText;
+            SetCopyText(ok ? copiedText : copyText);
+            if (ok) copiedTimer.Start();
+            return ok;
+        }
+
+        /// <summary>Fim dos 2 s de "Copiado": o botão volta a dizer "Copiar".</summary>
+        internal void RestoreCopyButton()
+        {
+            copiedTimer.Stop();
+            SetCopyText(copyText);
+        }
+
+        private void SetCopyText(string text)
+        {
+            CopyButton.Text = text;
+            CopyButton.AccessibleName = text;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && copiedTimer != null) copiedTimer.Dispose();
+            base.Dispose(disposing);
         }
 
         private static string Whole(double value)

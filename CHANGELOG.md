@@ -5,6 +5,15 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Copiar a partida:** o Raio-X ganhou um botão Copiar, ao lado do Fechar. Ele põe a partida na área de transferência
+  como imagem e como texto ao mesmo tempo: no Discord cola a imagem (jogo, duração, FPS médio, 1% low, travadinhas, o
+  gráfico, a rede e o processador, nítida em 2x); num bloco de notas cola o texto. Os nomes dos programas em segundo
+  plano não entram.
+
 ## 1.20.0
 
 ### Novidades
