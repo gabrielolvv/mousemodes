@@ -23,12 +23,12 @@ namespace MouseModes
         private readonly ChipRow chips;
         private readonly DragPad pad;
         private readonly Label status;
+        private readonly StatusRow rawWarning;
         private readonly RawMouse raw = new RawMouse();
         private readonly List<double> runs = new List<double>();
         private readonly CultureInfo culture = L.IsEnglish ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("pt-BR");
         private bool measuring;
         private long sumX, sumY;
-        private string rawError; // Raw Input indisponível: fica na tela, não é apagado por UpdateView
 
         /// <param name="save">Grava o config (o DPI real medido vai para o conversor de sensibilidade).</param>
         public DpiMeasureForm(AppConfig cfg, Action save) : base(L.T("DPI real do mouse", "Real mouse DPI"), true)
@@ -36,44 +36,54 @@ namespace MouseModes
             this.cfg = cfg;
             this.save = save;
             CloseOnEscape = true;
-            ClientSize = new Size(480, 628);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
-            Controls.Add(Note(L.T("Ponha uma régua na mesa. Segure o botão esquerdo no quadro abaixo, arraste o mouse em linha reta " +
-                                  "pela distância e solte. Faça umas 3 vezes, sem levantar o mouse.",
-                                  "Put a ruler on the desk. Hold the left button on the box below, drag the mouse in a straight line " +
-                                  "over the distance and let go. Do it about 3 times, without lifting the mouse."),
-                              20, 50, 440, 56, Theme.Muted, 9f));
+            Label intro = MeasuredNote(L.T("Ponha uma régua na mesa. Segure o botão esquerdo no quadro abaixo, arraste o mouse em linha reta " +
+                                           "pela distância e solte. Faça umas 3 vezes, sem levantar o mouse.",
+                                           "Put a ruler on the desk. Hold the left button on the box below, drag the mouse in a straight line " +
+                                           "over the distance and let go. Do it about 3 times, without lifting the mouse."),
+                                       20, 56, 440, Theme.TextSecondary, 9f);
+            Controls.Add(intro);
 
-            dpiBox = AddField(L.T("DPI DO MOUSE", "MOUSE DPI"), 20, 5);
-            distanceBox = AddField(L.IsEnglish ? "DISTANCE (IN)" : "DISTÂNCIA (CM)", 152, 5);
+            // Dois campos lado a lado e a dica numa linha embaixo deles, na largura da coluna.
+            int fieldsY = intro.Bottom + 12;
+            dpiBox = AddField(L.T("DPI do mouse", "Mouse DPI"), 20, fieldsY, 5);
+            distanceBox = AddField(L.IsEnglish ? "Distance (in)" : "Distância (cm)", 20 + FieldWidth + 12, fieldsY, 5);
             dpiBox.KeyPress += (s, e) => { if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar)) e.Handled = true; };
             dpiBox.Text = (cfg.AimTestDpi > 0 ? cfg.AimTestDpi : 800).ToString();
             distanceBox.Text = L.IsEnglish ? "4" : "10";
-            Controls.Add(Note(L.T("O DPI que está no programa do mouse e o quanto você vai arrastar na régua.",
-                                  "The DPI set in your mouse software and how far you will drag along the ruler."),
-                              284, 130, 176, 44, Theme.Faint, 8f));
+            Label fieldHint = MeasuredNote(L.T("O DPI que está no programa do mouse e o quanto você vai arrastar na régua.",
+                                               "The DPI set in your mouse software and how far you will drag along the ruler."),
+                                           20, fieldsY + 22 + 36 + 6, 440, Theme.TextSecondary, 8.5f);
+            Controls.Add(fieldHint);
             dpiBox.TextChanged += (s, e) => Reset();
             distanceBox.TextChanged += (s, e) => Reset();
 
-            readout = new BigReadout { Location = new Point(12, 174), Size = new Size(456, 150), Unit = "DPI", AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            readout = new BigReadout { Location = new Point(12, fieldHint.Bottom + 4), Size = new Size(456, 146), Unit = "DPI", AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            int y = readout.Bottom + 4;
+            rawWarning = new StatusRow { Location = new Point(20, y), Size = new Size(440, 56), Glyph = GlyphKind.Mouse, Warning = true, Visible = false, Title = L.T("Raw Input indisponível", "Raw Input unavailable") };
             chips = new ChipRow
             {
-                Location = new Point(20, 330),
-                Size = new Size(440, 48),
-                Labels = new[] { L.T("MEDIÇÕES", "RUNS"), L.T("ÚLTIMA", "LAST"), L.T("VARIAÇÃO", "SPREAD"), L.T("DIFERENÇA", "OFF BY") }
+                Location = new Point(20, y),
+                Size = new Size(440, 52),
+                Labels = new[] { L.T("Medições", "Runs"), L.T("Última", "Last"), L.T("Variação", "Spread"), L.T("Diferença", "Off by") }
             };
-            pad = new DragPad { Location = new Point(20, 392), Size = new Size(440, 120) };
+            pad = new DragPad { Location = new Point(20, chips.Bottom + 12), Size = new Size(440, 112) };
             pad.MouseDown += (s, e) => { if (e.Button == MouseButtons.Left) Begin(); };
             pad.MouseUp += (s, e) => { if (e.Button == MouseButtons.Left) End(); };
             pad.MouseCaptureChanged += (s, e) => End();
-            status = Note("", 20, 520, 440, 40, Theme.Faint, 8.5f);
+            // Até 2 linhas: o texto mais longo é o das medições que variaram demais.
+            status = MeasuredNote(L.T("As medições variaram muito e não serão guardadas: confira a distância, arraste em linha reta e não levante o mouse.",
+                                      "The runs varied a lot and will not be saved: check the distance, drag in a straight line and do not lift the mouse."),
+                                  20, pad.Bottom + 8, 440, Theme.TextSecondary, 8.5f, 32);
 
-            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 568), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, status.Bottom + 12), Size = new Size(440, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             reset.Click += (s, e) => Reset();
+            ClientSize = new Size(480, reset.Bottom + 20);
 
             Controls.Add(readout);
+            Controls.Add(rawWarning);
             Controls.Add(chips);
             Controls.Add(pad);
             Controls.Add(status);
@@ -89,8 +99,9 @@ namespace MouseModes
             string error;
             if (!raw.Register(this, true, OnRawInput, out error))
             {
-                rawError = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
-                status.Text = rawError;
+                // Fica na tela (linha de aviso logo abaixo do número): UpdateView não apaga.
+                rawWarning.Subtitle = error;
+                RevealPushingDown(rawWarning, 56, 12);
                 Log.Warn(L.T("DPI real: Raw Input indisponível (", "Real DPI: Raw Input unavailable (") + error + ")");
             }
         }
@@ -129,11 +140,14 @@ namespace MouseModes
             return runs.Count >= 2 && DpiMeter.Spread(runs) <= DpiMeter.MaxSpread;
         }
 
-        private TextBox AddField(string label, int x, int maxLength)
+        private const int FieldWidth = 214;
+
+        /// <summary>Rótulo do campo (sentence case) e, 6 px abaixo, a caixa de 36 px.</summary>
+        private TextBox AddField(string label, int x, int y, int maxLength)
         {
-            Controls.Add(Note(label, x, 110, 124, 18, Theme.Faint, 8f));
-            var box = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.Ui(12f), TextAlign = HorizontalAlignment.Center, MaxLength = maxLength };
-            Controls.Add(new FieldHost(box) { Location = new Point(x, 130), Size = new Size(124, 40), Accent = Theme.PerfB });
+            Controls.Add(new FieldLabel { Text = label, Location = new Point(x, y), Size = new Size(FieldWidth, 16) });
+            var box = new TextBox { BorderStyle = BorderStyle.None, Font = Theme.NumField(12f), TextAlign = HorizontalAlignment.Center, MaxLength = maxLength };
+            Controls.Add(new FieldHost(box) { Location = new Point(x, y + 22), Size = new Size(FieldWidth, 36), Accent = Theme.PerfB });
             return box;
         }
 
@@ -226,7 +240,6 @@ namespace MouseModes
                     status.Text = L.T("Pronto. Ao fechar, o conversor de sensibilidade passa a mostrar a volta com o DPI real.",
                                       "Done. When you close this, the sensitivity converter shows the turn with the real DPI.");
             }
-            if (rawError != null) status.Text = rawError;
             readout.Invalidate();
             chips.Invalidate();
         }
@@ -260,18 +273,27 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = Begin(e);
-            var card = new RectangleF(1, 1, Width - 3, Height - 3);
-            Theme.FillRounded(g, card, 14, Active ? Theme.Panel2 : Theme.Panel);
-            using (var pen = new Pen(Active ? Theme.PerfB : Theme.Border, 1.5f) { DashStyle = DashStyle.Dash })
-            using (GraphicsPath path = Theme.Rounded(card, 14))
+            float k = g.DpiX / 96f;
+            ModePalette p = Theme.PerformancePalette;
+            var card = new RectangleF(0.75f, 0.75f, Width - 1.5f, Height - 1.5f);
+            Theme.FillRounded(g, card, Theme.Radius.Md, Active ? Theme.Lerp(Theme.Surface, p.Fill, 0.08f) : Theme.Surface);
+            using (var pen = new Pen(Active ? p.Fill : Theme.BorderStrong, Active ? 1.5f : 1f) { DashPattern = new[] { 4f, 3f } })
+            using (GraphicsPath path = Theme.Rounded(card, Theme.Radius.Md))
                 g.DrawPath(pen, path);
 
-            Theme.DrawText(g, Active ? L.T("MEDINDO", "MEASURING") : L.T("SEGURE AQUI E ARRASTE", "HOLD HERE AND DRAG"),
-                Theme.Display(12f), Active ? Theme.PerfB : Theme.Text,
-                new RectangleF(0, Height / 2f - 26, Width, 24), StringAlignment.Center, StringAlignment.Center, false);
+            // Ícone, título em sentence case e a dica (ou a contagem ao vivo), centralizados juntos.
+            Font titleFont = Theme.UiSemibold(11f), hintFont = Theme.Ui(9f);
+            float icon = 20 * k, titleH = titleFont.GetHeight(g), hintH = hintFont.GetHeight(g);
+            float top = (Height - icon - 8 * k - titleH - 2 * k - hintH) / 2f;
+            using (var ib = new SolidBrush(Active ? p.OnSurface : Theme.TextTertiary))
+                Theme.DrawGlyph(g, GlyphKind.Mouse, new RectangleF((Width - icon) / 2f, top, icon, icon), ib, 1.6f * k);
+            top += icon + 8 * k;
+            Theme.DrawText(g, Active ? L.T("Medindo...", "Measuring...") : L.T("Segure aqui e arraste", "Hold here and drag"),
+                titleFont, Active ? p.OnSurface : Theme.Text, new RectangleF(0, top, Width, titleH + 2), StringAlignment.Center, StringAlignment.Near, false);
+            top += titleH + 2 * k;
             Theme.DrawText(g, Live.Length > 0 ? Live : L.T("o mouse pode sair do quadro: o que conta é a régua",
                                                            "the mouse may leave the box: the ruler is what counts"),
-                Theme.Ui(9f), Theme.Muted, new RectangleF(0, Height / 2f + 4, Width, 22), StringAlignment.Center, StringAlignment.Center, false);
+                hintFont, Theme.TextSecondary, new RectangleF(0, top, Width, hintH + 2), StringAlignment.Center, StringAlignment.Near, false);
         }
     }
 }

@@ -4,6 +4,21 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **New look, cleaner and more modern:** graphite background, the mode color in solid (orange in Performance, blue in
+  Daily), no neon glow, sentence case and numbers in Bahnschrift. Switching modes is now a short fade, without passing
+  through mixed colors.
+- **Grouped settings:** each page's options sit in cards, with a thin scroll bar, and Save takes the color of the open
+  page.
+- **Match X-ray in cards:** average FPS, 1% low and stutters at the top; programs, stutters, processor, network and the
+  before and after in separate cards, with each number's change in green or red.
+- **Dark tray menu**, matching the windows.
+- Diagnostics, history, confirmation and the mouse tools (polling, click, aim, DPI, sensitivity) in the same look. The
+  Diagnostics log wraps lines instead of cutting the text.
+
 ## 1.17.0
 
 ### New

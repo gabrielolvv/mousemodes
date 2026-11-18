@@ -18,39 +18,48 @@ namespace MouseModes
         {
             CloseOnEscape = true;
 
-            Controls.Add(new SectionLabel { Text = L.T("Sistema", "System"), Location = new Point(20, 58), Size = new Size(580, 20) });
-            systemInfo = Note(L.T("carregando...", "loading..."), 20, 80, 580, 92, Theme.Muted, 8.5f);
+            const int width = 580;
+            // Os três blocos em caixas: o resumo do sistema num cartão, os ajustes num grupo e o registro num campo.
+            Controls.Add(new SectionLabel { Text = L.T("Sistema", "System"), Location = new Point(20, 56), Size = new Size(width, 20) });
+            var systemCard = new Card { Location = new Point(20, 84), Size = new Size(width, 92) };
+            systemInfo = Note(L.T("carregando…", "loading…"), SettingsGroup.Inset, 8, width - SettingsGroup.Inset * 2, 76, Theme.TextSecondary, 8.5f);
             systemInfo.Font = Theme.Mono(8.5f);
-            Controls.Add(systemInfo);
+            systemInfo.BackColor = Theme.Surface;
+            systemInfo.UseMnemonic = false;
+            systemCard.Controls.Add(systemInfo);
+            Controls.Add(systemCard);
 
-            Controls.Add(new SectionLabel { Text = L.T("Windows para jogos", "Windows for games"), Location = new Point(20, 178), Size = new Size(580, 20) });
-            int y = 202;
+            // Cada ajuste numa linha de um grupo: nome, o que fazer embaixo, o estado numa pílula e o botão Abrir.
+            Controls.Add(new SectionLabel { Text = L.T("Windows para jogos", "Windows for games"), Location = new Point(20, systemCard.Bottom + 16), Size = new Size(width, 20) });
+            var group = new SettingsGroup(width) { Location = new Point(20, systemCard.Bottom + 44) };
             foreach (WindowsCheck check in WindowsChecks.Read())
-            {
-                AddCheckRow(check, y);
-                y += 46;
-            }
-            Controls.Add(Note(L.T("O MouseModes só mostra: \"Abrir\" leva à tela do Windows onde você muda.", "MouseModes only shows these: \"Open\" takes you to the Windows page where you change them."), 20, y, 580, 18, Theme.Faint, 8f));
-            y += 26; // a seção tem 3 linhas no Windows 10 e 4 no 11: o resto vem logo abaixo dela
+                group.AddRow(CheckRow(check, width));
+            Controls.Add(group);
+            // A seção tem 3 linhas no Windows 10 e 4 no 11: o resto vem logo abaixo dela.
+            Label onlyShows = MeasuredNote(L.T("O MouseModes só mostra: \"Abrir\" leva à tela do Windows onde você muda.", "MouseModes only shows these: \"Open\" takes you to the Windows page where you change them."),
+                                           20, group.Bottom + 8, width, Theme.TextSecondary, 8.5f);
+            Controls.Add(onlyShows);
+            int y = onlyShows.Bottom + 12;
 
-            Controls.Add(new SectionLabel { Text = L.T("Registro", "Log"), Location = new Point(20, y), Size = new Size(580, 20) });
+            Controls.Add(new SectionLabel { Text = L.T("Registro", "Log"), Location = new Point(20, y), Size = new Size(width, 20) });
             text = new TextBox
             {
                 Multiline = true,
                 ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
+                ScrollBars = ScrollBars.Vertical, // a barra nativa fica escondida; o FieldHost mostra a fina
                 BorderStyle = BorderStyle.None,
-                WordWrap = false,
+                WordWrap = true, // linha comprida quebra dentro do campo, em vez de sumir na borda
                 Font = Theme.Mono(8.5f)
             };
-            // Registro mais baixo que antes: com a seção nova, a janela ainda cabe numa tela de 768 px com a barra de tarefas.
-            Controls.Add(new FieldHost(text) { Location = new Point(20, y + 24), Size = new Size(580, 210), Accent = Theme.DailyB });
-            int buttonsY = y + 24 + 210 + 14;
+            // Registro baixo: com a seção dos ajustes, a janela ainda cabe numa tela de 768 px com a barra de tarefas.
+            var logHost = new FieldHost(text) { Location = new Point(20, y + 28), Size = new Size(width, 124), Accent = Theme.DailyB };
+            Controls.Add(logHost);
+            int buttonsY = logHost.Bottom + 16;
 
-            var copy = new NeonButton { Text = L.T("Copiar tudo", "Copy all"), Location = new Point(20, buttonsY), Size = new Size(184, 42) };
-            var folder = new NeonButton { Text = L.T("Abrir pasta", "Open folder"), Location = new Point(218, buttonsY), Size = new Size(184, 42) };
-            var clear = new NeonButton { Text = L.T("Limpar", "Clear"), Style = ButtonStyle.Danger, Location = new Point(416, buttonsY), Size = new Size(184, 42) };
-            ClientSize = new Size(620, buttonsY + 42 + 16);
+            var copy = new NeonButton { Text = L.T("Copiar tudo", "Copy all"), Location = new Point(20, buttonsY), Size = new Size(140, 36) };
+            var folder = new NeonButton { Text = L.T("Abrir pasta", "Open folder"), Location = new Point(168, buttonsY), Size = new Size(140, 36) };
+            var clear = new NeonButton { Text = L.T("Limpar", "Clear"), Style = ButtonStyle.Danger, Location = new Point(20 + width - 120, buttonsY), Size = new Size(120, 36) };
+            ClientSize = new Size(620, buttonsY + 36 + 20);
             copy.Click += (s, e) => CopyAll();
             folder.Click += (s, e) => OpenFolder();
             clear.Click += (s, e) => { Log.Clear(); Reload(); };
@@ -84,28 +93,61 @@ namespace MouseModes
             base.OnFormClosed(e);
         }
 
-        /// <summary>Uma linha: nome, estado (ciano = bom, laranja = vale mudar, cinza = depende) e o botão Abrir.</summary>
-        private void AddCheckRow(WindowsCheck check, int y)
+        /// <summary>
+        /// Uma linha do grupo: nome, o conselho embaixo (altura medida), o estado numa pílula (verde = como recomendado,
+        /// âmbar = vale mudar, neutro = depende) e o botão Abrir.
+        /// </summary>
+        private Control CheckRow(WindowsCheck check, int width)
         {
-            Color stateColor = check.Ok == true ? Theme.DailyB : check.Ok == false ? Theme.PerfB : Theme.Muted;
+            const int pad = SettingsGroup.Inset, buttonW = 80;
+            int buttonX = width - pad - buttonW;
+            int pillW = Math.Min(170, Pill.WidthFor(check.State));
+            int pillX = buttonX - 12 - pillW;
+            var row = new GroupCell();
 
-            var name = Note(check.Name, 20, y, 250, 20, Theme.Text, 9.5f);
-            name.Font = Theme.Ui(9.5f, FontStyle.Bold);
-            var state = Note(check.State, 280, y, 220, 20, stateColor, 9.5f);
-            state.Font = Theme.Ui(9.5f, FontStyle.Bold);
-            var advice = Note(string.IsNullOrEmpty(check.Advice) ? L.T("Como recomendado.", "As recommended.") : check.Advice, 20, y + 20, 480, 18, Theme.Faint, 8f);
+            // Título no mesmo estilo do título do ToggleRow dos Ajustes (UiSemibold 10, pintado).
+            var name = new SectionLabel
+            {
+                Text = check.Name,
+                RowTitle = true,
+                Location = new Point(pad, 9),
+                Size = new Size(pillX - 8 - pad, 22)
+            };
+            string adviceText = string.IsNullOrEmpty(check.Advice) ? L.T("Como recomendado.", "As recommended.") : check.Advice;
+            int adviceW = buttonX - 12 - pad;
+            var advice = new Label
+            {
+                Text = adviceText,
+                Location = new Point(pad, 30),
+                ForeColor = Theme.TextSecondary,
+                BackColor = Theme.Surface,
+                Font = Theme.Ui(8.5f),
+                UseMnemonic = false
+            };
+            advice.Size = new Size(adviceW, Theme.TextHeight(adviceText, advice.Font, adviceW));
+            int height = Math.Max(54, advice.Bottom + 8);
 
-            var open = new NeonButton { Text = L.T("Abrir", "Open"), Location = new Point(510, y + 4), Size = new Size(90, 32), AccentA = Theme.DailyA, AccentB = Theme.DailyB };
+            var state = new Pill
+            {
+                Text = check.State,
+                Tone = check.Ok == true ? Theme.Success : check.Ok == false ? Theme.Warning : Color.Empty,
+                BackColor = Theme.Surface,
+                Location = new Point(pillX, (height - 24) / 2), // no meio da linha, como o botão Abrir
+                Size = new Size(pillW, 24)
+            };
+            var open = new NeonButton { Text = L.T("Abrir", "Open"), Location = new Point(buttonX, (height - 32) / 2), Size = new Size(buttonW, 32), AccentA = Theme.DailyA, AccentB = Theme.DailyB };
             open.Click += (s, e) =>
             {
                 string error = WindowsChecks.OpenSettings(check);
                 if (error != null) ConfirmDialog.Inform(this, L.T("Não foi possível abrir", "Could not open"), error);
             };
 
-            Controls.Add(name);
-            Controls.Add(state);
-            Controls.Add(advice);
-            Controls.Add(open);
+            row.Size = new Size(width, height);
+            row.Controls.Add(name);
+            row.Controls.Add(advice);
+            row.Controls.Add(state);
+            row.Controls.Add(open);
+            return row;
         }
 
         private void Reload()

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
 namespace MouseModes
@@ -8,7 +10,12 @@ namespace MouseModes
     /// <summary>Raio-X da partida: quem pesou em segundo plano e o que fazer com cada um, num clique.</summary>
     public class MatchReportForm : GamerWindow
     {
-        private const int RowHeight = 62;
+        // Esqueleto (px a 96 dpi): margem da janela, cartões de largura inteira com 16 de respiro dentro e 12 entre eles.
+        private const int Edge = 20, CardWidth = 440, Pad = 16, Inner = CardWidth - Pad * 2, CardGap = 12;
+        private const int RowHeight = 48, ActionWidth = 132;
+
+        /// <summary>A variação de uma linha do "Antes e depois" (" (+21%)"), que vai para a coluna da direita.</summary>
+        private static readonly Regex Delta = new Regex(@"\s\(([+-]?\d+%)\)");
 
         /// <summary>Launchers (começo do nome): o jogo depende deles, e fechar um pode derrubar a partida.</summary>
         internal static readonly string[] Launchers =
@@ -32,144 +39,260 @@ namespace MouseModes
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
-            var title = Note(report.Game + "  ·  " + MatchReport.FormatDuration(report.Duration), 20, 56, 440, 28, Theme.Text, 14f);
-            title.Font = Theme.Ui(14f, FontStyle.Bold);
+            // Título na fonte de títulos; nomes longos (VALORANT-Win64-Shipping) quebram em vez de cortar a duração.
+            string titleText = report.Game + "  ·  " + MatchReport.FormatDuration(report.Duration);
+            Font titleFont = Theme.Title(16f);
+            var title = new Paragraph
+            {
+                Text = titleText,
+                TextFont = titleFont,
+                Location = new Point(Edge, 54),
+                Size = new Size(CardWidth, Paragraph.HeightFor(titleText, titleFont, CardWidth))
+            };
             Controls.Add(title);
-            int count = report.Culprits.Count;
-            // A data da partida vai nesta linha (no título não cabe com nomes como VALORANT-Win64-Shipping).
-            Label subtitle = Note((record != null ? record.When() + "  ·  " : "") + (count == 0
-                ? L.T("Nada pesou em segundo plano durante a partida.", "Nothing weighed on the PC in the background during the match.")
-                : count == 1
-                    ? L.T("1 programa pesou em segundo plano durante a partida:", "1 program weighed on the PC in the background during the match:")
-                    : L.T(count + " programas pesaram em segundo plano durante a partida:", count + " programs weighed on the PC in the background during the match:")),
-                20, 86, 440, 20, Theme.Muted, 9f);
-            subtitle.Height = Math.Max(20, Measure(subtitle));
-            Controls.Add(subtitle);
-
-            int y = 86 + subtitle.Height + 10;
-            foreach (Culprit c in report.Culprits)
+            int y = title.Bottom;
+            if (record != null)
             {
-                AddRow(c, y);
-                y += RowHeight;
+                Label when = MeasuredNote(record.When(), Edge, y, CardWidth, Theme.TextSecondary, 9f);
+                Controls.Add(when);
+                y = when.Bottom;
+            }
+            y += 12;
+
+            // Os números-chave numa faixa logo no alto.
+            FrameReport frames = report.Frames;
+            if (frames != null)
+            {
+                var keys = new ChipRow
+                {
+                    Location = new Point(Edge, y),
+                    Size = new Size(CardWidth, 60),
+                    ValueSize = 16f,
+                    Labels = new[] { L.T("FPS médio", "Average FPS"), "1% low", L.T("Travadinhas", "Stutters") },
+                    Values = new[] { Whole(frames.AverageFps), Whole(frames.Low1Fps), frames.StutterCount.ToString(CultureInfo.InvariantCulture) }
+                };
+                Controls.Add(keys);
+                y = keys.Bottom + CardGap;
             }
 
-            if (count > 0)
-            {
-                y += 4;
-                if (cfg.CalmBackground)
-                {
-                    Controls.Add(Note(L.T("O segundo plano calmo já está ligado: no Performance, estes programas ficam mais leves sem fechar.",
-                                          "Calm background is already on: in Performance, these programs get lighter without closing."),
-                                      20, y, 440, 36, Theme.DailyB, 8.5f));
-                    y += 42;
-                }
-                else
-                {
-                    var calm = new NeonButton { Text = L.T("Ligar o segundo plano calmo", "Turn on calm background"), Style = ButtonStyle.Primary, Location = new Point(20, y), Size = new Size(440, 42), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
-                    var calmNote = Note(L.T("Deixa os programas em segundo plano mais leves durante o jogo, sem fechar nenhum (Ajustes → Turbo).",
-                                            "Makes background programs lighter during the game without closing any (Settings → Turbo)."),
-                                        20, y + 46, 440, 32, Theme.Faint, 8f);
-                    calm.Click += (s, e) =>
-                    {
-                        cfg.CalmBackground = true;
-                        Log.Info(L.T("Raio-X: segundo plano calmo ligado", "X-ray: calm background turned on"));
-                        if (this.changed != null) this.changed();
-                        calm.Enabled = false;
-                        calm.Text = L.T("Segundo plano calmo ligado", "Calm background on");
-                        calm.Invalidate();
-                    };
-                    Controls.Add(calm);
-                    Controls.Add(calmNote);
-                    y += 82;
-                }
-            }
-
+            y = AddPrograms(report, y);
             y = AddFrames(report, y);
             if (report.CpuSpeed != null) y = AddCpuSpeed(report.CpuSpeed, y);
             if (report.Network != null) y = AddNetwork(report.Network, y);
             if (record != null) y = AddComparison(record, previous, y);
 
-            var footer = Note(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
-                                  "(dá para desligar em Ajustes → Privacidade). ",
-                                  "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1 " +
-                                  "(you can turn it off in Settings → Privacy). ") +
-                              (report.Frames != null
-                                  ? L.T("Os quadros vêm do rastreamento do Windows, sem entrar no jogo.", "Frames come from Windows tracing, without touching the game.") +
-                                    (report.Frames.FromDriver
-                                        ? L.T(" Jogo em Vulkan ou OpenGL: quadros lidos no driver de vídeo, com a hora de cada um um pouco menos precisa.",
-                                              " Vulkan or OpenGL game: frames read at the graphics driver, with each one's time slightly less precise.")
-                                        : "")
-                                  : L.T("O FPS só é medido com a permissão do Caça-travadinhas (Ajustes → Geral).", "FPS is only measured with the Stutter finder permission (Settings → General).")),
-                              20, y, 440, 32, Theme.Faint, 8f);
-            footer.Height = TextRenderer.MeasureText(footer.Text, footer.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
+            // Notas de rodapé: legíveis (TextSecondary) e em linhas curtas.
+            y += 4;
+            Label footer = MeasuredNote(L.T("Lido a cada 3 s com o jogo aberto no Performance; a rede, com um ping por segundo ao roteador e ao 1.1.1.1 " +
+                                            "(dá para desligar em Ajustes → Privacidade). ",
+                                            "Read every 3 s with the game open in Performance; the network, with one ping per second to the router and to 1.1.1.1 " +
+                                            "(you can turn it off in Settings → Privacy). ") +
+                                        (report.Frames != null
+                                            ? L.T("Os quadros vêm do rastreamento do Windows, sem entrar no jogo.", "Frames come from Windows tracing, without touching the game.") +
+                                              (report.Frames.FromDriver
+                                                  ? L.T(" Jogo em Vulkan ou OpenGL: quadros lidos no driver de vídeo, com a hora de cada um um pouco menos precisa.",
+                                                        " Vulkan or OpenGL game: frames read at the graphics driver, with each one's time slightly less precise.")
+                                                  : "")
+                                            : L.T("O FPS só é medido com a permissão do Caça-travadinhas (Ajustes → Geral).", "FPS is only measured with the Stutter finder permission (Settings → General).")),
+                                        Edge, y, 400, Theme.TextSecondary, 8.5f);
             Controls.Add(footer);
-            y += footer.Height + 6;
+            y = footer.Bottom + 16;
 
-            var close = new NeonButton { Text = L.T("Fechar", "Close"), Location = new Point(20, y), Size = new Size(440, 42), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var close = new NeonButton { Text = L.T("Fechar", "Close"), Location = new Point(Edge + CardWidth - 120, y), Size = new Size(120, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             close.Click += (s, e) => Close();
             Controls.Add(close);
-            ClientSize = new Size(480, y + 42 + 18);
+            ClientSize = new Size(480, close.Bottom + 20);
 
             FinishLayout();
         }
 
-        /// <summary>Caça-travadinhas: FPS, 1% low e as piores travadinhas com o que havia na hora. Devolve o y seguinte.</summary>
+        private static string Whole(double value)
+        {
+            return Math.Round(value).ToString(CultureInfo.InvariantCulture);
+        }
+
+        // ---------------------------------------------------------------- cartões
+
+        /// <summary>Começa um cartão com o cabeçalho (e um texto à direita, opcional). cy = onde o conteúdo começa.</summary>
+        private static Card StartCard(string header, string right, out int cy)
+        {
+            var card = new Card { Size = new Size(CardWidth, 60) };
+            var label = new SectionLabel { Text = header, Location = new Point(Pad, 14), Size = new Size(Inner, 20) };
+            if (right != null)
+            {
+                label.RightText = right;
+                label.RightColor = Theme.TextSecondary;
+            }
+            card.Controls.Add(label);
+            cy = label.Bottom + 8;
+            return card;
+        }
+
+        /// <summary>Fecha o cartão (cy = depois do último item, já com o espaço dele) e devolve o y do próximo.</summary>
+        private int EndCard(Card card, int y, int cy)
+        {
+            card.Location = new Point(Edge, y);
+            card.Height = cy + 8;
+            Controls.Add(card);
+            return card.Bottom + CardGap;
+        }
+
+        /// <summary>Texto dentro de um cartão, com a altura medida (fundo Surface: transparente pintaria o da janela).</summary>
+        private static Label CardText(Control card, string text, int x, int y, int w, Color color, float size, bool bold = false)
+        {
+            var label = new Label
+            {
+                Text = text,
+                Location = new Point(x, y),
+                ForeColor = color,
+                BackColor = Theme.Surface,
+                Font = bold ? Theme.Ui(size, FontStyle.Bold) : Theme.Ui(size),
+                UseMnemonic = false
+            };
+            label.Size = new Size(w, Theme.TextHeight(text, label.Font, w));
+            card.Controls.Add(label);
+            return label;
+        }
+
+        /// <summary>Veredito: visto verde (bom) ou exclamação âmbar, com o texto em Text. Devolve o cy seguinte.</summary>
+        private static int AddVerdict(Control card, string text, bool good, int cy)
+        {
+            card.Controls.Add(new VerdictIcon { Good = good, BackColor = Theme.Surface, Location = new Point(Pad, cy + 1), Size = new Size(16, 16) });
+            Label label = CardText(card, text, Pad + 24, cy, Inner - 24, Theme.Text, 9f);
+            return cy + Math.Max(18, label.Height) + 6;
+        }
+
+        /// <summary>Lista de itens ("• aos 10 min · ..."), cada um com a altura que precisa. Devolve o cy seguinte.</summary>
+        private static int AddBullet(Control card, string text, int cy)
+        {
+            // Recuo pendurado: a segunda linha começa sob o texto, não sob o marcador.
+            CardText(card, "•", Pad, cy, 12, Theme.TextTertiary, 9f);
+            Label line = CardText(card, text, Pad + 14, cy, Inner - 14, Theme.TextSecondary, 9f);
+            return cy + line.Height + 4;
+        }
+
+        /// <summary>"e mais 2 travadinha(s) menores": meta curta, em TextTertiary.</summary>
+        private static int AddMore(Control card, string text, int cy)
+        {
+            Label more = CardText(card, text, Pad, cy, Inner, Theme.TextTertiary, 8.5f);
+            return cy + more.Height + 4;
+        }
+
+        /// <summary>Os programas que pesaram, com "Fechar ao jogar" em cada um e o segundo plano calmo. Devolve o y seguinte.</summary>
+        private int AddPrograms(MatchReport report, int y)
+        {
+            int cy;
+            Card card = StartCard(L.T("Programas em segundo plano", "Background programs"), null, out cy);
+            int count = report.Culprits.Count;
+            if (count == 0)
+            {
+                cy = AddVerdict(card, L.T("Nada pesou em segundo plano durante a partida.", "Nothing weighed on the PC in the background during the match."), true, cy);
+                return EndCard(card, y, cy);
+            }
+
+            Label lead = CardText(card, count == 1
+                    ? L.T("1 programa pesou em segundo plano durante a partida:", "1 program weighed on the PC in the background during the match:")
+                    : L.T(count + " programas pesaram em segundo plano durante a partida:", count + " programs weighed on the PC in the background during the match:"),
+                Pad, cy, Inner, Theme.TextSecondary, 9f);
+            cy = lead.Bottom + 8;
+
+            foreach (Culprit c in report.Culprits)
+            {
+                AddRow(card, c, cy);
+                cy += RowHeight;
+            }
+            cy += 4;
+
+            if (cfg.CalmBackground)
+            {
+                cy = AddVerdict(card, L.T("O segundo plano calmo já está ligado: no Performance, estes programas ficam mais leves sem fechar.",
+                                          "Calm background is already on: in Performance, these programs get lighter without closing."), true, cy);
+                return EndCard(card, y, cy);
+            }
+
+            // A ação recomendada do relatório (o único primário da tela), depois dos dados que a justificam.
+            string on = L.T("Ligar o segundo plano calmo", "Turn on calm background"), done = L.T("Segundo plano calmo ligado", "Calm background on");
+            var calm = new NeonButton
+            {
+                Text = on,
+                Style = ButtonStyle.Primary,
+                Location = new Point(Pad, cy),
+                Size = new Size(Math.Min(Inner, ButtonWidth(180, on, done)), 36),
+                AccentA = Theme.PerfA,
+                AccentB = Theme.PerfB
+            };
+            calm.Click += (s, e) =>
+            {
+                cfg.CalmBackground = true;
+                Log.Info(L.T("Raio-X: segundo plano calmo ligado", "X-ray: calm background turned on"));
+                if (this.changed != null) this.changed();
+                calm.Enabled = false;
+                calm.Text = done;
+                calm.Invalidate();
+            };
+            card.Controls.Add(calm);
+            Label calmNote = CardText(card, L.T("Deixa os programas em segundo plano mais leves durante o jogo, sem fechar nenhum (Ajustes → Turbo).",
+                                                "Makes background programs lighter during the game without closing any (Settings → Turbo)."),
+                                      Pad, calm.Bottom + 8, Inner, Theme.TextSecondary, 8.5f);
+            return EndCard(card, y, calmNote.Bottom + 2);
+        }
+
+        /// <summary>Caça-travadinhas: as piores travadinhas com o que havia na hora (os números ficam na faixa do alto).</summary>
         private int AddFrames(MatchReport report, int y)
         {
             FrameReport frames = report.Frames;
             if (frames == null && report.FramesMissing == null) return y;
-            Controls.Add(new SectionLabel { Text = L.T("Travadinhas", "Stutters"), Location = new Point(20, y), Size = new Size(440, 20) });
-            y += 24;
+            int cy;
+            Card card = StartCard(L.T("Travadinhas", "Stutters"), null, out cy);
             if (frames == null)
             {
                 // Altura medida: o motivo pode ser longo (a mensagem de erro do Windows) e não pode sair cortado.
-                Label missing = Note(L.T("Quadros não medidos: ", "Frames not measured: ") + report.FramesMissing + ".", 20, y, 440, 34, Theme.Faint, 8.5f);
-                missing.Height = TextRenderer.MeasureText(missing.Text, missing.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-                Controls.Add(missing);
-                return y + missing.Height + 6;
+                Label missing = CardText(card, L.T("Quadros não medidos: ", "Frames not measured: ") + report.FramesMissing + ".", Pad, cy, Inner, Theme.TextSecondary, 9f);
+                return EndCard(card, y, missing.Bottom + 2);
             }
-            Controls.Add(Note(frames.Summary(), 20, y, 440, 20, Theme.Text, 9.5f));
-            y += 24;
+            if (frames.Worst.Count == 0)
+                cy = AddVerdict(card, frames.Summary(), frames.StutterCount == 0, cy);
             foreach (Stutter stutter in frames.Worst)
-            {
-                Label line = Note("• " + FrameReport.Describe(stutter), 20, y, 440, 32, Theme.Muted, 8.5f);
-                line.Height = TextRenderer.MeasureText(line.Text, line.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-                Controls.Add(line);
-                y += line.Height + 4;
-            }
+                cy = AddBullet(card, FrameReport.Describe(stutter), cy);
             if (frames.StutterCount > frames.Worst.Count)
-            {
-                Controls.Add(Note(L.T("e mais " + (frames.StutterCount - frames.Worst.Count) + " travadinha(s) menores",
-                                      "and " + (frames.StutterCount - frames.Worst.Count) + " smaller stutter(s)"), 20, y, 440, 18, Theme.Faint, 8f));
-                y += 22;
-            }
-            return y + 6;
+                cy = AddMore(card, L.T("e mais " + (frames.StutterCount - frames.Worst.Count) + " travadinha(s) menores",
+                                       "and " + (frames.StutterCount - frames.Worst.Count) + " smaller stutter(s)"), cy);
+            return EndCard(card, y, cy);
         }
 
         /// <summary>O processador: velocidade média, se foi freado e os trechos mais longos de freio. Devolve o y seguinte.</summary>
         private int AddCpuSpeed(CpuSpeedReport cpu, int y)
         {
-            Controls.Add(new SectionLabel { Text = L.T("Processador", "CPU"), Location = new Point(20, y), Size = new Size(440, 20) });
-            y += 24;
-            Label summary = Note(cpu.Summary(), 20, y, 440, 20, Theme.Text, 9.5f);
-            summary.Height = TextRenderer.MeasureText(summary.Text, summary.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-            Controls.Add(summary);
-            y += summary.Height + 2;
-            Label verdict = Note(cpu.VerdictText(), 20, y, 440, 36, cpu.Limited ? Theme.PerfB : Theme.DailyB, 9f);
-            verdict.Height = TextRenderer.MeasureText(verdict.Text, verdict.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-            Controls.Add(verdict);
-            y += verdict.Height + 8;
+            int cy;
+            Card card = StartCard(L.T("Processador", "CPU"), null, out cy);
+            Label summary = CardText(card, cpu.Summary(), Pad, cy, Inner, Theme.Text, 9.5f);
+            cy = summary.Bottom + 6;
+            cy = AddVerdict(card, cpu.VerdictText(), !cpu.Limited, cy);
             foreach (CpuSlowdown s in cpu.Worst)
-            {
-                Controls.Add(Note("• " + CpuSpeedReport.Describe(s), 20, y, 440, 18, Theme.Muted, 8.5f));
-                y += 22;
-            }
-            return y + 6;
+                cy = AddBullet(card, CpuSpeedReport.Describe(s), cy);
+            return EndCard(card, y, cy);
+        }
+
+        /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>
+        private int AddNetwork(NetworkReport net, int y)
+        {
+            int cy;
+            Card card = StartCard(L.T("Rede", "Network"), null, out cy);
+            Label summary = CardText(card, net.Summary(), Pad, cy, Inner, Theme.Text, 9.5f);
+            cy = summary.Bottom + 6;
+            cy = AddVerdict(card, net.VerdictText(), net.Verdict == NetVerdict.Stable, cy);
+            // Uma ou duas linhas, conforme o texto: cada item ocupa só a altura que precisa.
+            foreach (NetSpike spike in net.Spikes)
+                cy = AddBullet(card, NetworkReport.Describe(spike), cy);
+            if (net.SpikeCount > net.Spikes.Count)
+                cy = AddMore(card, L.T("e mais " + (net.SpikeCount - net.Spikes.Count) + " pico(s) menores",
+                                       "and " + (net.SpikeCount - net.Spikes.Count) + " smaller spike(s)"), cy);
+            return EndCard(card, y, cy);
         }
 
         /// <summary>
         /// Antes e depois: os números da partida ao lado dos da anterior do mesmo jogo e os ajustes que mudaram entre as
-        /// duas, para ver se uma mudança ajudou. Devolve o y seguinte.
+        /// duas, para ver se uma mudança ajudou. A linha fica em Text; só a variação, à direita, ganha cor. Devolve o y seguinte.
         /// </summary>
         private int AddComparison(MatchRecord record, MatchRecord previous, int y)
         {
@@ -177,27 +300,34 @@ namespace MouseModes
             {
                 // Só diz "primeira no histórico" se esta partida está mesmo gravada (não apagada, gravação que deu certo).
                 if (!cfg.KeepMatchHistory || record.FilePath == null) return y;
-                Label first = Note(L.T("Primeira partida deste jogo no histórico: a próxima vai ser comparada com esta.",
-                                       "First match of this game in the history: the next one will be compared with this one."),
-                                   20, y, 440, 18, Theme.Faint, 8.5f);
-                first.Height = Measure(first);
+                Label first = MeasuredNote(L.T("Primeira partida deste jogo no histórico: a próxima vai ser comparada com esta.",
+                                               "First match of this game in the history: the next one will be compared with this one."),
+                                           Edge, y, CardWidth, Theme.TextSecondary, 9f);
                 Controls.Add(first);
-                return y + first.Height + 10;
+                return first.Bottom + CardGap;
             }
-            Controls.Add(new SectionLabel
-            {
-                Text = L.T("Antes e depois", "Before and after"),
-                RightText = L.T("anterior: ", "previous: ") + previous.When() + " · " + MatchReport.FormatDuration(TimeSpan.FromSeconds(previous.DurationSeconds)),
-                RightColor = Theme.Faint,
-                Location = new Point(20, y),
-                Size = new Size(440, 20)
-            });
-            y += 24;
+            int cy;
+            Card card = StartCard(L.T("Antes e depois", "Before and after"),
+                                  L.T("anterior: ", "previous: ") + previous.When() + " · " + MatchReport.FormatDuration(TimeSpan.FromSeconds(previous.DurationSeconds)),
+                                  out cy);
             foreach (ComparisonLine line in MatchComparison.Results(record, previous))
             {
-                Color color = line.Better > 0 ? Theme.DailyB : line.Better < 0 ? Theme.PerfB : Theme.Muted;
-                Controls.Add(Note(line.Text, 20, y, 440, 18, color, 9f));
-                y += 20;
+                Match m = Delta.Match(line.Text);
+                var row = new TextRuns
+                {
+                    BackColor = Theme.Surface,
+                    Location = new Point(Pad, cy),
+                    Size = new Size(Inner, 20),
+                    FontSize = 9f,
+                    // Sem porcentagem (a anterior era zero, como perda 0% → 3%): a palavra leva a cor de melhor ou pior.
+                    RightText = m.Success ? m.Groups[1].Value
+                              : line.Better > 0 ? L.T("melhor", "better")
+                              : line.Better < 0 ? L.T("pior", "worse") : "",
+                    RightColor = line.Better > 0 ? Theme.Success : line.Better < 0 ? Theme.Danger : Theme.TextSecondary
+                };
+                row.Add(m.Success ? line.Text.Remove(m.Index, m.Length) : line.Text, Theme.Text);
+                card.Controls.Add(row);
+                cy += 22;
             }
             List<string> changes = MatchComparison.SettingChanges(record.Settings, previous.Settings);
             string settings = record.Settings == null || previous.Settings == null
@@ -205,75 +335,47 @@ namespace MouseModes
                 : changes.Count == 0
                     ? L.T("Nenhum ajuste do app mudou desde a anterior.", "No app setting changed since the previous one.")
                     : L.T("Mudou desde a anterior: ", "Changed since the previous one: ") + string.Join("; ", changes.ToArray()) + ".";
-            Label changed = Note(settings, 20, y + 4, 440, 18, Theme.Text, 8.5f);
-            changed.Height = Measure(changed);
-            Controls.Add(changed);
-            y += changed.Height + 8;
-            Label caveat = Note(L.T("Mapa, servidor e cena também mudam esses números: compare algumas partidas antes de concluir.",
-                                    "Map, server and scene also change these numbers: compare a few matches before concluding."),
-                                20, y, 440, 18, Theme.Faint, 8f);
-            caveat.Height = Measure(caveat);
-            Controls.Add(caveat);
-            return y + caveat.Height + 10;
+            Label changedNote = CardText(card, settings, Pad, cy + 6, Inner, Theme.Text, 9f);
+            cy = changedNote.Bottom + 6;
+            Label caveat = CardText(card, L.T("Mapa, servidor e cena também mudam esses números: compare algumas partidas antes de concluir.",
+                                              "Map, server and scene also change these numbers: compare a few matches before concluding."),
+                                    Pad, cy, Inner, Theme.TextSecondary, 8.5f);
+            return EndCard(card, y, caveat.Bottom + 2);
         }
 
-        private static int Measure(Label label)
+        /// <summary>Um programa: nome, uso (o pico em âmbar só quando alto) e a ação à direita.</summary>
+        private void AddRow(Card card, Culprit c, int y)
         {
-            return TextRenderer.MeasureText(label.Text, label.Font, new Size(label.Width, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-        }
-
-        /// <summary>A rede: resumo, de onde vieram os picos e os piores deles. Devolve o y seguinte.</summary>
-        private int AddNetwork(NetworkReport net, int y)
-        {
-            Controls.Add(new SectionLabel { Text = L.T("Rede", "Network"), Location = new Point(20, y), Size = new Size(440, 20) });
-            y += 24;
-            Controls.Add(Note(net.Summary(), 20, y, 440, 20, Theme.Text, 9.5f));
-            y += 22;
-            Controls.Add(Note(net.VerdictText(), 20, y, 440, 36, net.Verdict == NetVerdict.Stable ? Theme.DailyB : Theme.PerfB, 9f));
-            y += 40;
-            foreach (NetSpike spike in net.Spikes)
+            CardText(card, c.Name, Pad, y, Inner - ActionWidth - 12, Theme.Text, 10f, true).Height = 20;
+            var detail = new TextRuns { BackColor = Theme.Surface, Location = new Point(Pad, y + 21), Size = new Size(Inner - ActionWidth - 12, 18), FontSize = 8.5f };
+            string peak = L.T("pico ", "peak ");
+            string[] parts = MatchReport.Describe(c).Split(new[] { " · " }, StringSplitOptions.None);
+            for (int i = 0; i < parts.Length; i++)
             {
-                // Uma ou duas linhas, conforme o texto: cada item ocupa só a altura que precisa.
-                Label line = Note("• " + NetworkReport.Describe(spike), 20, y, 440, 32, Theme.Muted, 8.5f);
-                line.Height = TextRenderer.MeasureText(line.Text, line.Font, new Size(440, int.MaxValue), TextFormatFlags.WordBreak).Height + 2;
-                Controls.Add(line);
-                y += line.Height + 4;
+                if (i > 0) detail.Add(" · ", Theme.TextTertiary);
+                detail.Add(parts[i], parts[i].StartsWith(peak, StringComparison.Ordinal) && c.PeakPercent > 25 ? Theme.Warning : Theme.TextSecondary);
             }
-            if (net.SpikeCount > net.Spikes.Count)
-            {
-                Controls.Add(Note(L.T("e mais " + (net.SpikeCount - net.Spikes.Count) + " pico(s) menores",
-                                      "and " + (net.SpikeCount - net.Spikes.Count) + " smaller spike(s)"), 20, y, 440, 18, Theme.Faint, 8f));
-                y += 22;
-            }
-            return y + 6;
-        }
+            card.Controls.Add(detail);
 
-        private void AddRow(Culprit c, int y)
-        {
-            var name = Note(c.Name, 20, y, 270, 22, Theme.Text, 11f);
-            name.Font = Theme.Ui(11f, FontStyle.Bold);
-            var detail = Note(MatchReport.Describe(c), 20, y + 24, 270, 20, Theme.PerfB, 8.5f);
-            Controls.Add(name);
-            Controls.Add(detail);
-
+            int actionX = Pad + Inner - ActionWidth;
             if (GameBooster.Matches(c.Name, Launchers))
             {
-                Controls.Add(Note(L.T("launcher: melhor manter", "launcher: keep it open"), 296, y + 10, 164, 20, Theme.Faint, 8.5f));
+                AddRowNote(card, L.T("launcher: melhor manter", "launcher: keep it open"), Theme.TextSecondary, y);
                 return;
             }
             if (GameBooster.Matches(c.Name, BackgroundCalmer.NeverCalm))
             {
                 // Voz, música, overlay, software do mouse: fechar atrapalharia mais do que ajuda.
-                Controls.Add(Note(L.T("melhor manter aberto", "better kept open"), 296, y + 10, 164, 20, Theme.Faint, 8.5f));
+                AddRowNote(card, L.T("melhor manter aberto", "better kept open"), Theme.TextSecondary, y);
                 return;
             }
             if (InCloseList(c.Name))
             {
-                Controls.Add(Note(L.T("já fecha ao jogar", "already auto-closed"), 296, y + 10, 164, 20, Theme.DailyB, 8.5f));
+                AddRowNote(card, L.T("já fecha ao jogar", "already auto-closed"), Theme.Success, y);
                 return;
             }
 
-            var closeIt = new NeonButton { Text = L.T("Fechar ao jogar", "Auto-close"), Location = new Point(296, y + 4), Size = new Size(164, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var closeIt = new NeonButton { Text = L.T("Fechar ao jogar", "Auto-close"), Location = new Point(actionX, y + 4), Size = new Size(ActionWidth, 32), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             closeIt.Click += (s, e) =>
             {
                 if (!InCloseList(c.Name)) cfg.AppsToClose.Add(c.Name);
@@ -284,7 +386,14 @@ namespace MouseModes
                 closeIt.Text = L.T("Na lista", "Listed");
                 closeIt.Invalidate();
             };
-            Controls.Add(closeIt);
+            card.Controls.Add(closeIt);
+        }
+
+        /// <summary>O motivo de não haver ação (launcher, voz...), alinhado à direita da linha.</summary>
+        private static void AddRowNote(Card card, string text, Color color, int y)
+        {
+            Label note = CardText(card, text, Pad + Inner - 170, y + 10, 170, color, 8.5f);
+            note.TextAlign = ContentAlignment.TopRight;
         }
 
         private bool InCloseList(string name)

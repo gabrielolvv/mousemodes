@@ -45,6 +45,7 @@ namespace MouseModes
         private ToolTipIcon guardNoticeIcon;
         private readonly ToolStripMenuItem reportItem;
         private readonly ToolStripMenuItem historyItem;
+        private readonly DarkMenuRenderer menuRenderer;
         private readonly WinKeyBlocker winKey;
         private readonly ForegroundWatcher foreground;
 
@@ -147,10 +148,11 @@ namespace MouseModes
             Microsoft.Win32.SystemEvents.SessionEnded += OnSessionEnded;
 
             // --- Menu da bandeja ---
+            // Grupos: abrir | modos | ferramentas | partidas | app | sair. Tema escuro do app (DarkMenu).
             var openItem = new ToolStripMenuItem(L.T("Abrir MouseModes", "Open MouseModes"), null, (s, e) => ShowMain());
-            openItem.Font = new Font(openItem.Font, FontStyle.Bold);
-            perfItem = new ToolStripMenuItem(L.T("Modo Performance", "Performance mode"), null, (s, e) => SwitchManually(Mode.Performance));
-            dailyItem = new ToolStripMenuItem(L.T("Modo Dia a dia", "Daily mode"), null, (s, e) => SwitchManually(Mode.DiaADia));
+            openItem.Font = Theme.Ui(9.5f, FontStyle.Bold);
+            perfItem = new ToolStripMenuItem(L.T("Modo Performance", "Performance mode"), null, (s, e) => SwitchManually(Mode.Performance)) { Tag = Mode.Performance };
+            dailyItem = new ToolStripMenuItem(L.T("Modo Dia a dia", "Daily mode"), null, (s, e) => SwitchManually(Mode.DiaADia)) { Tag = Mode.DiaADia };
             autoItem = new ToolStripMenuItem(L.T("Trocar sozinho quando abrir um jogo", "Switch automatically when a game opens"), null, (s, e) => ToggleAuto());
             autoItem.Checked = cfg.AutoSwitch;
 
@@ -159,24 +161,27 @@ namespace MouseModes
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(perfItem);
             menu.Items.Add(dailyItem);
-            menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(autoItem);
-            menu.Items.Add(new ToolStripMenuItem(L.T("Medir polling rate...", "Measure polling rate..."), null, (s, e) => OpenPolling()));
-            menu.Items.Add(new ToolStripMenuItem(L.T("Teste de clique...", "Click test..."), null, (s, e) => OpenClickTest()));
-            menu.Items.Add(new ToolStripMenuItem(L.T("Testar mira e DPI...", "Aim and DPI test..."), null, (s, e) => OpenAimTest()));
-            menu.Items.Add(new ToolStripMenuItem(L.T("Conversor de sensibilidade...", "Sensitivity converter..."), null, (s, e) => OpenSensitivity()));
-            menu.Items.Add(new ToolStripMenuItem(L.T("Medir o DPI real...", "Measure the real DPI..."), null, (s, e) => OpenDpiMeasure()));
-            menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), null, (s, e) => OpenSettings()));
-            reportItem = new ToolStripMenuItem(L.T("Raio-X da última partida...", "Last match X-ray..."), null, (s, e) => OpenReport()) { Enabled = false };
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem(L.T("Medir polling rate...", "Measure polling rate..."), DarkMenu.Icon(GlyphKind.Gauge), (s, e) => OpenPolling()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Teste de clique...", "Click test..."), DarkMenu.Icon(GlyphKind.Mouse), (s, e) => OpenClickTest()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Testar mira e DPI...", "Aim and DPI test..."), DarkMenu.Icon(GlyphKind.Target), (s, e) => OpenAimTest()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Conversor de sensibilidade...", "Sensitivity converter..."), DarkMenu.Icon(GlyphKind.Sliders), (s, e) => OpenSensitivity()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Medir o DPI real...", "Measure the real DPI..."), DarkMenu.Icon(GlyphKind.Ruler), (s, e) => OpenDpiMeasure()));
+            menu.Items.Add(new ToolStripSeparator());
+            reportItem = new ToolStripMenuItem(L.T("Raio-X da última partida...", "Last match X-ray..."), DarkMenu.Icon(GlyphKind.Chart), (s, e) => OpenReport()) { Enabled = false };
             menu.Items.Add(reportItem);
-            historyItem = new ToolStripMenuItem(L.T("Partidas anteriores...", "Previous matches..."), null, (s, e) => OpenHistory()) { Enabled = false };
+            historyItem = new ToolStripMenuItem(L.T("Partidas anteriores...", "Previous matches..."), DarkMenu.Icon(GlyphKind.Clock), (s, e) => OpenHistory()) { Enabled = false };
             menu.Items.Add(historyItem);
             LoadLastMatch();
-            menu.Items.Add(new ToolStripMenuItem(L.T("Diagnóstico...", "Diagnostics..."), null, (s, e) => OpenDiagnostics()));
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem(L.T("Configurações...", "Settings..."), DarkMenu.Icon(GlyphKind.Gear), (s, e) => OpenSettings()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Diagnóstico...", "Diagnostics..."), DarkMenu.Icon(GlyphKind.Shield), (s, e) => OpenDiagnostics()));
             menu.Items.Add(new ToolStripMenuItem(L.T("Procurar versão nova", "Check for a new version"), null, (s, e) => CheckForUpdate(true)));
             menu.Items.Add(LanguageMenu());
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(new ToolStripMenuItem(L.T("Sair", "Quit"), null, (s, e) => Quit()));
+            menu.Items.Add(new ToolStripMenuItem(L.T("Sair", "Quit"), DarkMenu.Icon(GlyphKind.Power), (s, e) => Quit()));
+            menuRenderer = DarkMenu.Apply(menu);
 
             tray = new NotifyIcon
             {
@@ -669,6 +674,7 @@ namespace MouseModes
             bool perf = mode == Mode.Performance;
             perfItem.Checked = perf;
             dailyItem.Checked = !perf;
+            menuRenderer.CurrentMode = mode; // cor do ponto da troca automática marcada
             tray.Text = perf ? "MouseModes — Performance" : L.T("MouseModes — Dia a dia", "MouseModes — Daily");
             SetTrayIcon(mode);
 

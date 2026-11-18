@@ -36,44 +36,63 @@ namespace MouseModes
         private readonly StatusRow summary;
         private readonly TextBox events;
         private readonly List<string> eventLines = new List<string>();
+        private readonly EmptyHint noEvents;
 
         public ClickTestForm() : base(L.T("Teste de clique", "Click test"), true)
         {
             CloseOnEscape = true;
-            ClientSize = new Size(520, 560);
-            TitleBar.AccentA = Theme.DailyA;
-            TitleBar.AccentB = Theme.DailyB;
+            TitleBar.AccentA = Theme.PerfA;
+            TitleBar.AccentB = Theme.PerfB;
 
-            Controls.Add(Note(L.T("Clique normalmente com cada botão, sem pressa, uns 30 cliques em cada. " +
-                                  "Se aparecer clique fantasma, o switch daquele botão está gasto.",
-                                  "Click normally with each button, without rushing, about 30 clicks each. " +
-                                  "If a ghost click shows up, that button's switch is worn."), 20, 56, 480, 36, Theme.Muted, 9f));
+            // Esqueleto das ferramentas, só um pouco mais largo: os cinco quadrados (84 + 10 entre eles) pedem 460 de coluna
+            // para "sem fantasma" caber inteiro.
+            const int width = 460, tileW = 84;
+            Label intro = MeasuredNote(L.T("Clique normalmente com cada botão, sem pressa, uns 30 cliques em cada. " +
+                                           "Se aparecer clique fantasma, o switch daquele botão está gasto.",
+                                           "Click normally with each button, without rushing, about 30 clicks each. " +
+                                           "If a ghost click shows up, that button's switch is worn."), 20, 56, width, Theme.TextSecondary, 9f);
+            Controls.Add(intro);
 
+            int tilesY = intro.Bottom + 12;
             for (int i = 0; i < 5; i++)
             {
-                tiles[i] = new ButtonTile { Caption = Short[i], Location = new Point(20 + i * 98, 100), Size = new Size(88, 112) };
+                tiles[i] = new ButtonTile { Caption = Names[i], Location = new Point(20 + i * (tileW + 10), tilesY), Size = new Size(tileW, 104) };
                 Controls.Add(tiles[i]);
             }
 
-            summary = new StatusRow { Location = new Point(20, 226), Size = new Size(480, 60), Glyph = GlyphKind.Mouse };
+            summary = new StatusRow { Location = new Point(20, tilesY + 104 + 12), Size = new Size(width, 56), Glyph = GlyphKind.Mouse };
             Controls.Add(summary);
 
-            Controls.Add(new SectionLabel { Text = L.T("Últimos cliques", "Last clicks"), Location = new Point(20, 300), Size = new Size(480, 20) });
+            var lastLabel = new SectionLabel { Text = L.T("Últimos cliques", "Last clicks"), Location = new Point(20, summary.Bottom + 20), Size = new Size(width, 20) };
+            Controls.Add(lastLabel);
             events = new TextBox
             {
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.None,
                 BorderStyle = BorderStyle.None,
-                Font = new Font("Consolas", 9f),
+                Font = Theme.Mono(9f),
                 ContextMenuStrip = new ContextMenuStrip(), // sem menu no botão direito: o clique é do teste
                 TabStop = false
             };
-            Controls.Add(new FieldHost(events) { Location = new Point(20, 324), Size = new Size(480, 160), Accent = Theme.DailyB });
+            var eventsHost = new FieldHost(events) { Location = new Point(20, lastLabel.Bottom + 8), Size = new Size(width, 150), Accent = Theme.PerfB };
+            // Sem cliques ainda: estado vazio por cima da caixa.
+            noEvents = new EmptyHint
+            {
+                Glyph = GlyphKind.Mouse,
+                Text = L.T("Clique com qualquer botão para começar", "Click with any button to start"),
+                BackColor = Theme.Surface2,
+                Bounds = new Rectangle(2, 2, width - 4, 146)
+            };
+            events.Visible = false; // a caixa aparece com o primeiro clique
+            eventsHost.Controls.Add(noEvents);
+            noEvents.BringToFront();
+            Controls.Add(eventsHost);
 
-            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 498), Size = new Size(480, 44) };
+            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, eventsHost.Bottom + 16), Size = new Size(width, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             reset.Click += (s, e) => Reset();
             Controls.Add(reset);
+            ClientSize = new Size(width + 40, reset.Bottom + 20);
 
             UpdateSummary();
             FinishLayout();
@@ -137,6 +156,8 @@ namespace MouseModes
             eventLines.Insert(0, line);
             if (eventLines.Count > 40) eventLines.RemoveAt(eventLines.Count - 1);
             events.Text = string.Join(Environment.NewLine, eventLines.ToArray());
+            noEvents.Visible = false;
+            events.Visible = true;
         }
 
         private void UpdateSummary()
@@ -153,7 +174,7 @@ namespace MouseModes
 
             if (total == 0)
             {
-                summary.Warning = false;
+                summary.Tone = StatusTone.Neutral; // ainda sem resultado
                 summary.Title = L.T("Aguardando cliques", "Waiting for clicks");
                 summary.Subtitle = L.T("Clique em qualquer lugar desta janela", "Click anywhere in this window");
             }
@@ -186,6 +207,8 @@ namespace MouseModes
             }
             eventLines.Clear();
             events.Text = "";
+            noEvents.Visible = true;
+            events.Visible = false;
             UpdateSummary();
         }
 
@@ -204,28 +227,30 @@ namespace MouseModes
                 Graphics g = Begin(e);
                 var r = new RectangleF(0.5f, 0.5f, Width - 1, Height - 1);
                 bool bad = Ghosts > 0;
-                Color a = bad ? Theme.Danger : Theme.DailyA;
-                Color b = bad ? Color.FromArgb(255, 110, 80) : Theme.DailyB;
+                ModePalette p = Theme.PerformancePalette;
 
+                // Pressionado: cor sólida (do modo, ou vermelho com fantasma) e texto escuro/branco por cima.
+                Color fg, sub;
                 if (IsDown)
                 {
-                    using (LinearGradientBrush lb = Theme.Gradient(r, a, b, 90f))
-                        Theme.FillRounded(g, r, 12, lb);
+                    Theme.FillRounded(g, r, Theme.Radius.Md, bad ? Theme.DangerSolid : p.Fill);
+                    fg = sub = bad ? Color.White : p.OnFill;
                 }
                 else
                 {
-                    Theme.FillRounded(g, r, 12, Theme.Panel);
+                    Theme.FillRounded(g, r, Theme.Radius.Md, bad ? Theme.Alpha(Theme.Danger, 22) : Theme.Surface);
+                    Theme.StrokeRounded(g, r, Theme.Radius.Md, bad ? Theme.Alpha(Theme.Danger, 160) : Theme.Border, 1f);
+                    fg = Theme.Text;
+                    sub = bad ? Theme.DangerText : Theme.TextTertiary;
                 }
-                Theme.StrokeRounded(g, r, 12, bad ? Theme.Alpha(Theme.Danger, 200) : Theme.Border, bad ? 1.5f : 1f);
 
-                Color fg = IsDown ? Color.White : Theme.Muted;
-                using (var tb = new SolidBrush(fg))
-                    Theme.DrawSpacedCentered(g, Caption, Theme.Ui(7.5f, FontStyle.Bold), tb, new RectangleF(r.X, r.Y + 8, r.Width, 18), 1.4f);
-                Theme.DrawText(g, Clicks.ToString(), Theme.Display(22f), IsDown ? Color.White : Theme.Text,
-                    new RectangleF(r.X, r.Y + 28, r.Width, 40), StringAlignment.Center, StringAlignment.Center, false);
+                Theme.DrawText(g, Caption, Theme.UiSemibold(Theme.TypeScale.Caption), IsDown ? fg : Theme.TextSecondary,
+                    new RectangleF(r.X + 4, r.Y + 10, r.Width - 8, 18), StringAlignment.Center, StringAlignment.Center, false);
+                Theme.DrawText(g, Clicks.ToString(), Theme.Num(22f), fg,
+                    new RectangleF(r.X, r.Y + 30, r.Width, 40), StringAlignment.Center, StringAlignment.Center, false);
                 Theme.DrawText(g, Ghosts == 0 ? L.T("sem fantasma", "no ghosts") : Ghosts + (Ghosts == 1 ? L.T(" fantasma", " ghost") : L.T(" fantasmas", " ghosts")),
-                    Theme.Ui(7.5f, FontStyle.Bold), IsDown ? Color.White : bad ? Theme.Danger : Theme.Faint,
-                    new RectangleF(r.X, r.Bottom - 30, r.Width, 20), StringAlignment.Center, StringAlignment.Center, false);
+                    Theme.Ui(Theme.TypeScale.Caption), sub,
+                    new RectangleF(r.X - 4, r.Bottom - 28, r.Width + 8, 20), StringAlignment.Center, StringAlignment.Center, false);
             }
         }
     }

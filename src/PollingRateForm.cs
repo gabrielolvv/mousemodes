@@ -24,6 +24,7 @@ namespace MouseModes
         private readonly ChipRow chips;
         private readonly IntervalGraph graph;
         private readonly Label status;
+        private readonly StatusRow rawWarning;
         private readonly Timer refresh;
         private readonly RawMouse raw = new RawMouse();
         private double lastEventMs = -1;
@@ -34,30 +35,38 @@ namespace MouseModes
         public PollingRateForm() : base("Polling rate", true)
         {
             CloseOnEscape = true;
-            ClientSize = new Size(480, 578);
             TitleBar.AccentA = Theme.PerfA;
             TitleBar.AccentB = Theme.PerfB;
 
-            var help = Note(L.T("Mexa o mouse rápido, em círculos, por uns 3 segundos.", "Move the mouse fast, in circles, for about 3 seconds."), 20, 56, 440, 20, Theme.Muted, 9f);
-            help.TextAlign = ContentAlignment.MiddleCenter;
+            // Esqueleto das ferramentas: 480 de largura, abertura à esquerda, número grande, aviso de Raw Input logo abaixo
+            // dele (só quando falta), detalhes e o botão no pé.
+            Label help = MeasuredNote(L.T("Mexa o mouse rápido, em círculos, por uns 3 segundos.", "Move the mouse fast, in circles, for about 3 seconds."),
+                                      20, 56, 440, Theme.TextSecondary, 9f);
 
-            readout = new BigReadout { Location = new Point(12, 80), Size = new Size(456, 160), Caption = L.T("aguardando movimento", "waiting for movement") };
+            readout = new BigReadout { Location = new Point(12, help.Bottom + 2), Size = new Size(456, 156), Caption = L.T("aguardando movimento", "waiting for movement") };
+            int y = readout.Bottom + 4;
+            rawWarning = new StatusRow { Location = new Point(20, y), Size = new Size(440, 56), Glyph = GlyphKind.Mouse, Warning = true, Visible = false, Title = L.T("Raw Input indisponível", "Raw Input unavailable") };
             chips = new ChipRow
             {
-                Location = new Point(20, 250),
-                Size = new Size(440, 48),
-                Labels = new[] { L.T("MEDIDO", "MEASURED"), L.T("PICO", "PEAK"), L.T("INTERVALO", "INTERVAL"), "JITTER" },
+                Location = new Point(20, y),
+                Size = new Size(440, 52),
+                Labels = new[] { L.T("Medido", "Measured"), L.T("Pico", "Peak"), L.T("Intervalo", "Interval"), "Jitter" },
                 Values = new[] { "—", "—", "—", "—" }
             };
-            var graphLabel = new SectionLabel { Text = L.T("Intervalo entre leituras (últimas 120)", "Interval between reports (last 120)"), Location = new Point(20, 314), Size = new Size(440, 20) };
-            graph = new IntervalGraph { Location = new Point(20, 338), Size = new Size(440, 120) };
-            status = Note("", 20, 466, 440, 36, Theme.Faint, 8.5f);
+            var graphLabel = new SectionLabel { Text = L.T("Intervalo entre leituras (últimas 120)", "Interval between reports (last 120)"), Location = new Point(20, chips.Bottom + 20), Size = new Size(440, 20) };
+            graph = new IntervalGraph { Location = new Point(20, graphLabel.Bottom + 8), Size = new Size(440, 120) };
+            // Até 2 linhas (acima de 2000 Hz).
+            // Já começa com a explicação do número grande: o espaço dela (até 2 linhas) não fica vazio entre o gráfico e
+            // o botão; acima de 2000 Hz ela vira o aviso.
+            status = MeasuredNote(StandardNote, 20, graph.Bottom + 8, 440, Theme.TextSecondary, 8.5f, 32);
 
-            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, 516), Size = new Size(440, 44), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
+            var reset = new NeonButton { Text = L.T("Zerar", "Reset"), Location = new Point(20, status.Bottom + 8), Size = new Size(440, 36), AccentA = Theme.PerfA, AccentB = Theme.PerfB };
             reset.Click += (s, e) => Reset();
+            ClientSize = new Size(480, reset.Bottom + 20);
 
             Controls.Add(help);
             Controls.Add(readout);
+            Controls.Add(rawWarning);
             Controls.Add(chips);
             Controls.Add(graphLabel);
             Controls.Add(graph);
@@ -79,7 +88,7 @@ namespace MouseModes
             readout.Value = "—";
             readout.Caption = L.T("aguardando movimento", "waiting for movement");
             chips.Values = new[] { "—", "—", "—", "—" };
-            status.Text = "";
+            status.Text = StandardNote;
             graph.SetSamples(intervals, 120);
             readout.Invalidate();
             chips.Invalidate();
@@ -91,7 +100,8 @@ namespace MouseModes
             string error;
             if (!raw.Register(this, true, OnRawInput, out error))
             {
-                status.Text = L.T("Raw Input indisponível: ", "Raw Input unavailable: ") + error;
+                rawWarning.Subtitle = error;
+                RevealPushingDown(rawWarning, 56, 12);
                 Log.Warn(L.T("Medidor de polling: Raw Input indisponível (", "Polling meter: Raw Input unavailable (") + error + ")");
             }
         }
@@ -159,7 +169,12 @@ namespace MouseModes
             if (moving) graph.SetSamples(intervals, 120);
             status.Text = rate >= 3000
                 ? L.T("Acima de 2000 Hz o Windows pode juntar leituras; o valor real pode ser maior.", "Above 2000 Hz Windows may merge reports; the real value may be higher.")
-                : L.T("O número grande é o padrão mais próximo do medido (125, 250, 500, 1000...).", "The big number is the standard rate closest to what was measured (125, 250, 500, 1000...).");
+                : StandardNote;
+        }
+
+        private static string StandardNote
+        {
+            get { return L.T("O número grande é o padrão mais próximo do medido (125, 250, 500, 1000...).", "The big number is the standard rate closest to what was measured (125, 250, 500, 1000...)."); }
         }
 
         private static int Nearest(int rate)
