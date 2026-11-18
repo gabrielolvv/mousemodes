@@ -4,6 +4,22 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Hotkey as keys in Settings:** the hotkey field shows the combination as drawn keys, the same as in the main window.
+  It works as before: click or Tab, press the new combination; Esc cancels.
+
+### Fixes
+
+- **Short screen or high scaling:** when a window does not fit and scrolls, the scroll bar is the theme's thin bar
+  instead of the dark Windows gutter.
+- **Match X-ray with the comparison on a 1080 px screen:** the closing note and the Close button were outside the
+  scroll area and never showed. The scroll now reaches them.
+- **History:** no more empty space between "3 matches saved." and the buttons.
+- **Settings, Daily page:** fits whole, without a scroll of a few pixels.
+
 ## 1.18.0
 
 ### New

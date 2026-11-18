@@ -968,8 +968,7 @@ namespace MouseModes
             float k = g.DpiY / 96f;
             Font footFont = Theme.Ui(Theme.TypeScale.Caption);
             Font textFont = Theme.Ui(Theme.TypeScale.Caption);
-            Font keyFont = Theme.UiSemibold(Theme.TypeScale.Caption);
-            float rowH = Math.Max(24 * k, (float)Math.Ceiling(keyFont.GetHeight(g)) + 8 * k);
+            float rowH = Keycaps.RowHeight(g, k);
 
             // Rodapé: divisória e o aviso da bandeja (quebra em duas linhas se não couber ao lado da ação)
             float footH = footerAction != null ? footerAction.Height : Math.Max(18 * k, (float)Math.Ceiling(footFont.GetHeight(g)));
@@ -987,26 +986,103 @@ namespace MouseModes
                 return;
             }
 
-            float x = 0;
             float capH = rowH - 2 * k; // 1,5 px de "profundidade" da tecla por baixo
-            for (int i = 0; i < keys.Length; i++)
-            {
-                SizeF s;
-                using (var format = new StringFormat(StringFormatFlags.NoWrap)) s = g.MeasureString(keys[i], keyFont, PointF.Empty, format);
-                var cap = new RectangleF(x + 0.5f, 0.5f, Math.Max(26 * k, s.Width + 14 * k), capH);
-                Theme.FillRounded(g, new RectangleF(cap.X, cap.Y + 1.5f * k, cap.Width, cap.Height), Theme.Radius.Xs, Theme.BorderStrong);
-                Theme.FillRounded(g, cap, Theme.Radius.Xs, Theme.Surface2);
-                Theme.StrokeRounded(g, cap, Theme.Radius.Xs, Theme.BorderStrong, 1f);
-                Theme.DrawText(g, keys[i], keyFont, Theme.Text, cap, StringAlignment.Center, StringAlignment.Center, false);
-                x = cap.Right + 4 * k;
-                if (i < keys.Length - 1)
-                {
-                    Theme.DrawText(g, "+", Theme.Ui(9f), Theme.TextTertiary, new RectangleF(x, 0, 10 * k, capH), StringAlignment.Center, StringAlignment.Center, false);
-                    x += 14 * k;
-                }
-            }
+            float x = Keycaps.Draw(g, keys, 0, 0, capH, k);
             Theme.DrawText(g, L.T("alterna os modos, até dentro do jogo", "switches modes, even inside a game"), textFont, Theme.TextSecondary,
                 new RectangleF(x + 8 * k, 0, Math.Max(1, Width - x - 8 * k), capH + 1), StringAlignment.Near, StringAlignment.Center, false);
+        }
+    }
+
+    /// <summary>Posição de cada tecla e de cada "+" de uma fileira de keycaps, e onde a fileira termina.</summary>
+    public sealed class KeycapLayout
+    {
+        public RectangleF[] Caps;
+        /// <summary>O "+" depois de cada tecla (o último só existe com trailingPlus).</summary>
+        public RectangleF[] Plus;
+        /// <summary>Primeiro x livre depois da fileira.</summary>
+        public float End;
+    }
+
+    /// <summary>
+    /// Teclas de atalho desenhadas como keycaps (Surface2, contorno BorderStrong, raio 4, UiSemibold 8,5, "+" em
+    /// TextTertiary): o pé da janela principal (HotkeyHint) e o campo do atalho nos Ajustes (HotkeyBox).
+    /// </summary>
+    public static class Keycaps
+    {
+        public const float MinWidth = 26f;
+        /// <summary>Folga horizontal somada à largura do texto (7 px de cada lado).</summary>
+        public const float Padding = 14f;
+        /// <summary>Espaço entre a tecla e o "+" (e depois da última tecla).</summary>
+        public const float Gap = 4f;
+        public const float PlusWidth = 10f;
+        /// <summary>Quanto o "+" avança até a próxima tecla.</summary>
+        public const float PlusAdvance = 14f;
+        /// <summary>A "profundidade" da tecla, uma faixa BorderStrong por baixo.</summary>
+        public const float Depth = 1.5f;
+
+        public static Font Font { get { return Theme.UiSemibold(Theme.TypeScale.Caption); } }
+
+        /// <summary>Altura da fileira: a tecla (RowHeight − 2 px) mais a profundidade, com folga.</summary>
+        public static float RowHeight(Graphics g, float k)
+        {
+            return Math.Max(24 * k, (float)Math.Ceiling(Font.GetHeight(g)) + 8 * k);
+        }
+
+        /// <summary>
+        /// Onde fica cada tecla a partir de (x, y), sem desenhar. textWidth mede o nome de uma tecla; k é a escala de DPI.
+        /// trailingPlus põe um "+" depois da última tecla (a combinação ainda sem a tecla final).
+        /// </summary>
+        public static KeycapLayout Layout(string[] keys, Func<string, float> textWidth, float x, float y, float capH, float k, bool trailingPlus = false)
+        {
+            int n = keys != null ? keys.Length : 0;
+            var layout = new KeycapLayout { Caps = new RectangleF[n], Plus = new RectangleF[trailingPlus ? n : Math.Max(0, n - 1)] };
+            for (int i = 0; i < n; i++)
+            {
+                var cap = new RectangleF(x + 0.5f, y + 0.5f, Math.Max(MinWidth * k, textWidth(keys[i]) + Padding * k), capH);
+                layout.Caps[i] = cap;
+                x = cap.Right + Gap * k;
+                if (i < layout.Plus.Length)
+                {
+                    layout.Plus[i] = new RectangleF(x, y, PlusWidth * k, capH);
+                    x += PlusAdvance * k;
+                }
+            }
+            layout.End = x;
+            return layout;
+        }
+
+        private static KeycapLayout Measure(Graphics g, string[] keys, float x, float y, float capH, float k, bool trailingPlus)
+        {
+            Font keyFont = Font;
+            using (var format = new StringFormat(StringFormatFlags.NoWrap))
+                return Layout(keys, s => g.MeasureString(s, keyFont, PointF.Empty, format).Width, x, y, capH, k, trailingPlus);
+        }
+
+        /// <summary>Largura da fileira desenhada a partir de x = 0 (para saber se cabe antes de desenhar).</summary>
+        public static float Width(Graphics g, string[] keys, float k, bool trailingPlus = false)
+        {
+            return Measure(g, keys, 0, 0, 0, k, trailingPlus).End;
+        }
+
+        /// <summary>
+        /// Desenha a fileira a partir de (x, y) e devolve o primeiro x livre depois dela. fill troca o
+        /// preenchimento da tecla (padrão Surface2) para quando o fundo já é Surface2, como num campo.
+        /// </summary>
+        public static float Draw(Graphics g, string[] keys, float x, float y, float capH, float k, bool trailingPlus = false, Color? fill = null)
+        {
+            Font keyFont = Font;
+            KeycapLayout layout = Measure(g, keys, x, y, capH, k, trailingPlus);
+            for (int i = 0; i < layout.Caps.Length; i++)
+            {
+                RectangleF cap = layout.Caps[i];
+                Theme.FillRounded(g, new RectangleF(cap.X, cap.Y + Depth * k, cap.Width, cap.Height), Theme.Radius.Xs, Theme.BorderStrong);
+                Theme.FillRounded(g, cap, Theme.Radius.Xs, fill ?? Theme.Surface2);
+                Theme.StrokeRounded(g, cap, Theme.Radius.Xs, Theme.BorderStrong, 1f);
+                Theme.DrawText(g, keys[i], keyFont, Theme.Text, cap, StringAlignment.Center, StringAlignment.Center, false);
+            }
+            foreach (RectangleF plus in layout.Plus)
+                Theme.DrawText(g, "+", Theme.Ui(9f), Theme.TextTertiary, plus, StringAlignment.Center, StringAlignment.Center, false);
+            return layout.End;
         }
     }
 
@@ -1395,6 +1471,12 @@ namespace MouseModes
                 // A barra fina ocupa a margem direita do campo, logo depois da região visível da lista ou do texto.
                 bar.Bounds = new Rectangle(12 + area.Width, 8, native, Math.Max(10, Height - 16));
             }
+            else if (inner is GControl)
+            {
+                // Controle desenhado à mão (o campo do atalho, com keycaps): ocupa o campo quase todo, longe dos cantos
+                // arredondados e do contorno de foco, e centraliza o próprio conteúdo na vertical.
+                inner.Bounds = new Rectangle(10, 3, Math.Max(10, Width - 20), Math.Max(10, Height - 6));
+            }
             else
             {
                 inner.Bounds = new Rectangle(12, 10, Math.Max(10, Width - 24), Math.Max(10, Height - 20));
@@ -1582,6 +1664,12 @@ namespace MouseModes
             if (listener == null) return;
             listener.ReleaseHandle();
             listener = null;
+        }
+
+        /// <summary>Posição de rolagem lida na última sincronização.</summary>
+        internal int Position
+        {
+            get { return pos; }
         }
 
         /// <summary>Há o que rolar: o conteúdo passa da área visível.</summary>
