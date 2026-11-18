@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -160,6 +160,109 @@ namespace MouseModes.Tests
             Assert.Equal(2, MatchHistory.Clear());
             Assert.Empty(MatchHistory.Load());
             Assert.Equal(0, MatchHistory.Clear());
+        }
+
+        /// <summary>Um arquivo como o das versões 1.16 a 1.19 gravavam (schema 1, sem a partida no tempo), com dados inventados.</summary>
+        private const string Schema1File =
+            "<?xml version=\"1.0\"?>\r\n" +
+            "<MatchRecord xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">\r\n" +
+            "  <Schema>1</Schema>\r\n" +
+            "  <AppVersion>1.19.0</AppVersion>\r\n" +
+            "  <Ended>2026-11-16T21:40:12Z</Ended>\r\n" +
+            "  <Game>cs2</Game>\r\n" +
+            "  <DurationSeconds>1800</DurationSeconds>\r\n" +
+            "  <Culprits>\r\n" +
+            "    <Culprit><Name>chrome</Name><AveragePercent>4</AveragePercent><PeakPercent>30</PeakPercent><IoBytes>1</IoBytes></Culprit>\r\n" +
+            "  </Culprits>\r\n" +
+            "  <Frames>\r\n" +
+            "    <Frames>259200</Frames><AverageFps>144</AverageFps><Low1Fps>86.4</Low1Fps><Low01Fps>57.6</Low01Fps>\r\n" +
+            "    <MedianMs>6.94</MedianMs><StutterCount>6</StutterCount>\r\n" +
+            "    <Worst><Stutter><At>61</At><Ms>85</Ms><Cause>nessa hora o chrome usava 30% do processador</Cause></Stutter></Worst>\r\n" +
+            "    <FromDriver>false</FromDriver>\r\n" +
+            "  </Frames>\r\n" +
+            "  <Network>\r\n" +
+            "    <Samples>1800</Samples><Wifi>false</Wifi><Vpn>false</Vpn><InternetMedian>20</InternetMedian><Jitter>2.5</Jitter>\r\n" +
+            "    <LossPercent>0.5</LossPercent><GatewayMedian>2</GatewayMedian><Verdict>Stable</Verdict><SpikeCount>1</SpikeCount>\r\n" +
+            "    <Spikes><NetSpike><At>120</At><Seconds>3</Seconds><PeakMs>140</PeakMs><Lost>false</Lost><Local>false</Local><Busy>steam</Busy><BusyBytes>5</BusyBytes></NetSpike></Spikes>\r\n" +
+            "  </Network>\r\n" +
+            "  <CpuSpeed>\r\n" +
+            "    <AveragePerformance>97</AveragePerformance><MeasuredSeconds>1800</MeasuredSeconds><LimitedSeconds>90</LimitedSeconds>\r\n" +
+            "    <LowestLimit>70</LowestLimit><Worst><CpuSlowdown><At>300</At><Seconds>90</Seconds><LowestLimit>70</LowestLimit><OnBattery>false</OnBattery></CpuSlowdown></Worst>\r\n" +
+            "    <BatterySeconds>0</BatterySeconds>\r\n" +
+            "  </CpuSpeed>\r\n" +
+            "  <Settings><PointerSpeed>10</PointerSpeed><PowerPlan>AltoDesempenho</PowerPlan><FpsCap>0</FpsCap></Settings>\r\n" +
+            "</MatchRecord>\r\n";
+
+        [Fact]
+        public void OldFileWithoutTheTimelineStillLoadsWithoutOne()
+        {
+            Directory.CreateDirectory(MatchHistory.Folder);
+            File.WriteAllText(Path.Combine(MatchHistory.Folder, "20261116-214012-cs2.xml"), Schema1File);
+
+            MatchRecord back = Assert.Single(MatchHistory.Load());
+            MatchReport report = back.ToReport();
+
+            Assert.Equal(1, back.Schema);
+            Assert.Null(back.Timeline);
+            Assert.Null(report.Timeline);
+            Assert.Equal(144, report.Frames.AverageFps);
+            Assert.Equal(61, report.Frames.Worst[0].At);
+            Assert.Equal("steam", report.Network.Spikes[0].Busy);
+            Assert.Equal(90, report.CpuSpeed.Worst[0].Seconds);
+            Assert.Equal(PowerPlanOption.AltoDesempenho, back.Settings.PowerPlan);
+        }
+
+        [Fact]
+        public void FileFromANewerVersionWithUnknownElementsStillLoads()
+        {
+            string newer = Schema1File
+                .Replace("<Schema>1</Schema>", "<Schema>3</Schema>")
+                .Replace("</Settings>", "</Settings>\r\n  <Futuro><Coisa>1</Coisa></Futuro>\r\n" +
+                         "  <Timeline><BucketSeconds>5</BucketSeconds><Points><P t=\"0\" f=\"NaN\" l=\"NaN\" p=\"20\" x=\"0\" z=\"9\" />" +
+                         "<P t=\"5\" f=\"143.6\" l=\"90.1\" p=\"-1\" x=\"5\" /></Points><Novo>sim</Novo></Timeline>");
+            Directory.CreateDirectory(MatchHistory.Folder);
+            File.WriteAllText(Path.Combine(MatchHistory.Folder, "20261116-214012-cs2.xml"), newer);
+
+            MatchReport report = Assert.Single(MatchHistory.Load()).ToReport();
+
+            Assert.Equal("cs2", report.Game);
+            Assert.Equal(2, report.Timeline.Points.Count);
+            Assert.Equal(20, report.Timeline.Points[0].Ping);
+            Assert.Equal(143.6f, report.Timeline.Points[1].Fps);
+            Assert.Empty(report.Timeline.Stutters);
+            Assert.Empty(report.Timeline.Slowdowns);
+        }
+
+        [Fact]
+        public void TwoHourMatchWithItsTimelineStaysASmallFile()
+        {
+            const int seconds = 2 * 3600;
+            var random = new Random(7);
+            var frames = new List<FrameSample>();
+            for (double t = 0; t < seconds; )
+            {
+                float ms = 5f + (float)random.NextDouble() * 7f; // 83 a 200 FPS, nada redondo
+                if (t > 1800 && t < 1830) ms = 40f;              // um trecho pesado
+                t += ms / 1000.0;
+                frames.Add(new FrameSample(t, ms));
+            }
+            var net = new List<NetSample>();
+            for (int s = 0; s < seconds + 3; s++) net.Add(new NetSample(s + 0.37, 2, random.Next(50) == 0 ? NetSample.Lost : 18 + random.Next(13)));
+            var stutters = new List<Stutter>();
+            for (int i = 0; i < 400; i++) stutters.Add(new Stutter { At = 10 + random.NextDouble() * (seconds - 20), Ms = 30 + random.NextDouble() * 200 });
+            var slowdowns = new List<CpuSlowdown>();
+            for (int i = 0; i < 20; i++) slowdowns.Add(new CpuSlowdown { At = i * 350.123, Seconds = 3.017 * (i + 1), LowestLimit = 70 });
+
+            MatchRecord record = Match("cs2", new DateTime(2026, 11, 16, 23, 0, 0, DateTimeKind.Utc), minutes: 120);
+            record.Timeline = MatchTimeline.Build(frames, net, stutters, slowdowns, seconds);
+            string path = MatchHistory.Save(record);
+
+            Assert.True(new FileInfo(path).Length < 40 * 1024, "arquivo de " + new FileInfo(path).Length + " bytes");
+            MatchTimeline back = Assert.Single(MatchHistory.Load()).ToReport().Timeline;
+            Assert.Equal(25, back.BucketSeconds);
+            Assert.Equal(289, back.Points.Count); // os pings passam uns segundos das 2 h: um balde a mais, curto
+            Assert.Equal(MatchTimeline.MaxStutters, back.Stutters.Count);
+            Assert.Equal(20, back.Slowdowns.Count);
         }
 
         [Fact]

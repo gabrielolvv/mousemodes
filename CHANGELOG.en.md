@@ -4,6 +4,15 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Match chart in the X-ray:** a new card, "The match over time", shows the average FPS and 1% low across the match,
+  the ping right below, stutters and lost pings marked when they happened, and the stretches with a throttled
+  processor. Hovering shows the minute with that point's FPS and ping. The chart is kept in the history; matches saved
+  before this version open without it.
+
 ## 1.19.0
 
 ### New
