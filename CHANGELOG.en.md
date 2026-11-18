@@ -4,6 +4,14 @@
 
 Each version has a `## X.Y.Z` section, the same as in `CHANGELOG.md`. The GitHub Release shows both, Portuguese first.
 
+## Next version
+
+### New
+
+- **Copy the match:** the X-ray has a new Copy button, next to Close. It puts the match on the clipboard as an image
+  and as text at once: Discord pastes the image (game, duration, average FPS, 1% low, stutters, the chart, network and
+  CPU, sharp at 2x); a text editor pastes the text. The names of background programs are left out.
+
 ## 1.20.0
 
 ### New

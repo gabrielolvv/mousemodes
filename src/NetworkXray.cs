@@ -81,11 +81,17 @@ namespace MouseModes
         /// <summary>"ping 18 ms · jitter 2 ms · perda 0% · roteador 3 ms · Wi-Fi"</summary>
         public string Summary()
         {
-            var culture = Culture();
-            string text = "ping " + InternetMedian + " ms · jitter " + Jitter.ToString("0", culture) + " ms · " +
-                          L.T("perda ", "loss ") + LossPercent.ToString(LossPercent < 10 && LossPercent > 0 ? "0.#" : "0", culture) + "%";
+            string text = Basics();
             if (GatewayMedian >= 0) text += L.T(" · roteador ", " · router ") + GatewayMedian + " ms";
             return text + (Wifi ? " · Wi-Fi" : L.T(" · cabo", " · cable")) + (Vpn ? " · VPN" : "");
+        }
+
+        /// <summary>"ping 18 ms · jitter 2 ms · perda 0,4%": o começo do Summary (também no texto de compartilhar).</summary>
+        internal string Basics()
+        {
+            var culture = Culture();
+            return "ping " + InternetMedian + " ms · jitter " + Jitter.ToString("0", culture) + " ms · " +
+                   L.T("perda ", "loss ") + LossPercent.ToString(LossPercent < 10 && LossPercent > 0 ? "0.#" : "0", culture) + "%";
         }
 
         public string VerdictText()

@@ -251,11 +251,11 @@ namespace MouseModes
         // ---------------------------------------------------------------- desenho
 
         /// <summary>As faixas (px do dispositivo): FPS em cima, ping embaixo; a que não tem dado some e a outra fica com o espaço.</summary>
-        private void Bands(float k, float gutter, bool fps, bool ping, out RectangleF fpsBand, out RectangleF pingBand, out RectangleF axis)
+        private static void Bands(RectangleF bounds, float k, float gutter, bool fps, bool ping, out RectangleF fpsBand, out RectangleF pingBand, out RectangleF axis)
         {
-            float x = gutter, w = Math.Max(1, Width - x - RightPad * k);
-            float top = TopPad * k;
-            float bottom = Height - AxisHeight * k;
+            float x = bounds.X + gutter, w = Math.Max(1, bounds.Right - x - RightPad * k);
+            float top = bounds.Y + TopPad * k;
+            float bottom = bounds.Bottom - AxisHeight * k;
             axis = new RectangleF(x, bottom, w, AxisHeight * k);
             float plotBottom = bottom - AxisGap * k;
             if (fps && ping)
@@ -283,8 +283,17 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = Begin(e);
+            Draw(g, new RectangleF(0, 0, Width, Height), g.DpiX / 96f, true);
+        }
+
+        /// <summary>
+        /// Desenha o gráfico em bounds (px do dispositivo), com as medidas a 96 dpi multiplicadas por k; as fontes (em pt)
+        /// seguem o dpi do Graphics, então k deve ser g.DpiX / 96. Serve à janela (OnPaint) e à imagem de compartilhar
+        /// (MatchShare, sem o ponto sob o mouse). Não limpa o fundo.
+        /// </summary>
+        internal void Draw(Graphics g, RectangleF bounds, float k, bool withHover)
+        {
             if (timeline == null || timeline.Points == null || (!hasFps && !hasPing)) return;
-            float k = g.DpiX / 96f;
             Font valueFont = Theme.Num(Theme.TypeScale.Caption);
             Font axisFont = Theme.Ui(Theme.TypeScale.Caption);
 
@@ -301,7 +310,7 @@ namespace MouseModes
             gutter = Math.Max(Gutter * k / 2, (float)Math.Ceiling(gutter) + 1 * k + GutterGap * k);
 
             RectangleF fpsBand, pingBand, axis;
-            Bands(k, gutter, hasFps, hasPing, out fpsBand, out pingBand, out axis);
+            Bands(bounds, k, gutter, hasFps, hasPing, out fpsBand, out pingBand, out axis);
             plotX = axis.X;
             plotW = axis.Width;
             float half = (float)(timeline.BucketSeconds / 2);
@@ -318,7 +327,7 @@ namespace MouseModes
 
             if (hasFps)
             {
-                Grid(g, fpsBand, fpsTop, fpsStep, valueFont, fpsLabels);
+                Grid(g, bounds, fpsBand, fpsTop, fpsStep, valueFont, fpsLabels, k);
 
                 // Travadinhas: traços curtos, finos e translúcidos na base da faixa de FPS, por baixo da linha e da área do
                 // FPS (muitas juntas viram intensidade da cor, sem esconder o FPS baixo).
@@ -335,12 +344,12 @@ namespace MouseModes
 
             if (hasPing)
             {
-                Grid(g, pingBand, pingTop, pingStep, valueFont, pingLabels);
+                Grid(g, bounds, pingBand, pingTop, pingStep, valueFont, pingLabels, k);
                 DrawPing(g, pingBand, pingTop, half, k);
             }
 
-            DrawAxis(g, axis, axisFont, k);
-            if (hover >= 0 && hover < timeline.Points.Count) DrawHover(g, timeline.Points[hover], main, fpsBand, pingBand, k);
+            DrawAxis(g, bounds, axis, axisFont, k);
+            if (withHover && hover >= 0 && hover < timeline.Points.Count) DrawHover(g, bounds, timeline.Points[hover], main, fpsBand, pingBand, k);
         }
 
         private const string FpsUnit = " FPS", PingUnit = " ms";
@@ -352,22 +361,23 @@ namespace MouseModes
         }
 
         /// <summary>Grade de 1 px nítida (FillRectangle) da base ao topo, com o valor de cada linha (menos o zero) à esquerda.</summary>
-        private void Grid(Graphics g, RectangleF band, double top, double step, Font font, List<string> labels)
+        private static void Grid(Graphics g, RectangleF bounds, RectangleF band, double top, double step, Font font, List<string> labels, float k)
         {
-            float k = g.DpiX / 96f;
             float h = font.GetHeight(g);
             using (var grid = new SolidBrush(Theme.Decor))
             using (var text = new SolidBrush(Theme.TextTertiary))
             using (var format = LabelFormat())
             {
                 format.Alignment = StringAlignment.Far;
+                // Espessura em px inteiros que acompanha k: 1 px a 100% e 150%, 2 px a 200% e na imagem de compartilhar.
+                float thickness = Math.Max(1f, (float)Math.Floor(k));
                 int i = 0;
                 for (double v = 0; v <= top + step / 2; v += step)
                 {
                     float y = (float)Math.Round(band.Bottom - (float)(v / top) * band.Height);
-                    g.FillRectangle(grid, band.X, y, band.Width, 1);
+                    g.FillRectangle(grid, band.X, y, band.Width, thickness);
                     if (v <= 0 || i >= labels.Count) continue;
-                    g.DrawString(labels[i++], font, text, new RectangleF(0, y - h / 2f, band.X - GutterGap * k, h + 2 * k), format);
+                    g.DrawString(labels[i++], font, text, new RectangleF(bounds.X, y - h / 2f, band.X - bounds.X - GutterGap * k, h + 2 * k), format);
                 }
             }
         }
@@ -467,7 +477,7 @@ namespace MouseModes
         }
 
         /// <summary>Minutos no eixo de tempo: "0  10  20  30 min", sem passar das bordas do controle.</summary>
-        private void DrawAxis(Graphics g, RectangleF axis, Font font, float k)
+        private void DrawAxis(Graphics g, RectangleF bounds, RectangleF axis, Font font, float k)
         {
             int maxLabels = Math.Max(2, (int)(axis.Width / (TimeLabelSpace * k)) + 1);
             int step = TimeStepMinutes(total, maxLabels);
@@ -481,14 +491,14 @@ namespace MouseModes
                     string text = minutes.ToString(CultureInfo.InvariantCulture) + (i == last ? " min" : "");
                     float w = g.MeasureString(text, font, PointF.Empty, format).Width;
                     float x = X(minutes * 60.0) - w / 2;
-                    x = Math.Max(0, Math.Min(Width - w, x));
+                    x = Math.Max(bounds.X, Math.Min(bounds.Right - w, x));
                     g.DrawString(text, font, brush, x, axis.Y + 1 * k, format);
                 }
             }
         }
 
         /// <summary>Linha vertical no balde sob o mouse, os pontos nas linhas e um rótulo pequeno que não sai do controle.</summary>
-        private void DrawHover(Graphics g, TimelinePoint t, RectangleF main, RectangleF fpsBand, RectangleF pingBand, float k)
+        private void DrawHover(Graphics g, RectangleF bounds, TimelinePoint t, RectangleF main, RectangleF fpsBand, RectangleF pingBand, float k)
         {
             float half = (float)(timeline.BucketSeconds / 2);
             float x = X(t.At + half);
@@ -506,8 +516,8 @@ namespace MouseModes
             using (var format = new StringFormat(StringFormatFlags.NoWrap)) size = g.MeasureString(text, font, PointF.Empty, format);
             float bw = size.Width + 12 * k, bh = size.Height + 6 * k;
             float bx = x + 8 * k;
-            if (bx + bw > Width - 1) bx = x - 8 * k - bw;
-            bx = Math.Max(0, Math.Min(Width - 1 - bw, bx));
+            if (bx + bw > bounds.Right - 1) bx = x - 8 * k - bw;
+            bx = Math.Max(bounds.X, Math.Min(bounds.Right - 1 - bw, bx));
             var box = new RectangleF(bx, top, bw, bh);
             Theme.FillRounded(g, box, 4 * k, Theme.Surface2);
             Theme.StrokeRounded(g, box, 4 * k, Theme.BorderStrong, 1f);
@@ -652,12 +662,20 @@ namespace MouseModes
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = Begin(e);
+            Draw(g, items, new RectangleF(0, 0, Width, Height), g.DpiX / 96f);
+        }
+
+        /// <summary>
+        /// Desenha a legenda em bounds (px do dispositivo), com as medidas a 96 dpi multiplicadas por k (= g.DpiX / 96):
+        /// serve à janela e à imagem de compartilhar (MatchShare).
+        /// </summary>
+        internal static void Draw(Graphics g, IList<LegendItem> items, RectangleF bounds, float k)
+        {
             if (items.Count == 0) return;
-            float k = g.DpiX / 96f;
             Font font = Theme.Ui(FontSize);
-            int[] rows = RowsFor(ItemWidths(items), Width / k);
+            int[] rows = RowsFor(ItemWidths(items), bounds.Width / k);
             float lineH = LineHeight * k, mark = Mark * k;
-            float x = 0;
+            float x = bounds.X;
             int row = 0;
             using (var brush = new SolidBrush(Theme.TextSecondary))
             using (var format = new StringFormat(StringFormatFlags.NoWrap))
@@ -667,10 +685,10 @@ namespace MouseModes
                     if (rows[i] != row)
                     {
                         row = rows[i];
-                        x = 0;
+                        x = bounds.X;
                     }
                     LegendItem item = items[i];
-                    float top = row * lineH;
+                    float top = bounds.Y + row * lineH;
                     var markRect = new RectangleF(x, top + (lineH - mark) / 2, mark, mark);
                     if (item.Square)
                     {
