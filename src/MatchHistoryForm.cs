@@ -17,6 +17,7 @@ namespace MouseModes
         private readonly NeonButton open;
         private readonly NeonButton clear;
         private readonly EmptyHint empty;
+        private readonly int statusWidth;
         private List<MatchRecord> records = new List<MatchRecord>();
         private MatchReportForm reportForm;
 
@@ -71,13 +72,9 @@ namespace MouseModes
             empty.BringToFront();
             Controls.Add(listHost);
 
-            // Até 3 linhas: vazio e histórico desligado.
-            string longest = L.T("Nenhuma partida guardada ainda: o Raio-X entra aqui ao fim de cada partida de pelo menos 2 minutos no Performance.",
-                                 "No match saved yet: the X-ray comes here at the end of each match of at least 2 minutes in Performance.") +
-                             L.T(" O histórico está desligado: partidas novas não entram (Ajustes → Privacidade).",
-                                 " The history is off: new matches are not added (Settings → Privacy).");
-            status = MeasuredNote(longest, 20, listHost.Bottom + 8, width, Theme.TextSecondary, 8.5f);
-            status.Text = "";
+            // Começa com uma linha; SetStatus cresce para o texto que entrar (até 3 linhas: vazio e histórico desligado).
+            statusWidth = width;
+            status = MeasuredNote("", 20, listHost.Bottom + 8, width, Theme.TextSecondary, 8.5f);
             Controls.Add(status);
 
             // Abrir é a ação da tela (primária, à direita); apagar tudo é destrutivo e fica à esquerda, em vermelho.
@@ -91,7 +88,7 @@ namespace MouseModes
             Controls.Add(clear);
             ClientSize = new Size(480, buttonsY + 36 + 20);
 
-            Fill(MatchHistory.Load());
+            Fill(MatchHistory.Load()); // ajusta a linha de status (e os botões e a janela) ao texto de agora
             FinishLayout();
         }
 
@@ -104,6 +101,8 @@ namespace MouseModes
             foreach (MatchRecord r in records) list.Items.Add(r);
             list.EndUpdate();
             if (records.Count > 0) list.SelectedIndex = 0;
+            open.Enabled = list.SelectedIndex >= 0; // esvaziar a lista nem sempre avisa a troca de seleção
+            open.Invalidate();
             clear.Enabled = records.Count > 0;
             clear.Invalidate();
             empty.Visible = records.Count == 0;
@@ -117,7 +116,40 @@ namespace MouseModes
             if (!cfg.KeepMatchHistory)
                 text += L.T(" O histórico está desligado: partidas novas não entram (Ajustes → Privacidade).",
                             " The history is off: new matches are not added (Settings → Privacy).");
+            SetStatus(text);
+        }
+
+        /// <summary>
+        /// Troca o texto de baixo com a linha da altura dele: os botões vêm logo abaixo e a janela acompanha. Com a janela
+        /// aberta a linha só cresce (nunca encolhe): o status muda quando chega uma partida, quando o histórico é apagado ou
+        /// ligado/desligado, e a janela não fica sobe-e-desce a cada troca. A medida é a 96 dpi, na escala atual da linha.
+        /// </summary>
+        private void SetStatus(string text)
+        {
             status.Text = text;
+            float k = status.Width / (float)statusWidth;
+            int needed = (int)Math.Ceiling(Theme.TextHeight(text, status.Font, statusWidth) * k);
+            int delta = needed - status.Height;
+            if (delta <= 0) return;
+
+            // Com a rolagem de tela pequena, os controles estão no painel de conteúdo: ele cresce, e a rolagem junto.
+            Control host = status.Parent;
+            SuspendLayout();
+            status.Height = needed;
+            open.Top += delta;
+            clear.Top += delta;
+            if (host == null || host == this) Height += delta; // Height: no construtor o ClientSize ainda pode vir com a borda padrão
+            else host.Height += delta;
+            ResumeLayout(false);
+            if (IsHandleCreated && Visible && WindowState == FormWindowState.Normal) KeepOnScreen();
+        }
+
+        /// <summary>Janela que cresceu para baixo da área útil: sobe o que der e, se nem assim couber, passa a rolar.</summary>
+        private void KeepOnScreen()
+        {
+            Rectangle area = Screen.FromControl(this).WorkingArea;
+            if (Bottom > area.Bottom) Top = Math.Max(area.Top, area.Bottom - Height);
+            FitToWorkingArea(area);
         }
 
         /// <summary>"16/11 21:40 · cs2 · 47 min" e, na etiqueta, o FPS médio (ou nada, sem quadros).</summary>
@@ -163,8 +195,8 @@ namespace MouseModes
             if (reportForm != null && !reportForm.IsDisposed) reportForm.Close();
             Fill(MatchHistory.Load()); // o que não deu para apagar (arquivo em uso) continua aparecendo
             if (records.Count > 0)
-                status.Text = L.T(records.Count + " partida(s) não puderam ser apagadas agora; tente de novo.",
-                                  records.Count + " match(es) could not be deleted now; try again.");
+                SetStatus(L.T(records.Count + " partida(s) não puderam ser apagadas agora; tente de novo.",
+                              records.Count + " match(es) could not be deleted now; try again."));
             if (cleared != null) cleared();
         }
     }

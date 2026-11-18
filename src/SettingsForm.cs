@@ -766,8 +766,8 @@ namespace MouseModes
             return block.Bottom;
         }
 
-        /// <summary>Legenda logo abaixo de um grupo (6 px); devolve o pé dela.</summary>
-        public static int PlaceCaption(Control page, int y, Label caption)
+        /// <summary>Legenda ou nota da página logo abaixo de um grupo (6 px); devolve o pé dela.</summary>
+        public static int PlaceCaption(Control page, int y, Control caption)
         {
             caption.Location = new Point(0, y + CaptionGap);
             if (caption.Parent != page) page.Controls.Add(caption);
@@ -1326,8 +1326,10 @@ namespace MouseModes
 
         private void PlaceHint()
         {
-            hintNote.Location = new Point(0, contentBottom + Theme.Space.BetweenGroups);
-            SettingsLayout.FinishPage(this, hintNote.Visible ? hintNote.Bottom : contentBottom);
+            // A dica fica colada ao último grupo, como a legenda da Privacidade: assim o Dia a dia cabe sem rolar,
+            // com os 16 px de margem embaixo.
+            int bottom = SettingsLayout.PlaceCaption(this, contentBottom, hintNote);
+            SettingsLayout.FinishPage(this, hintNote.Visible ? bottom : contentBottom);
         }
 
         private static string[] SpeedNotes()
@@ -1566,71 +1568,181 @@ namespace MouseModes
         }
     }
 
-    /// <summary>Campo que grava um atalho: clique e aperte a combinação. Esc cancela; Ctrl ou Alt é obrigatório.</summary>
-    public class HotkeyBox : TextBox
+    /// <summary>O que o campo do atalho mostra agora.</summary>
+    public enum HotkeyBoxState
+    {
+        /// <summary>A combinação gravada, em keycaps.</summary>
+        Combination,
+        /// <summary>Com foco, esperando a combinação (texto de instrução).</summary>
+        Waiting,
+        /// <summary>Segurando Ctrl/Alt/Shift: os modificadores em keycaps e "+ …" no lugar da tecla final.</summary>
+        Pending,
+        /// <summary>A combinação apertada não serve; o texto é o motivo.</summary>
+        Problem,
+        /// <summary>Nenhum atalho gravado.</summary>
+        Empty
+    }
+
+    /// <summary>
+    /// Campo que grava um atalho: clique (ou Tab) e aperte a combinação. Esc cancela; Ctrl ou Alt é obrigatório. A
+    /// combinação aparece em keycaps, iguais às do pé da janela principal; o Text (o que o leitor de tela lê) continua
+    /// "CTRL + ALT + M", o texto de instrução ou o motivo de a combinação não servir.
+    /// </summary>
+    public class HotkeyBox : GControl
     {
         private static string Waiting { get { return L.T("Aperte o atalho (Esc cancela)", "Press the hotkey (Esc cancels)"); } }
+
+        private string[] caps; // teclas desenhadas; null = o Text, como aviso
 
         public uint Mods { get; private set; }
         public Keys Key { get; private set; }
 
+        /// <summary>O que aparece agora (para os testes e a pintura).</summary>
+        internal HotkeyBoxState State { get; private set; }
+
+        /// <summary>As teclas desenhadas como keycaps, ou null quando o campo mostra um texto.</summary>
+        internal string[] ShownCaps { get { return caps; } }
+
         public HotkeyBox()
         {
-            ReadOnly = true;
-            BorderStyle = BorderStyle.None;
+            SetStyle(ControlStyles.Selectable, true);
+            TabStop = true;
             Font = Theme.Ui(10f);
-            ShortcutsEnabled = false;
             Cursor = Cursors.Hand;
+            AccessibleRole = AccessibleRole.HotkeyField;
+            ShowCombination();
         }
+
+        protected override bool Interactive { get { return false; } }
 
         public void SetValue(uint mods, Keys key)
         {
             Mods = mods;
             Key = key;
-            Text = HotkeyWindow.Describe(mods, key);
+            ShowCombination();
+        }
+
+        private void ShowCombination()
+        {
+            if (Key == Keys.None) Display(HotkeyBoxState.Empty, null, L.T("Nenhum atalho", "No hotkey"));
+            else Display(HotkeyBoxState.Combination, HotkeyWindow.Caps(Mods, Key), HotkeyWindow.Describe(Mods, Key));
+        }
+
+        private void Display(HotkeyBoxState state, string[] keys, string text)
+        {
+            State = state;
+            caps = keys;
+            Text = text;
+            Invalidate();
+        }
+
+        protected override void OnTextChanged(EventArgs e)
+        {
+            base.OnTextChanged(e);
+            // O leitor de tela acompanha a troca (instrução → combinação) como faria numa caixa de texto.
+            if (IsHandleCreated)
+            {
+                AccessibilityNotifyClients(AccessibleEvents.NameChange, -1);
+                AccessibilityNotifyClients(AccessibleEvents.ValueChange, -1);
+            }
+        }
+
+        protected override AccessibleObject CreateAccessibilityInstance()
+        {
+            return new HotkeyAccessibleObject(this);
+        }
+
+        /// <summary>Nome e valor = o Text ("CTRL + ALT + M"), como o da caixa de texto que este campo substituiu.</summary>
+        private sealed class HotkeyAccessibleObject : ControlAccessibleObject
+        {
+            public HotkeyAccessibleObject(HotkeyBox owner) : base(owner) { }
+
+            public override string Value
+            {
+                get { return Owner.Text; }
+            }
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (e.Button == MouseButtons.Left && !Focused) Focus();
         }
 
         protected override void OnGotFocus(EventArgs e)
         {
             base.OnGotFocus(e);
-            Text = Waiting;
+            Display(HotkeyBoxState.Waiting, null, Waiting);
         }
 
         protected override void OnLostFocus(EventArgs e)
         {
             base.OnLostFocus(e);
-            Text = HotkeyWindow.Describe(Mods, Key);
+            ShowCombination();
         }
 
-        // ProcessCmdKey recebe também Alt+tecla, que nunca chega ao KeyDown de uma caixa de texto.
+        // ProcessCmdKey recebe também Alt+tecla e as setas, antes de qualquer outro tratamento do formulário.
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            return HandleKey(keyData) || base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        /// <summary>Uma tecla apertada com o campo em foco. False = não é do campo (Tab segue para o próximo).</summary>
+        internal bool HandleKey(Keys keyData)
         {
             Keys key = keyData & Keys.KeyCode;
             uint mods = HotkeyWindow.ModsFrom(keyData & Keys.Modifiers);
 
             if (key == Keys.Escape && mods == 0)
             {
-                Text = HotkeyWindow.Describe(Mods, Key);
+                ShowCombination();
                 if (Parent != null) Parent.Focus();
                 return true;
             }
-            if (key == Keys.Tab && mods == 0) return base.ProcessCmdKey(ref msg, keyData); // Tab segue para o próximo campo
+            if (key == Keys.Tab && mods == 0) return false; // Tab segue para o próximo campo
             if (HotkeyWindow.IsModifier(key))
             {
                 // Ainda segurando Ctrl/Alt/Shift: mostra o começo da combinação ("CTRL + ALT + …").
-                string[] caps = HotkeyWindow.Caps(mods, Keys.None); // a última é a tecla, que ainda não veio
-                Text = caps.Length == 1 ? Waiting : string.Join(" + ", caps, 0, caps.Length - 1) + " + …";
+                string[] held = HotkeyWindow.ModifierCaps(mods);
+                if (held.Length == 0) Display(HotkeyBoxState.Waiting, null, Waiting);
+                else Display(HotkeyBoxState.Pending, held, string.Join(" + ", held) + " + …");
                 return true;
             }
 
             string problem = HotkeyWindow.Validate(mods, key);
             if (problem != null)
             {
-                Text = problem;
+                Display(HotkeyBoxState.Problem, null, problem);
                 return true;
             }
             SetValue(mods, key);
             return true;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = Begin(e);
+            float k = g.DpiY / 96f;
+            bool pending = State == HotkeyBoxState.Pending;
+            Font more = Theme.UiSemibold(Theme.TypeScale.Caption);
+            // Uma combinação longa demais para as keycaps (ex.: CTRL + ALT + SHIFT + BACKSPACE) fica em texto, como antes.
+            if (caps != null && Keycaps.Width(g, caps, k, pending) + (pending ? g.MeasureString("…", more).Width : 0) <= Width)
+            {
+                // As keycaps do HotkeyHint, centradas na altura do campo (a profundidade fica por baixo da tecla).
+                // O fundo do campo já é Surface2, então a tecla usa SurfaceHover para continuar destacada.
+                float capH = Keycaps.RowHeight(g, k) - 2 * k;
+                float top = (float)Math.Floor((Height - capH - Keycaps.Depth * k) / 2f);
+                float x = Keycaps.Draw(g, caps, 0, top, capH, k, pending, Theme.SurfaceHover);
+                if (pending)
+                    Theme.DrawText(g, "…", more, Theme.TextTertiary, new RectangleF(x, top, Math.Max(1, Width - x), capH), StringAlignment.Near, StringAlignment.Center, false);
+                return;
+            }
+            Color color = State == HotkeyBoxState.Problem ? Theme.Warning
+                        : State == HotkeyBoxState.Empty ? Theme.TextTertiary
+                        : State == HotkeyBoxState.Waiting ? Theme.TextSecondary
+                        : Theme.Text;
+            // 1 px depois da borda, onde começava o texto da caixa de texto que este campo substituiu.
+            Theme.DrawText(g, Text, Font, color, new RectangleF(1, 0, Math.Max(1, Width - 1), Height), StringAlignment.Near, StringAlignment.Center, false);
         }
     }
 }

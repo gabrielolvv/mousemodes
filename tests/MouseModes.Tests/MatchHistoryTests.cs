@@ -332,8 +332,51 @@ namespace MouseModes.Tests
                 form.ConfirmClear = question => true;
                 clear.Invoke(form, null);
                 Assert.Empty(MatchHistory.Load());
-                Assert.Equal(0, list.Items.Count);
+                Assert.Empty(list.Items);
                 Assert.True(cleared);
+            }
+        }
+
+        [Fact]
+        public void HistoryStatusLineFitsItsTextAndOnlyGrowsWhileOpen()
+        {
+            var t = new DateTime(2026, 11, 16, 12, 0, 0, DateTimeKind.Utc);
+            MatchHistory.Save(Match("cs2", t));
+            MatchHistory.Save(Match("cs2", t.AddHours(1)));
+            var cfg = new AppConfig { KeepMatchHistory = true };
+            const System.Reflection.BindingFlags field = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+
+            using (var form = new MatchHistoryForm(cfg, null, null))
+            {
+                var status = (Label)typeof(MatchHistoryForm).GetField("status", field).GetValue(form);
+                var open = (Control)typeof(MatchHistoryForm).GetField("open", field).GetValue(form);
+                var clear = (Control)typeof(MatchHistoryForm).GetField("clear", field).GetValue(form);
+                float k = status.Width / 440f;
+                Func<string, int> needed = text => (int)Math.Ceiling(Theme.TextHeight(text, status.Font, 440) * k);
+                List<MatchRecord> two = MatchHistory.Load();
+
+                // "2 partidas guardadas.": a linha tem a altura do texto (não a das 3 linhas do caso mais longo).
+                Assert.Equal(needed(status.Text), status.Height);
+                int gap = open.Top - status.Bottom, oneLine = status.Height, formHeight = form.Height;
+                Assert.True(gap > 0);
+
+                // Vazio com o histórico desligado (o texto mais longo): cresce e empurra os botões e a janela juntos.
+                cfg.KeepMatchHistory = false;
+                form.Fill(new List<MatchRecord>());
+                Assert.True(status.Height >= needed(status.Text));
+                Assert.True(status.Height > oneLine);
+                Assert.Equal(gap, open.Top - status.Bottom);
+                Assert.Equal(open.Top, clear.Top);
+                Assert.False(open.Enabled); // sem partida, nada para abrir
+                Assert.Equal(formHeight + status.Height - oneLine, form.Height);
+
+                // De volta a uma linha: com a janela aberta não encolhe (nada de sobe-e-desce).
+                int grown = status.Height, grownForm = form.Height;
+                cfg.KeepMatchHistory = true;
+                form.Fill(two);
+                Assert.Equal(grown, status.Height);
+                Assert.Equal(grownForm, form.Height);
+                Assert.Equal(gap, open.Top - status.Bottom);
             }
         }
 

@@ -5,6 +5,22 @@
 Cada versão tem uma seção `## X.Y.Z`, aqui e no `CHANGELOG.en.md`. A Release do GitHub usa a seção da própria versão
 dos dois arquivos como texto, primeiro em português e depois em inglês.
 
+## Próxima versão
+
+### Novidades
+
+- **Atalho em teclas nos Ajustes:** o campo do atalho mostra a combinação como teclas desenhadas, iguais às da janela
+  principal. Continua do mesmo jeito: clique ou Tab, aperte a combinação nova; Esc cancela.
+
+### Correções
+
+- **Tela baixa ou escala alta:** quando a janela não cabe e passa a rolar, a barra de rolagem é a barra fina do tema,
+  e não mais a calha escura do Windows.
+- **Raio-X com a comparação numa tela de 1080 px:** a nota do fim e o botão Fechar ficavam fora da rolagem e não
+  apareciam. Agora a rolagem vai até eles.
+- **Histórico:** sem o espaço vazio entre "3 partidas guardadas." e os botões.
+- **Ajustes, página Dia a dia:** cabe inteira, sem uma rolagem de poucos pixels.
+
 ## 1.18.0
 
 ### Novidades

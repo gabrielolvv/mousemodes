@@ -91,10 +91,23 @@ namespace MouseModes
                 systemBorder = DwmSetWindowAttribute(Handle, DWMWA_BORDER_COLOR, ref border, sizeof(int)) == 0;
             }
             catch { } // Windows 10 ou outro sistema: ignora (a janela pinta a borda)
+            if (ScrollerBar != null) ScrollerBar.EdgeColor = systemBorder ? Color.Empty : Theme.Border;
         }
 
         /// <summary>Área de rolagem criada quando a janela não cabe na tela; null enquanto couber.</summary>
         internal Panel Scroller { get; private set; }
+
+        /// <summary>Barra fina na margem direita que mostra e move a rolagem do Scroller; null enquanto couber.</summary>
+        internal ThinScrollBar ScrollerBar { get; private set; }
+
+        /// <summary>Largura (px a 96 dpi) da coluna da barra fina: o que a janela cresce quando passa a rolar.</summary>
+        internal const int ScrollGutter = 12;
+
+        /// <summary>A coluna da barra fina na escala atual da janela.</summary>
+        internal int ScaledScrollGutter
+        {
+            get { return (int)Math.Round(ScrollGutter * DeviceDpi / 96f); }
+        }
 
         /// <summary>
         /// Janela mais alta que a área útil da tela (escala do Windows alta num notebook): encaixa nela e rola.
@@ -118,7 +131,8 @@ namespace MouseModes
 
             int bar = TitleBar.Height;
             int contentHeight = ClientSize.Height - bar;
-            int scrollBar = SystemInformation.VerticalScrollBarWidth;
+            int nativeBar = SystemInformation.VerticalScrollBarWidth;
+            int gutter = ScaledScrollGutter;
             var moving = new List<Control>();
             int lowest = bar;
             foreach (Control c in Controls)
@@ -127,6 +141,12 @@ namespace MouseModes
                 moving.Add(c);
                 lowest = Math.Max(lowest, c.Bottom);
             }
+
+            // O Windows limita a altura da janela (SystemInformation.MaxWindowTrackSize, a altura da área virtual + 20):
+            // o Raio-X com a comparação pede mais que isso numa tela de 1080 px e os últimos controles (nota e Fechar)
+            // ficam abaixo da área cliente. O painel de conteúdo vai até eles, com a margem de baixo de 16 px.
+            if (lowest > ClientSize.Height - 1)
+                contentHeight = lowest - bar + (int)Math.Round(16 * DeviceDpi / 96f);
 
             // O último controle cabe acima da borda de 1 px: basta perder parte da margem vazia, sem rolagem.
             if (lowest <= area.Height - 1)
@@ -137,28 +157,42 @@ namespace MouseModes
             }
 
             SuspendLayout();
-            // Mais larga pela barra de rolagem: o conteúdo continua com a largura de antes.
-            Width += scrollBar;
-            Left = Math.Max(area.Left, Math.Min(Left - scrollBar / 2, area.Right - Width));
+            // Mais larga só pela coluna da barra fina: o conteúdo continua com a largura de antes.
+            int contentWidth = ClientSize.Width - 2;
+            Width += gutter;
+            Left = Math.Max(area.Left, Math.Min(Left - gutter / 2, area.Right - Width));
             Height = Math.Max(bar * 3, area.Height);
             Top = area.Top;
 
-            // Dentro da borda de 1 px que a janela desenha.
+            // Como as páginas dos Ajustes: o painel com rolagem vai além da coluna da barra fina, e a barra nativa dele
+            // (a calha escura do Windows) fica nessa parte, recortada pela região do painel (OnLayout). Fica dentro da
+            // borda de 1 px que a janela desenha em cima, à esquerda e embaixo.
             var panel = new Panel
             {
                 AutoScroll = true,
                 BackColor = BackColor,
-                Bounds = new Rectangle(1, bar, ClientSize.Width - 2, ClientSize.Height - bar - 1),
+                Bounds = new Rectangle(1, bar, contentWidth + nativeBar, ClientSize.Height - bar - 1),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
             };
-            Theme.DarkScroll(panel); // barra de rolagem escura em vez da clara do Windows
+            Theme.DarkScroll(panel); // se a barra nativa escapar da região (outro DPI), ao menos escura
             // Os controles vão num painel simples da largura de antes, e só ele entra na rolagem: o que passa da borda
             // direita de propósito (as páginas dos Ajustes, com a barra nativa escondida além dela) fica recortado nele
             // e não cria rolagem para o lado. A altura dele inclui a margem de baixo, que também rola.
             var content = new Panel
             {
                 BackColor = BackColor,
-                Bounds = new Rectangle(0, 0, ClientSize.Width - scrollBar - 2, contentHeight)
+                Bounds = new Rectangle(0, 0, contentWidth, contentHeight)
+            };
+            // A barra fina ocupa a coluna nova e a da borda direita (como a dos Ajustes: no Windows 10 ela pinta essa
+            // borda, EdgeColor), e cobre a parte da barra nativa que ainda fica dentro da janela.
+            var thin = new ThinScrollBar
+            {
+                BackColor = BackColor,
+                TabStop = false,
+                RightInset = 4,
+                EdgeColor = SystemBorder || !IsHandleCreated ? Color.Empty : Theme.Border,
+                Bounds = new Rectangle(1 + contentWidth, bar, ClientSize.Width - 1 - contentWidth, panel.Height),
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right
             };
             panel.SuspendLayout();
             content.SuspendLayout();
@@ -169,11 +203,48 @@ namespace MouseModes
             }
             panel.Controls.Add(content);
             Controls.Add(panel);
+            // Na tela os dois não se sobrepõem (região do painel). Por último na ordem: quem imprime a janela
+            // (DrawToBitmap, WM_PRINT) ignora a região e desenha os de baixo por cima, e a barra fina tem de ganhar.
+            Controls.Add(thin);
             content.ResumeLayout(false);
             panel.ResumeLayout(true); // calcula já a rolagem pelo tamanho do painel de conteúdo
-            ResumeLayout(true);
             Scroller = panel;
+            ScrollerBar = thin;
+            thin.Target = panel;
+            // Qualquer rolagem (roda, teclado, foco num controle fora da vista, a própria barra) move o painel de
+            // conteúdo: a barra fina relê a posição. O WinForms só atualiza a barra nativa depois de mover os controles,
+            // então a leitura também vai para a fila de mensagens. O tamanho também (o histórico faz o conteúdo crescer).
+            EventHandler sync = (s, e) =>
+            {
+                thin.Sync();
+                if (thin.IsHandleCreated && !thin.IsDisposed) thin.BeginInvoke((MethodInvoker)thin.Sync);
+            };
+            content.LocationChanged += sync;
+            content.SizeChanged += sync;
+            panel.SizeChanged += sync;
+            ResumeLayout(true);
+            ClipScroller();
             return true;
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            ClipScroller();
+        }
+
+        private Size scrollerClip;
+
+        /// <summary>O painel com rolagem só aparece até a barra fina: a barra nativa dele fica recortada.</summary>
+        private void ClipScroller()
+        {
+            if (Scroller == null || ScrollerBar == null) return;
+            var visible = new Size(Math.Max(1, ScrollerBar.Left - Scroller.Left), Scroller.Height);
+            if (visible == scrollerClip && Scroller.Region != null) return;
+            scrollerClip = visible;
+            Region old = Scroller.Region;
+            Scroller.Region = new Region(new Rectangle(Point.Empty, visible));
+            if (old != null) old.Dispose();
         }
 
         protected override void OnKeyDown(KeyEventArgs e)

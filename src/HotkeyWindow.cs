@@ -189,11 +189,18 @@ namespace MouseModes
         /// <summary>Teclas para desenhar: "CTRL", "ALT", "SHIFT" e a tecla ("K", "5", "F12", "NUM 1").</summary>
         public static string[] Caps(uint mods, Keys key)
         {
+            var caps = new List<string>(ModifierCaps(mods));
+            caps.Add(KeyName(key));
+            return caps.ToArray();
+        }
+
+        /// <summary>Só os modificadores, na ordem da tela ("CTRL", "ALT", "SHIFT"): a combinação antes da tecla final.</summary>
+        public static string[] ModifierCaps(uint mods)
+        {
             var caps = new List<string>();
             if ((mods & MOD_CONTROL) != 0) caps.Add("CTRL");
             if ((mods & MOD_ALT) != 0) caps.Add("ALT");
             if ((mods & MOD_SHIFT) != 0) caps.Add("SHIFT");
-            caps.Add(KeyName(key));
             return caps.ToArray();
         }
 
